@@ -18,6 +18,8 @@ from app.services.agent_tools import (
     tool_cancel_appointment,
     tool_get_doctor_slots,
     tool_reschedule,
+    tool_get_medications,
+    tool_request_refill,
     tool_reschedule_alternatives,
     tool_schedule_reminder,
     tool_search_doctors,
@@ -29,6 +31,7 @@ from app.services.chat_ui import (
     build_confirm_reschedule_ui,
     build_doctor_list_ui,
     build_slot_list_ui,
+    build_yes_no_ui,
     doctor_list_intro,
     slot_list_intro,
 )
@@ -299,6 +302,8 @@ def _affirmative_booking(text: str, history: list[dict] | None = None) -> bool:
         return False
     if history and _last_assistant_awaiting_confirm(history) and _yes(t):
         return False
+    if history and _last_assistant_refill_confirm(history) and _yes(t):
+        return False
     if _yes(t):
         return True
     if t.startswith(("yes ", "yes,", "yeah ", "sure ", "ok ", "okay ")):
@@ -318,6 +323,11 @@ def _last_assistant_awaiting_confirm(history: list[dict]) -> bool:
     return "before booking, please confirm" in content or (
         "confirm booking" in content and ("yes/no" in content or "please confirm" in content)
     )
+
+
+def _last_assistant_refill_confirm(history: list[dict]) -> bool:
+    content = _last_assistant_content(history)
+    return "refill request" in content or "submit a refill" in content or "submit this to your doctor" in content
 
 
 def _last_assistant_offered_reminder(history: list[dict]) -> bool:
@@ -360,6 +370,8 @@ def _booking_intent(text: str, history: list[dict] | None = None) -> bool:
     if history and _last_assistant_offered_reminder(history) and _yes(t):
         return False
     if history and _last_assistant_awaiting_confirm(history) and _yes(t):
+        return False
+    if history and _last_assistant_refill_confirm(history) and _yes(t):
         return False
     if any(w in t for w in ("cancel", "reschedule")):
         return False
@@ -450,6 +462,13 @@ async def _show_doctor_list(
 
 def should_skip_booking_resolution(ctx: AgentContext) -> bool:
     """Triage answers like 'no' must not be treated as booking decline."""
+    if (
+        ctx.session.get("care_goal") == "refill"
+        or ctx.session.get("awaiting") in ("confirm_refill", "pick_refill_med")
+        or ctx.session.get("active_specialist") == "refill_agent"
+        or _last_assistant_refill_confirm(ctx.history)
+    ):
+        return True
     if (
         ctx.session.get("care_goal") in ("post_booking_reminder", "manage_appointment")
         or ctx.session.get("awaiting") in ("confirm_cancel", "reschedule_pick_slot", "confirm_reschedule")
@@ -746,6 +765,176 @@ def format_report_reply(analysis: dict, user_text: str) -> str:
     return "\n".join(lines)
 
 
+_REFILL_START_RE = re.compile(
+    r"\b(refill|prescription refill|running low|tablets left|pills left|need more (?:pills|tablets|medication))\b",
+    re.I,
+)
+
+_EMERGENCY_BLOCK_RE = re.compile(
+    r"\b(chest pain|can't breathe|cannot breathe|difficulty breathing|stroke|severe bleeding|unconscious)\b",
+    re.I,
+)
+
+
+def _refill_intent(text: str) -> bool:
+    return bool(_REFILL_START_RE.search(text))
+
+
+def _blocks_refill(text: str) -> bool:
+    return bool(_EMERGENCY_BLOCK_RE.search(text))
+
+
+def _match_medication_name(text: str, meds: list[dict]) -> str | None:
+    for med in meds:
+        if med["name"].lower() in text.lower():
+            return med["name"]
+    return None
+
+
+async def resolve_refill_session(ctx: AgentContext) -> AgentResponse | None:
+    """Deterministic refill flow — load meds, confirm, submit request_refill."""
+    if _blocks_refill(ctx.text):
+        return None
+
+    session = ctx.session
+    active = session.get("active_specialist")
+    care_goal = session.get("care_goal")
+    awaiting = session.get("awaiting")
+    in_refill_flow = (
+        care_goal == "refill"
+        or active == "refill_agent"
+        or awaiting in ("confirm_refill", "pick_refill_med")
+        or _refill_intent(ctx.text)
+    )
+    if not in_refill_flow:
+        return None
+
+    meds = (await tool_get_medications(ctx.db, ctx.patient.id)).get("medications") or []
+    if not meds:
+        return AgentResponse(
+            reply=(
+                "I don't see any active prescriptions on your account. "
+                "Please contact your clinic to add medications before requesting a refill."
+            ),
+            agent="refill_agent",
+            session_patch={"care_goal": None, "awaiting": None, "refill_medication": None},
+        )
+
+    med_name = session.get("refill_medication") or _match_medication_name(ctx.text, meds)
+    if not med_name and len(meds) == 1 and (_refill_intent(ctx.text) or awaiting == "pick_refill_med"):
+        med_name = meds[0]["name"]
+
+    if awaiting == "confirm_refill":
+        if _no(ctx.text):
+            return AgentResponse(
+                reply="No problem. Let me know whenever you need a refill.",
+                agent="refill_agent",
+                session_patch={"care_goal": None, "awaiting": None, "refill_medication": None},
+            )
+        if _yes(ctx.text) and med_name:
+            result = await tool_request_refill(ctx.db, ctx.patient.id, ctx.patient.user_id, med_name)
+            if result.get("success"):
+                doctor_name = result.get("doctor_name", "your physician")
+                return AgentResponse(
+                    reply=(
+                        f"✅ **Refill request submitted**\n\n"
+                        f"**Medication:** {result.get('medication', med_name)}\n"
+                        f"**Assigned to:** {doctor_name}\n\n"
+                        f"{result.get('message', 'Your physician will review this request.')}"
+                    ),
+                    agent="refill_agent",
+                    session_patch={"care_goal": None, "awaiting": None, "refill_medication": None},
+                )
+            return AgentResponse(
+                reply=result.get("message", "Could not submit refill request."),
+                agent="refill_agent",
+            )
+
+    if med_name and (_match_medication_name(ctx.text, meds) or session.get("refill_medication")):
+        return AgentResponse(
+            reply=(
+                f"I found **{med_name}** on your active prescription list. "
+                f"Would you like me to submit a refill request to your doctor?"
+            ),
+            agent="refill_agent",
+            ui=build_yes_no_ui(
+                yes_label="Yes, submit refill",
+                yes_message="Yes",
+                no_label="Not now",
+                no_message="No",
+            ),
+            session_patch={
+                "care_goal": "refill",
+                "active_specialist": "refill_agent",
+                "awaiting": "confirm_refill",
+                "refill_medication": med_name,
+            },
+        )
+
+    if _refill_intent(ctx.text):
+        if len(meds) == 1:
+            only = meds[0]
+            return AgentResponse(
+                reply=(
+                    f"You have **{only['name']} {only['dosage']}** ({only['frequency']}) on file. "
+                    f"Would you like me to submit a refill request?"
+                ),
+                agent="refill_agent",
+                ui=build_yes_no_ui(
+                    yes_label="Yes, submit refill",
+                    yes_message="Yes",
+                    no_label="Not now",
+                    no_message="No",
+                ),
+                session_patch={
+                    "care_goal": "refill",
+                    "active_specialist": "refill_agent",
+                    "awaiting": "confirm_refill",
+                    "refill_medication": only["name"],
+                },
+            )
+
+        names = ", ".join(f"**{m['name']}** ({m['dosage']})" for m in meds)
+        return AgentResponse(
+            reply=(
+                f"I can help with a refill. Your active prescriptions: {names}.\n\n"
+                "Which medication do you need refilled?"
+            ),
+            agent="refill_agent",
+            session_patch={
+                "care_goal": "refill",
+                "active_specialist": "refill_agent",
+                "awaiting": "pick_refill_med",
+            },
+        )
+
+    if awaiting == "pick_refill_med" and len(ctx.text.strip()) > 2:
+        guessed = _match_medication_name(ctx.text, meds) or ctx.text.strip()
+        for med in meds:
+            if guessed.lower() in med["name"].lower() or med["name"].lower() in guessed.lower():
+                return AgentResponse(
+                    reply=(
+                        f"I'll request a refill for **{med['name']} {med['dosage']}**. "
+                        f"Submit this to your doctor?"
+                    ),
+                    agent="refill_agent",
+                    ui=build_yes_no_ui(
+                        yes_label="Yes, submit refill",
+                        yes_message="Yes",
+                        no_label="Not now",
+                        no_message="No",
+                    ),
+                    session_patch={
+                        "care_goal": "refill",
+                        "active_specialist": "refill_agent",
+                        "awaiting": "confirm_refill",
+                        "refill_medication": med["name"],
+                    },
+                )
+
+    return None
+
+
 def synthesize_tool_result(tool_result: dict, ctx: AgentContext) -> AgentResponse | None:
     if tool_result.get("doctors") is not None and "total" in tool_result:
         doctors = tool_result.get("doctors", [])
@@ -812,6 +1001,53 @@ def synthesize_tool_result(tool_result: dict, ctx: AgentContext) -> AgentRespons
                 "last_appointment_id": tool_result.get("appointment_id"),
                 "care_goal": "manage_appointment",
             },
+        )
+
+    if tool_result.get("success") and tool_result.get("medication"):
+        doctor_name = tool_result.get("doctor_name", "your physician")
+        return AgentResponse(
+            reply=(
+                f"✅ **Refill request submitted**\n\n"
+                f"**Medication:** {tool_result.get('medication')}\n"
+                f"**Assigned to:** {doctor_name}\n\n"
+                f"{tool_result.get('message', 'Your physician will review this request.')}"
+            ),
+            agent="refill_agent",
+            session_patch={"care_goal": None, "awaiting": None, "refill_medication": None},
+        )
+
+    if tool_result.get("medications") is not None:
+        meds = tool_result.get("medications") or []
+        if not meds:
+            return AgentResponse(
+                reply="I don't see any active prescriptions on your account.",
+                agent="refill_agent",
+            )
+        if len(meds) == 1:
+            only = meds[0]
+            return AgentResponse(
+                reply=(
+                    f"You have **{only['name']} {only['dosage']}** on file. "
+                    f"Would you like me to submit a refill request?"
+                ),
+                agent="refill_agent",
+                ui=build_yes_no_ui(
+                    yes_label="Yes, submit refill",
+                    yes_message="Yes",
+                    no_label="Not now",
+                    no_message="No",
+                ),
+                session_patch={
+                    "care_goal": "refill",
+                    "awaiting": "confirm_refill",
+                    "refill_medication": only["name"],
+                },
+            )
+        names = ", ".join(f"**{m['name']}** ({m['dosage']})" for m in meds)
+        return AgentResponse(
+            reply=f"Your active prescriptions: {names}. Which medication needs a refill?",
+            agent="refill_agent",
+            session_patch={"care_goal": "refill", "awaiting": "pick_refill_med"},
         )
 
     return None

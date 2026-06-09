@@ -6,6 +6,11 @@ from typing import Any
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.emergency_detection import (
+    build_emergency_reply,
+    detect_emergency,
+    detect_mental_health_crisis,
+)
 from app.models import Conversation, Message, Patient
 from app.models.enums import MessageRole
 from app.multi_agent.offline_fallback import offline_education_reply, plan_triage_turn
@@ -109,6 +114,34 @@ async def process_guest_message(session_id: str, text: str) -> dict[str, Any]:
 
     session = data.get("session") or {}
     history = data.get("messages") or []
+
+    if detect_mental_health_crisis(text):
+        reply = build_emergency_reply(mental_health_crisis=True)
+        history.append({"role": "user", "content": text})
+        history.append({"role": "assistant", "content": reply, "agent": "emergency", "emergency": True})
+        data["messages"] = history[-40:]
+        await save_guest_session(session_id, data)
+        return {
+            "reply": reply,
+            "emergency": True,
+            "agent": "emergency",
+            "ui": None,
+            "requires_signup": False,
+        }
+
+    if detect_emergency(text):
+        reply = build_emergency_reply()
+        history.append({"role": "user", "content": text})
+        history.append({"role": "assistant", "content": reply, "agent": "emergency", "emergency": True})
+        data["messages"] = history[-40:]
+        await save_guest_session(session_id, data)
+        return {
+            "reply": reply,
+            "emergency": True,
+            "agent": "emergency",
+            "ui": None,
+            "requires_signup": False,
+        }
 
     if _is_symptom_triage_start(text) and not session.get("care_goal"):
         reply, ui = _begin_symptom_triage_reply()

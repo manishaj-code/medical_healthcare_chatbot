@@ -44,6 +44,7 @@ class MessageResponse(ORMBase):
     ui: dict[str, Any] | None = None
     attachment: dict[str, Any] | None = None
     report_ack: bool = False
+    emergency: bool = False
 
 
 class ConversationResponse(ORMBase):

@@ -40,6 +40,19 @@ interface PatientConversation {
   messages: ChatMessage[];
 }
 
+interface RefillRequest {
+  id: string;
+  patient_id: string;
+  patient_name: string;
+  medication_name: string;
+  medication_dosage: string | null;
+  medication_frequency: string | null;
+  status: string;
+  denial_reason: string | null;
+  requested_at: string | null;
+  reviewed_at: string | null;
+}
+
 function formatTime(t: string): string {
   const parts = t.split(":");
   if (parts.length < 2) return t;
@@ -59,11 +72,28 @@ export default function DoctorDashboard() {
   const [loadingDetail, setLoadingDetail] = useState(false);
   const [tab, setTab] = useState<"summary" | "chats">("summary");
   const [mySlots, setMySlots] = useState<{ date: string; time: string }[]>([]);
+  const [refillRequests, setRefillRequests] = useState<RefillRequest[]>([]);
+  const [refillLoading, setRefillLoading] = useState(false);
+  const [denyTarget, setDenyTarget] = useState<RefillRequest | null>(null);
+  const [denyReason, setDenyReason] = useState("Please schedule a follow-up visit before refilling.");
+
+  const loadRefills = async () => {
+    setRefillLoading(true);
+    try {
+      const rows = await api<RefillRequest[]>("/api/v1/doctor/refill-requests");
+      setRefillRequests(rows);
+    } catch (err) {
+      console.error(err);
+      setRefillRequests([]);
+    }
+    setRefillLoading(false);
+  };
 
   useEffect(() => {
     api<Appointment[]>("/api/v1/doctor/appointments").then(setAppointments).catch(console.error);
     api<Patient[]>("/api/v1/doctor/patients").then(setPatients).catch(console.error);
     api<{ date: string; time: string }[]>("/api/v1/doctor/availability").then(setMySlots).catch(console.error);
+    void loadRefills();
   }, []);
 
   const seedSlots = async () => {
@@ -104,11 +134,100 @@ export default function DoctorDashboard() {
     return a.date === today;
   });
 
+  const pendingRefills = refillRequests.filter((r) => r.status === "pending");
+
+  const approveRefill = async (requestId: string) => {
+    await api(`/api/v1/doctor/refill-requests/${requestId}/approve`, { method: "POST" });
+    await loadRefills();
+  };
+
+  const submitDeny = async () => {
+    if (!denyTarget) return;
+    await api(`/api/v1/doctor/refill-requests/${denyTarget.id}/deny`, {
+      method: "POST",
+      body: JSON.stringify({ reason: denyReason.trim() || undefined }),
+    });
+    setDenyTarget(null);
+    setDenyReason("Please schedule a follow-up visit before refilling.");
+    await loadRefills();
+  };
+
   return (
     <div>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "1rem" }}>
         <h1 style={{ margin: 0 }}>Doctor Dashboard</h1>
         <span className="muted-text">Dr. {localStorage.getItem("user_name") || "Doctor"}</span>
+      </div>
+
+      <div className="card refill-requests-card" style={{ marginBottom: "1rem" }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "0.5rem" }}>
+          <h3 style={{ margin: 0 }}>Prescription refill requests ({pendingRefills.length} pending)</h3>
+          <button type="button" className="btn btn-outline" onClick={() => void loadRefills()} disabled={refillLoading}>
+            Refresh
+          </button>
+        </div>
+        <p className="muted-text" style={{ fontSize: "0.85rem", marginTop: 0 }}>
+          Review patient refill requests here. Approve to notify the patient they can pick up at pharmacy, or deny with a reason.
+        </p>
+        {refillLoading && <p className="muted-text">Loading refill requests...</p>}
+        {!refillLoading && pendingRefills.length === 0 && (
+          <p className="muted-text">No pending refill requests.</p>
+        )}
+        {!refillLoading && pendingRefills.length > 0 && (
+          <table>
+            <thead>
+              <tr>
+                <th>Patient</th>
+                <th>Medication</th>
+                <th>Requested</th>
+                <th>Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              {pendingRefills.map((r) => (
+                <tr key={r.id}>
+                  <td>{r.patient_name}</td>
+                  <td>
+                    {r.medication_name} {r.medication_dosage || ""}
+                    {r.medication_frequency ? ` · ${r.medication_frequency}` : ""}
+                  </td>
+                  <td>{r.requested_at ? new Date(r.requested_at).toLocaleString() : "—"}</td>
+                  <td style={{ display: "flex", gap: "0.5rem", flexWrap: "wrap" }}>
+                    <button type="button" className="btn btn-primary" style={{ fontSize: "0.8rem" }} onClick={() => void approveRefill(r.id)}>
+                      Approve
+                    </button>
+                    <button type="button" className="btn btn-outline" style={{ fontSize: "0.8rem" }} onClick={() => setDenyTarget(r)}>
+                      Deny
+                    </button>
+                    <button type="button" className="btn btn-outline" style={{ fontSize: "0.8rem" }} onClick={() => openPatient(r.patient_id)}>
+                      View patient
+                    </button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
+        {refillRequests.some((r) => r.status !== "pending") && (
+          <>
+            <h4 style={{ marginTop: "1rem" }}>Recent decisions</h4>
+            <table>
+              <thead>
+                <tr><th>Patient</th><th>Medication</th><th>Status</th><th>Reviewed</th></tr>
+              </thead>
+              <tbody>
+                {refillRequests.filter((r) => r.status !== "pending").slice(0, 8).map((r) => (
+                  <tr key={r.id}>
+                    <td>{r.patient_name}</td>
+                    <td>{r.medication_name} {r.medication_dosage || ""}</td>
+                    <td><span className={`badge ${r.status === "approved" ? "success" : "danger"}`}>{r.status}</span></td>
+                    <td>{r.reviewed_at ? new Date(r.reviewed_at).toLocaleString() : "—"}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </>
+        )}
       </div>
 
       <div className="card" style={{ marginBottom: "1rem" }}>
@@ -190,6 +309,31 @@ export default function DoctorDashboard() {
         </table>
         {appointments.length === 0 && <p className="muted-text">No appointments scheduled.</p>}
       </div>
+
+      {denyTarget && (
+        <div className="patient-detail-overlay" onClick={() => setDenyTarget(null)}>
+          <div className="patient-detail-panel card" onClick={(e) => e.stopPropagation()} style={{ maxWidth: 480 }}>
+            <h3>Deny refill request</h3>
+            <p className="muted-text">
+              {denyTarget.patient_name} — {denyTarget.medication_name} {denyTarget.medication_dosage || ""}
+            </p>
+            <label style={{ display: "block", marginTop: "0.75rem", fontSize: "0.9rem" }}>
+              Reason (shown to patient)
+            </label>
+            <textarea
+              className="consult-textarea"
+              rows={4}
+              value={denyReason}
+              onChange={(e) => setDenyReason(e.target.value)}
+              style={{ width: "100%", marginTop: "0.35rem" }}
+            />
+            <div style={{ display: "flex", gap: "0.5rem", marginTop: "1rem", justifyContent: "flex-end" }}>
+              <button type="button" className="btn btn-outline" onClick={() => setDenyTarget(null)}>Cancel</button>
+              <button type="button" className="btn btn-primary" onClick={() => void submitDeny()}>Deny refill</button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {selectedPatientId && (
         <div className="patient-detail-overlay" onClick={closePatient}>

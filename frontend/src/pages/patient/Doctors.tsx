@@ -528,22 +528,22 @@ export default function PatientDoctors() {
         <div className="fd-trust-item">
           <span className="material-symbols-outlined">security</span>
           <div>
-            <strong>HIPAA Compliant</strong>
-            <p>Your medical data is encrypted and secure.</p>
+            <strong>Secure Booking</strong>
+            <p>Appointments and patient data are handled through protected platform workflows.</p>
           </div>
         </div>
         <div className="fd-trust-item">
           <span className="material-symbols-outlined">workspace_premium</span>
           <div>
-            <strong>Board Certified</strong>
-            <p>All specialists undergo rigorous verification.</p>
+            <strong>Verified Doctors</strong>
+            <p>Browse licensed specialists with experience, ratings, and live availability.</p>
           </div>
         </div>
         <div className="fd-trust-item">
           <span className="material-symbols-outlined">support_agent</span>
           <div>
-            <strong>24/7 Support</strong>
-            <p>Need help? Our team is available anytime.</p>
+            <strong>AI-Guided Care</strong>
+            <p>Get specialty suggestions from chat, then book the right doctor in a few steps.</p>
           </div>
         </div>
       </section>

@@ -327,31 +327,21 @@ async def tool_get_medications(db: AsyncSession, patient_id: UUID) -> dict:
 
 
 async def tool_request_refill(db: AsyncSession, patient_id: UUID, user_id: UUID, medication_name: str | None) -> dict:
-    rows = await db.execute(
-        select(Medication).where(Medication.patient_id == patient_id, Medication.is_active.is_(True))
-    )
-    meds = rows.scalars().all()
-    if not meds:
-        return {"success": False, "message": "No active prescriptions on file."}
-    target = None
-    if medication_name:
-        for m in meds:
-            if medication_name.lower() in m.name.lower():
-                target = m
-                break
-    target = target or meds[0]
-    db.add(
-        Notification(
-            user_id=user_id,
-            type=NotificationType.system,
-            message=f"Refill request submitted for {target.name} {target.dosage}",
-        )
-    )
-    await db.flush()
+    from app.models import Patient
+    from app.services.refill_service import create_refill_request
+
+    patient = await db.get(Patient, patient_id)
+    if not patient:
+        return {"success": False, "message": "Patient not found."}
+    result = await create_refill_request(db, patient, medication_name)
+    if not result.get("success"):
+        return result
     return {
         "success": True,
-        "medication": f"{target.name} {target.dosage}",
-        "message": "Refill request sent to your physician. Expected approval: 4-8 hours.",
+        "request_id": result.get("request_id"),
+        "medication": result.get("medication"),
+        "doctor_name": result.get("doctor_name"),
+        "message": result.get("message"),
     }
 
 
@@ -421,12 +411,16 @@ async def tool_assess_symptoms(
     conversation_id: UUID | None = None,
     collected: dict | None = None,
 ) -> dict:
+    rule_result = assess_symptoms(symptoms, duration, conditions)
     llm_result = await tool_assess_symptoms_llm(symptoms, duration, conditions, collected)
     if llm_result:
         from app.models.enums import RiskLevel
 
         risk_map = {"low": RiskLevel.low, "medium": RiskLevel.medium, "high": RiskLevel.high, "emergency": RiskLevel.emergency}
-        risk = risk_map.get(str(llm_result.get("risk_level", "low")).lower(), RiskLevel.low)
+        llm_risk = risk_map.get(str(llm_result.get("risk_level", "low")).lower(), RiskLevel.low)
+        risk = llm_risk
+        if llm_risk == RiskLevel.emergency and rule_result["risk_level"] != RiskLevel.emergency:
+            risk = rule_result["risk_level"]
         await save_assessment(
             db, patient_id, symptoms, duration, conditions, conversation_id=conversation_id
         )

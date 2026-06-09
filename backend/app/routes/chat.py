@@ -166,10 +166,12 @@ def _message_to_response(message: Message) -> MessageResponse:
     ui = None
     attachment = None
     report_ack = False
+    emergency = message.agent_name == "emergency"
     if message.tool_calls_json and isinstance(message.tool_calls_json, dict):
         ui = message.tool_calls_json.get("ui")
         attachment = message.tool_calls_json.get("attachment")
         report_ack = bool(message.tool_calls_json.get("report_ack"))
+        emergency = bool(message.tool_calls_json.get("emergency")) or emergency
     return MessageResponse(
         id=message.id,
         role=message.role,
@@ -179,6 +181,7 @@ def _message_to_response(message: Message) -> MessageResponse:
         ui=ui,
         attachment=attachment,
         report_ack=report_ack,
+        emergency=emergency,
     )
 
 
@@ -332,12 +335,20 @@ async def send_message(
         await db.rollback()
         raise HTTPException(status_code=500, detail="Chat processing failed. Please try again.")
 
+    tool_calls_json: dict | None = None
+    if ui or emergency:
+        tool_calls_json = {}
+        if ui:
+            tool_calls_json["ui"] = ui
+        if emergency:
+            tool_calls_json["emergency"] = True
+
     asst_msg = Message(
         conversation_id=conversation_id,
         role=MessageRole.assistant,
         content=reply,
         agent_name=agent,
-        tool_calls_json={"ui": ui} if ui else None,
+        tool_calls_json=tool_calls_json,
         created_at=await _next_message_timestamp(db, conversation_id),
     )
     db.add(asst_msg)

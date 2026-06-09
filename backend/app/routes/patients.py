@@ -9,6 +9,7 @@ from app.database import get_current_user, get_patient_profile, require_doctor
 from app.database import get_db
 from app.models import Allergy, Appointment, MedicalHistory, Medication, Patient, User
 from app.schemas.common import ORMBase, ResponseEnvelope
+from app.services.refill_service import list_notifications_for_user, list_refills_for_patient
 
 router = APIRouter(prefix="/patients", tags=["patients"])
 
@@ -84,6 +85,24 @@ async def add_allergy(
     db.add(a)
     await db.flush()
     return ResponseEnvelope(data={"id": str(a.id)})
+
+
+@router.get("/me/refill-requests")
+async def my_refill_requests(
+    patient: Patient = Depends(get_patient_profile),
+    db: AsyncSession = Depends(get_db),
+):
+    data = await list_refills_for_patient(db, patient.id)
+    return ResponseEnvelope(data=data)
+
+
+@router.get("/me/notifications")
+async def my_notifications(
+    patient: Patient = Depends(get_patient_profile),
+    db: AsyncSession = Depends(get_db),
+):
+    data = await list_notifications_for_user(db, patient.user_id)
+    return ResponseEnvelope(data=data)
 
 
 @router.get("/{patient_id}/profile")

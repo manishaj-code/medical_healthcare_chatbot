@@ -146,6 +146,9 @@ async def _delete_patient_records(db: AsyncSession, patient_id: UUID) -> None:
     await db.execute(delete(Appointment).where(Appointment.patient_id == patient_id))
     await db.execute(delete(Allergy).where(Allergy.patient_id == patient_id))
     await db.execute(delete(Medication).where(Medication.patient_id == patient_id))
+    from app.models import RefillRequest
+
+    await db.execute(delete(RefillRequest).where(RefillRequest.patient_id == patient_id))
     await db.execute(delete(MedicalHistory).where(MedicalHistory.patient_id == patient_id))
 
 

@@ -17,6 +17,7 @@ from app.multi_agent.booking_actions import (
     _booking_intent,
     infer_recommended_specialty,
     resolve_booking_session,
+    resolve_refill_session,
     should_skip_booking_resolution,
 )
 from app.multi_agent.llm import llm
@@ -98,19 +99,29 @@ class MultiAgentSupervisor:
             report_id=report_id,
         )
 
-        if _booking_intent(text, history):
+        in_refill_flow = (
+            session.get("care_goal") == "refill"
+            or session.get("awaiting") in ("confirm_refill", "pick_refill_med")
+            or session.get("active_specialist") == "refill_agent"
+        )
+        if not in_refill_flow and _booking_intent(text, history):
             session.setdefault("recommended_specialty", infer_recommended_specialty(session, history))
             session["care_goal"] = "appointment"
+
+        safety = await SafetyAgent().evaluate(ctx)
+        if safety:
+            return self._finalize(conversation, conv_id, safety, session)
+
+        refill = await resolve_refill_session(ctx)
+        if refill:
+            await self._apply_session(conv_id, session, refill)
+            return self._finalize(conversation, conv_id, refill, session)
 
         if not should_skip_booking_resolution(ctx):
             booking = await resolve_booking_session(ctx)
             if booking:
                 await self._apply_session(conv_id, session, booking)
                 return self._finalize(conversation, conv_id, booking, session)
-
-        safety = await SafetyAgent().evaluate(ctx)
-        if safety:
-            return self._finalize(conversation, conv_id, safety, session)
 
         if report_id:
             ctx.session["active_specialist"] = "report_agent"
@@ -306,6 +317,8 @@ class MultiAgentSupervisor:
                     session[key] = value
         if response.agent == "scheduling_agent":
             session["active_specialist"] = "scheduling_agent"
+        if response.agent == "refill_agent":
+            session["active_specialist"] = "refill_agent"
         await set_flow(conv_id, {"session": session})
 
 

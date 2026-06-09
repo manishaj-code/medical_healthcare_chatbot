@@ -5,7 +5,33 @@ from datetime import date, time, timedelta
 from sqlalchemy import select
 
 from app.database import AsyncSessionLocal
-from app.models import Doctor, DoctorAvailability, Patient, User
+from app.models import Doctor, DoctorAvailability, Medication, Patient, User
+
+JOHN_DEMO_MEDICATIONS = (
+    ("Metformin", "500mg", "twice daily"),
+    ("Amlodipine", "5mg", "once daily"),
+    ("Atorvastatin", "10mg", "once at night"),
+)
+
+
+async def ensure_john_medications(db, patient: Patient) -> int:
+    rows = await db.execute(select(Medication).where(Medication.patient_id == patient.id))
+    existing = {m.name.lower() for m in rows.scalars().all()}
+    added = 0
+    for name, dosage, frequency in JOHN_DEMO_MEDICATIONS:
+        if name.lower() in existing:
+            continue
+        db.add(
+            Medication(
+                patient_id=patient.id,
+                name=name,
+                dosage=dosage,
+                frequency=frequency,
+                is_active=True,
+            )
+        )
+        added += 1
+    return added
 
 
 async def ensure_demo_data() -> None:
@@ -14,6 +40,8 @@ async def ensure_demo_data() -> None:
         patient = patient_row.scalar_one_or_none()
         if not patient:
             return
+
+        med_added = await ensure_john_medications(db, patient)
 
         doctors = (await db.execute(select(Doctor))).scalars().all()
         extra_slots = [time(17, 30), time(18, 0), time(18, 30)]
@@ -37,9 +65,12 @@ async def ensure_demo_data() -> None:
                             )
                         )
                         added += 1
-        if added:
+        if added or med_added:
             await db.commit()
-            print(f"Demo data: added {added} evening slots.")
+            if med_added:
+                print(f"Demo data: added {med_added} medication(s) for john@test.com.")
+            if added:
+                print(f"Demo data: added {added} evening slots.")
 
 
 if __name__ == "__main__":

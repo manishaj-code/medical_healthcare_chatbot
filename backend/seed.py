@@ -104,15 +104,20 @@ async def seed() -> None:
                 )
             if email == "john@test.com":
                 db.add(Allergy(patient_id=patient.id, allergen="Penicillin", severity="severe"))
-                db.add(
-                    Medication(
-                        patient_id=patient.id,
-                        name="Amlodipine",
-                        dosage="5mg",
-                        frequency="daily",
-                        is_active=True,
+                for med_name, dosage, frequency in (
+                    ("Metformin", "500mg", "twice daily"),
+                    ("Amlodipine", "5mg", "once daily"),
+                    ("Atorvastatin", "10mg", "once at night"),
+                ):
+                    db.add(
+                        Medication(
+                            patient_id=patient.id,
+                            name=med_name,
+                            dosage=dosage,
+                            frequency=frequency,
+                            is_active=True,
+                        )
                     )
-                )
             created_any = True
 
         await db.flush()

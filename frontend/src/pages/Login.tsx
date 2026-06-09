@@ -319,7 +319,7 @@ export default function Login() {
             <span className="material-symbols-outlined">health_and_safety</span>
           </div>
           <h1>MediAI</h1>
-          <p>Precision healthcare powered by intelligence.</p>
+          <p>AI-assisted health guidance and patient care workflows.</p>
         </div>
 
         <div className="auth-login-card">
@@ -474,12 +474,12 @@ export default function Login() {
             <span className="material-symbols-outlined">health_and_safety</span>
           </div>
           <h1>MediAI</h1>
-          <p>Precision healthcare powered by intelligence.</p>
+          <p>AI-assisted health guidance and patient care workflows.</p>
         </div>
 
         <div className="auth-login-card">
           <h2>Patient Login</h2>
-          <p className="auth-login-sub">Welcome back. Please enter your clinical credentials.</p>
+          <p className="auth-login-sub">Welcome back. Sign in with your account email and password.</p>
 
           <form onSubmit={handleLoginSubmit} className="auth-form">
             <label className="auth-field">
@@ -559,13 +559,13 @@ export default function Login() {
         </div>
 
         <div className="auth-login-badges">
-          <span><span className="material-symbols-outlined">verified_user</span> System Secure</span>
-          <span><span className="material-symbols-outlined">shield</span> HIPAA Compliant</span>
+          <span><span className="material-symbols-outlined">verified_user</span> Secure Sign-In</span>
+          <span><span className="material-symbols-outlined">shield</span> Privacy-Focused Design</span>
         </div>
 
         <div className="auth-insight-tip">
-          <strong>MediAI Insight</strong>
-          <p>Our diagnostic algorithms learn from anonymized trends while keeping your personal data private.</p>
+          <strong>Important</strong>
+          <p>MediAI offers educational guidance only. Always consult a licensed clinician for diagnosis and treatment.</p>
         </div>
       </div>
     );
@@ -577,7 +577,7 @@ export default function Login() {
         <div className="auth-register-header-inner">
           <div className="auth-brand-row">
             <span className="material-symbols-outlined">medical_services</span>
-            <span>MedTrust Health</span>
+            <span>MediAI</span>
           </div>
           <div className="auth-header-links">
             <button type="button" className="auth-header-link">Help</button>
@@ -639,8 +639,8 @@ export default function Login() {
 
             <div className="auth-hipaa-card">
               <span className="material-symbols-outlined">verified_user</span>
-              <strong>HIPAA Compliant</strong>
-              <p>Your data is encrypted and handled according to the highest medical security standards.</p>
+              <strong>Your Data, Protected</strong>
+              <p>Health information is stored securely and used to personalize your MediAI experience.</p>
             </div>
           </aside>
 
@@ -767,7 +767,7 @@ export default function Login() {
                 <div className="auth-step-panel">
                   <div className="auth-info-banner">
                     <span className="material-symbols-outlined">info</span>
-                    <p>This information helps our AI provide more accurate insights. You can skip optional fields and add them later.</p>
+                    <p>This information helps personalize educational guidance and your dashboard. You can skip optional fields and add them later.</p>
                   </div>
                   <label className="auth-field plain">
                     <span>Known Allergies <em>(Optional)</em></span>
@@ -779,7 +779,7 @@ export default function Login() {
                   </label>
                   <label className="auth-check">
                     <input type="checkbox" checked={consent} onChange={(e) => setConsent(e.target.checked)} />
-                    <span>I consent to the processing of my health data by MediAI to receive clinical recommendations.</span>
+                    <span>I consent to MediAI processing my health information to provide educational guidance and platform features.</span>
                   </label>
                 </div>
               )}
@@ -823,7 +823,7 @@ export default function Login() {
       </main>
 
       <footer className="auth-register-footer">
-        <span>© 2024 MedTrust Health. Secure & Encrypted.</span>
+        <span>© {new Date().getFullYear()} MediAI. Educational AI guidance — not a substitute for professional medical care.</span>
         <div className="auth-footer-links">
           <button type="button">Privacy Policy</button>
           <button type="button">Terms of Service</button>

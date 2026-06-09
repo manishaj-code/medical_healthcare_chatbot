@@ -24,20 +24,23 @@ export default function Landing() {
             <div className="landing-hero-copy">
               <span className="landing-badge">
                 <span className="landing-badge-dot" />
-                Clinical Intelligence v2.4 Now Live
+                AI Health Assistant Platform
               </span>
-              <h1>Your Health, Answered by Intelligence</h1>
+              <h1>Understand Your Health, With Clear AI Guidance</h1>
               <p>
-                Experience 24/7 access to clinical insights. MediAI bridges the gap between medical
-                complexity and personal understanding with our HIPAA-compliant medical chat engine.
+                MediAI helps you explore symptoms, understand lab reports, and book care—in plain
+                language, available anytime. Built with multi-agent AI and secure patient workflows.
               </p>
               <div className="landing-hero-cta">
                 <button type="button" className="landing-btn-primary" onClick={openChat}>
                   Start AI Consultation
                   <span className="material-symbols-outlined">arrow_forward</span>
                 </button>
-                <a href="#features" className="landing-btn-outline">View Clinical Standards</a>
+                <a href="#features" className="landing-btn-outline">Explore Features</a>
               </div>
+              <p className="landing-hero-note">
+                Not a substitute for professional medical advice, diagnosis, or emergency care.
+              </p>
             </div>
             <div className="landing-hero-visual">
               <div className="landing-hero-glow" aria-hidden="true" />
@@ -48,10 +51,10 @@ export default function Landing() {
                   alt="MediAI mobile assistant showing symptom chat on a smartphone"
                 />
                 <div className="landing-hero-stat">
-                  <span className="material-symbols-outlined">verified</span>
+                  <span className="material-symbols-outlined">smart_toy</span>
                   <div>
-                    <strong>99.2% Accuracy</strong>
-                    <small>Clinical Benchmark</small>
+                    <strong>Multi-Agent AI</strong>
+                    <small>Triage · Reports · Booking</small>
                   </div>
                 </div>
               </div>
@@ -62,17 +65,29 @@ export default function Landing() {
         <section className="landing-features" id="features">
           <div className="landing-container">
             <div className="landing-section-head">
-              <h2>Precision-Engineered Support</h2>
+              <h2>Intelligent Health Support</h2>
               <p>
-                Our intelligence engine is trained on millions of peer-reviewed clinical documents to
-                provide you with the most accurate health context possible.
+                Modern LLM-powered agents work together to help you navigate symptoms, documents,
+                and appointments—with responses grounded in your conversation and uploaded reports.
               </p>
             </div>
             <div className="landing-feature-grid">
               {[
-                { icon: "stethoscope", title: "Symptom Analysis", text: "Interactive triage questions designed by board-certified physicians." },
-                { icon: "medication", title: "Medication Insights", text: "Understand drug interactions and side effects in plain language." },
-                { icon: "lab_research", title: "Lab Explanations", text: "Upload test results and get an easy-to-read breakdown of your markers." },
+                {
+                  icon: "stethoscope",
+                  title: "Symptom Triage",
+                  text: "Describe how you feel and get guided follow-up questions, specialty suggestions, and next-step options.",
+                },
+                {
+                  icon: "medication",
+                  title: "Health Education",
+                  text: "Ask about conditions, medications, and wellness topics in clear, patient-friendly language.",
+                },
+                {
+                  icon: "lab_research",
+                  title: "Lab Report Analysis",
+                  text: "Upload PDFs, images, spreadsheets, or text files and receive an educational summary of your results.",
+                },
               ].map((f) => (
                 <article key={f.title} className="landing-feature-card">
                   <div className="landing-feature-icon">
@@ -89,27 +104,27 @@ export default function Landing() {
         <section className="landing-chat-section" id="about">
           <div className="landing-container landing-chat-section-grid">
             <div>
-              <h2>Experience the Chat Interface</h2>
+              <h2>Built for Real Patient Workflows</h2>
               <ul className="landing-check-list">
                 <li>
                   <span className="material-symbols-outlined">check_circle</span>
                   <div>
-                    <strong>Context-Aware AI</strong>
-                    <p>Remembers symptoms within your session for a holistic view.</p>
+                    <strong>Context-Aware Chat</strong>
+                    <p>Remembers your session so triage, reports, and booking stay connected.</p>
                   </div>
                 </li>
                 <li>
                   <span className="material-symbols-outlined">lock</span>
                   <div>
-                    <strong>Secure by Design</strong>
-                    <p>Verify your email only when you need booking and dashboard access.</p>
+                    <strong>Privacy-Focused Access</strong>
+                    <p>Sign in or verify your email when you need appointments, uploads, and your dashboard.</p>
                   </div>
                 </li>
                 <li>
                   <span className="material-symbols-outlined">clinical_notes</span>
                   <div>
-                    <strong>Physician Export</strong>
-                    <p>Generate summaries for your primary care provider after sign-up.</p>
+                    <strong>Care Team Ready</strong>
+                    <p>Generate visit summaries and keep reports organized for discussions with your clinician.</p>
                   </div>
                 </li>
               </ul>
@@ -145,10 +160,10 @@ export default function Landing() {
         <section className="landing-stats">
           <div className="landing-container landing-stats-grid">
             {[
-              ["5M+", "Consultations"],
-              ["12k+", "Clinicians Trusted"],
-              ["15s", "Avg. Response Time"],
-              ["4.9/5", "Patient Rating"],
+              ["24/7", "AI Consultation"],
+              ["Multi-Agent", "Specialist Routing"],
+              ["Reports", "PDF · Image · Excel"],
+              ["Secure", "Patient Accounts"],
             ].map(([n, l]) => (
               <div key={l}>
                 <strong>{n}</strong>
@@ -160,15 +175,18 @@ export default function Landing() {
 
         <section className="landing-cta">
           <div className="landing-container landing-cta-inner">
-            <h2>Ready for Smarter Health Insights?</h2>
-            <p>Start chatting free — verify your email only when you need appointments and advanced tools.</p>
+            <h2>Ready to Explore Smarter Health Guidance?</h2>
+            <p>
+              Start with guest chat at no cost. Create an account when you want appointments,
+              report uploads, and your personal health dashboard.
+            </p>
             <div className="landing-hero-cta landing-hero-cta--center">
               <button type="button" className="landing-btn-primary" onClick={openChat}>
                 Get Started Free
               </button>
               <Link to="/login" className="landing-btn-secondary">Sign In</Link>
             </div>
-            <small>No credit card required · Secure data processing</small>
+            <small>Educational AI guidance only · Always consult a licensed clinician for medical decisions</small>
           </div>
         </section>
       </main>
@@ -177,7 +195,11 @@ export default function Landing() {
         <div className="landing-container landing-footer-grid">
           <div>
             <strong className="landing-logo">MediAI</strong>
-            <p>© {new Date().getFullYear()} MediAI. Professional health insights powered by clinical intelligence.</p>
+            <p>© {new Date().getFullYear()} MediAI. AI-assisted health guidance for patients and care teams.</p>
+            <p className="landing-footer-disclaimer">
+              MediAI provides educational information and workflow support. It does not provide medical
+              diagnosis, treatment, or emergency services. Call your local emergency number for urgent care.
+            </p>
           </div>
           <div>
             <h5>Product</h5>

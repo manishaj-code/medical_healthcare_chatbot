@@ -1,12 +1,19 @@
 from app.models.chat import Conversation, ConversationMemory, Message, SymptomAssessment
-from app.models.clinical import Allergy, MedicalHistory, Medication
+from app.models.clinical import Allergy, MedicalHistory, Medication, RefillRequest
 from app.models.doctor_ops import (
     Appointment,
     DoctorAvailability,
     DoctorSpecialization,
     Specialization,
 )
-from app.models.enums import AppointmentStatus, MessageRole, NotificationType, RiskLevel, UserRole
+from app.models.enums import (
+    AppointmentStatus,
+    MessageRole,
+    NotificationType,
+    RefillRequestStatus,
+    RiskLevel,
+    UserRole,
+)
 from app.models.reports import DoctorNote, PatientSummary, Report
 from app.models.system import AuditLog, Notification, RefreshToken
 from app.models.user import Doctor, Patient, User
@@ -17,6 +24,7 @@ __all__ = [
     "Doctor",
     "MedicalHistory",
     "Medication",
+    "RefillRequest",
     "Allergy",
     "Specialization",
     "DoctorSpecialization",
@@ -37,4 +45,5 @@ __all__ = [
     "RiskLevel",
     "MessageRole",
     "NotificationType",
+    "RefillRequestStatus",
 ]

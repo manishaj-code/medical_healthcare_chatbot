@@ -36,6 +36,8 @@ interface Message {
   ui?: ChatUiPayload | null;
   attachment?: ChatAttachment | null;
   reportAck?: boolean;
+  emergency?: boolean;
+  agentName?: string | null;
   created_at?: string;
 }
 
@@ -47,7 +49,18 @@ interface ApiMessage {
   ui?: ChatUiPayload | null;
   attachment?: ChatAttachment | null;
   report_ack?: boolean;
+  emergency?: boolean;
   created_at?: string;
+}
+
+function latestAssistantEmergency(messages: Message[]): boolean {
+  for (let i = messages.length - 1; i >= 0; i -= 1) {
+    const msg = messages[i];
+    if (msg.role === "assistant") {
+      return !!msg.emergency || msg.agentName === "emergency";
+    }
+  }
+  return false;
 }
 
 function displayUserContent(content: string): string {
@@ -122,6 +135,8 @@ function enrichApiMessage(m: ApiMessage): Omit<Message, "ui"> & { ui?: ChatUiPay
     content: role === "user" ? displayUserContent(m.content) : m.content,
     attachment,
     reportAck: !!m.report_ack,
+    emergency: !!m.emergency || m.agent_name === "emergency",
+    agentName: m.agent_name ?? null,
     created_at: m.created_at,
     ui: undefined,
   };
@@ -264,14 +279,14 @@ export default function PatientChat() {
 
   const refreshMessages = async (convId: string) => {
     const history = await api<ApiMessage[]>(`/api/v1/chat/conversations/${convId}/messages`);
-    setMessages(await hydrateMessages(history));
+    const hydrated = await hydrateMessages(history);
+    setMessages(hydrated);
+    setEmergency(latestAssistantEmergency(hydrated));
   };
 
-  const loadConversationMessages = async (convId: string, list: Conversation[]) => {
+  const loadConversationMessages = async (convId: string, _list: Conversation[]) => {
     setConversationId(convId);
     await refreshMessages(convId);
-    const active = list.find((c) => c.id === convId);
-    setEmergency(!!active?.emergency_flag);
   };
 
   const loadConversations = useCallback(async (selectId?: string) => {
@@ -348,8 +363,6 @@ export default function PatientChat() {
     setLoading(true);
     try {
       await refreshMessages(convId);
-      const conv = conversations.find((c) => c.id === convId);
-      setEmergency(!!conv?.emergency_flag);
     } catch {
       setInitError("Could not load conversation.");
     }
@@ -515,17 +528,13 @@ export default function PatientChat() {
           )}
         </div>
         <div className="consult-topbar-right">
-          <div className="consult-search">
-            <span className="material-symbols-outlined">search</span>
-            <input type="search" placeholder="Search health data..." aria-label="Search health data" />
-          </div>
-          <button type="button" className="consult-icon-btn" title="Notifications">
+          <Link to="/notifications" className="consult-topbar-notify" title="Notifications">
             <span className="material-symbols-outlined">notifications</span>
-          </button>
-          <button type="button" className="consult-icon-btn" title="Help">
-            <span className="material-symbols-outlined">help_outline</span>
-          </button>
-          <div className="consult-topbar-avatar">{userInitials(patientName)}</div>
+          </Link>
+          <div className="consult-topbar-user">
+            <span className="consult-topbar-user-name">{patientName}</span>
+            <div className="consult-topbar-avatar">{userInitials(patientName)}</div>
+          </div>
         </div>
       </header>
 

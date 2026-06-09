@@ -34,3 +34,12 @@ class NotificationType(str, enum.Enum):
     reminder = "reminder"
     cancellation = "cancellation"
     system = "system"
+    refill_request = "refill_request"
+    refill_approved = "refill_approved"
+    refill_denied = "refill_denied"
+
+
+class RefillRequestStatus(str, enum.Enum):
+    pending = "pending"
+    approved = "approved"
+    denied = "denied"

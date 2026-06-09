@@ -23,6 +23,12 @@ from app.models import DoctorAvailability
 from app.models.enums import AppointmentStatus
 from app.schemas.common import ResponseEnvelope
 from app.services.doctor_service import create_default_availability, get_availability
+from app.services.refill_service import (
+    approve_refill_request,
+    deny_refill_request,
+    list_notifications_for_user,
+    list_refills_for_doctor,
+)
 
 router = APIRouter(prefix="/doctor", tags=["doctor-portal"])
 
@@ -38,6 +44,10 @@ class SOAPNote(BaseModel):
     assessment: str | None = None
     plan: str | None = None
     appointment_id: UUID | None = None
+
+
+class RefillDenyRequest(BaseModel):
+    reason: str | None = None
 
 
 async def _verify_access(db: AsyncSession, doctor_id: UUID, patient_id: UUID) -> bool:
@@ -277,3 +287,46 @@ async def complete_appointment(
     appt.completed_at = datetime.now(timezone.utc)
     await db.flush()
     return ResponseEnvelope(data={"status": "completed"})
+
+
+@router.get("/refill-requests")
+async def doctor_refill_requests(
+    status: str | None = None,
+    doctor: Doctor = Depends(get_doctor_profile),
+    db: AsyncSession = Depends(get_db),
+):
+    data = await list_refills_for_doctor(db, doctor.id, status=status)
+    return ResponseEnvelope(data=data)
+
+
+@router.post("/refill-requests/{request_id}/approve")
+async def doctor_approve_refill(
+    request_id: UUID,
+    doctor: Doctor = Depends(get_doctor_profile),
+    db: AsyncSession = Depends(get_db),
+):
+    result = await approve_refill_request(db, doctor.id, request_id)
+    return ResponseEnvelope(data=result)
+
+
+@router.post("/refill-requests/{request_id}/deny")
+async def doctor_deny_refill(
+    request_id: UUID,
+    data: RefillDenyRequest,
+    doctor: Doctor = Depends(get_doctor_profile),
+    db: AsyncSession = Depends(get_db),
+):
+    result = await deny_refill_request(db, doctor.id, request_id, data.reason)
+    return ResponseEnvelope(data=result)
+
+
+@router.get("/notifications")
+async def doctor_notifications(
+    doctor: Doctor = Depends(get_doctor_profile),
+    db: AsyncSession = Depends(get_db),
+):
+    user = await db.get(User, doctor.user_id)
+    if not user:
+        raise HTTPException(status_code=404, detail="Doctor user not found")
+    data = await list_notifications_for_user(db, user.id)
+    return ResponseEnvelope(data=data)

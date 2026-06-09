@@ -13,7 +13,21 @@ const NAV = [
   { to: "/doctors", label: "Find Doctors", icon: "medical_services" },
   { to: "/appointments", label: "Appointments", icon: "event" },
   { to: "/reports", label: "My Reports", icon: "description" },
+  { to: "/notifications", label: "Notifications", icon: "notifications" },
 ];
+
+const PAGE_TITLES: Record<string, string> = {
+  "/dashboard": "Dashboard",
+  "/doctors": "Find Doctors",
+  "/appointments": "Appointments",
+  "/reports": "My Reports",
+  "/notifications": "Notifications",
+};
+
+function pageTitle(pathname: string): string {
+  const match = Object.entries(PAGE_TITLES).find(([path]) => pathname.startsWith(path));
+  return match?.[1] ?? "Patient Portal";
+}
 
 export default function PatientLayout() {
   const loc = useLocation();
@@ -73,19 +87,16 @@ export default function PatientLayout() {
       <div className={`patient-main-wrap${isChat ? " patient-main-wrap--chat" : ""}`}>
         {!isChat && (
           <header className="patient-topbar">
-            <span className="patient-topbar-brand">MediAI</span>
+            <h2 className="patient-topbar-title">{pageTitle(loc.pathname)}</h2>
             <div className="patient-topbar-actions">
-              <div className="patient-search">
-                <span className="material-symbols-outlined">search</span>
-                <input type="search" placeholder="Search records, doctors..." aria-label="Search" />
-              </div>
-              <button type="button" className="patient-icon-btn" title="Notifications">
+              <Link to="/notifications" className="patient-topbar-notify" title="Notifications">
                 <span className="material-symbols-outlined">notifications</span>
-              </button>
-              <button type="button" className="patient-icon-btn" title="Help">
-                <span className="material-symbols-outlined">help_outline</span>
-              </button>
-              <div className="patient-topbar-avatar">{userInitials(name)}</div>
+                <span className="patient-topbar-notify-label">Notifications</span>
+              </Link>
+              <div className="patient-topbar-user" aria-label={`Signed in as ${name}`}>
+                <span className="patient-topbar-user-name">{name}</span>
+                <div className="patient-topbar-avatar">{userInitials(name)}</div>
+              </div>
             </div>
           </header>
         )}

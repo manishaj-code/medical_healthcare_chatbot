@@ -3,6 +3,12 @@ from __future__ import annotations
 
 import json
 
+from app.emergency_detection import (
+    build_emergency_reply,
+    detect_emergency,
+    detect_mental_health_crisis,
+    is_confirmed_emergency,
+)
 from app.healthcare_policy import HEALTH_QA_PROMPT, OFF_TOPIC_REPLY
 from app.services.agent_tools import execute_agent_tool
 
@@ -11,6 +17,7 @@ from app.multi_agent.booking_actions import (
     _booking_intent,
     infer_recommended_specialty,
     resolve_booking_session,
+    resolve_refill_session,
     should_skip_booking_resolution,
     synthesize_tool_result,
 )
@@ -122,7 +129,7 @@ class BaseSpecialist:
                 return AgentResponse(
                     reply=second["reply"].strip(),
                     agent=self.agent_label,
-                    emergency=bool(second.get("emergency")),
+                    emergency=is_confirmed_emergency(ctx.text),
                     ui=second.get("ui"),
                     session_patch=second.get("session_patch"),
                     handoff_to=second.get("handoff_to"),
@@ -132,7 +139,7 @@ class BaseSpecialist:
         return AgentResponse(
             reply=reply or "How can I help you with your health today?",
             agent=self.agent_label,
-            emergency=bool(decision.get("emergency")),
+            emergency=is_confirmed_emergency(ctx.text),
             ui=decision.get("ui"),
             session_patch=decision.get("session_patch"),
             handoff_to=decision.get("handoff_to"),
@@ -179,35 +186,21 @@ class SafetyAgent(BaseSpecialist):
     name = "safety_agent"
     agent_label = "safety_agent"
 
-    CRISIS_PROMPT = """Evaluate patient message for medical emergency or mental health crisis.
-
-Return JSON:
-{
-  "emergency": false,
-  "mental_health_crisis": false,
-  "reply": "response if emergency/crisis, else null",
-  "handoff_to": "triage_agent|education_agent|null"
-}
-
-emergency=true for: chest pain, can't breathe, stroke, severe bleeding, unconscious
-mental_health_crisis=true for: suicide, self-harm, want to die, end my life
-
-If mental_health_crisis: include crisis hotline (988 Suicide & Crisis Lifeline in US) and urge immediate help.
-If emergency: urge calling emergency services now.
-Otherwise handoff_to based on intent (symptoms→triage_agent, general question→education_agent).
-"""
-
     async def evaluate(self, ctx: AgentContext) -> AgentResponse | None:
-        hist = "\n".join(f"{h['role']}: {h['content']}" for h in ctx.history[-6:])
-        prompt = f"{self.CRISIS_PROMPT}\n\nPATIENT CONTEXT:\n{json.dumps(ctx.patient_ctx, default=str)}\n\nCHAT:\n{hist}\n\nMESSAGE: {ctx.text}\n\nJSON:"
-        decision = await llm.json_prompt(prompt)
-        if not decision:
-            return None
-        if decision.get("emergency") or decision.get("mental_health_crisis"):
-            reply = decision.get("reply") or (
-                "⚠️ This may be a medical emergency. Please call your local emergency number or go to the nearest emergency department immediately."
+        if detect_mental_health_crisis(ctx.text):
+            return AgentResponse(
+                reply=build_emergency_reply(mental_health_crisis=True),
+                agent="emergency",
+                emergency=True,
+                clear_session=True,
             )
-            return AgentResponse(reply=reply, agent="emergency", emergency=True, clear_session=True)
+        if detect_emergency(ctx.text):
+            return AgentResponse(
+                reply=build_emergency_reply(),
+                agent="emergency",
+                emergency=True,
+                clear_session=True,
+            )
         return None
 
 
@@ -334,6 +327,12 @@ class RefillAgent(BaseSpecialist):
 
     def _role_description(self) -> str:
         return "Handle prescription refill requests using get_medications and request_refill tools."
+
+    async def run(self, ctx: AgentContext) -> AgentResponse:
+        refill = await resolve_refill_session(ctx)
+        if refill:
+            return refill
+        return await super().run(ctx)
 
 
 AGENTS: dict[str, BaseSpecialist] = {

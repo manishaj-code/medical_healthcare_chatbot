@@ -3,22 +3,10 @@ import re
 from typing import Any
 
 from app.database import get_settings
+from app.emergency_detection import EMERGENCY_PATTERNS, detect_emergency
 from app.healthcare_policy import OFF_TOPIC_REPLY, is_off_topic_fallback
 
 settings = get_settings()
-
-EMERGENCY_PATTERNS = [
-    r"chest pain",
-    r"heart attack",
-    r"can'?t breathe",
-    r"difficulty breathing",
-    r"stroke",
-    r"unconscious",
-    r"suicid",
-    r"self.?harm",
-    r"severe bleeding",
-    r"seizure",
-]
 
 PRESCRIPTION_PATTERNS = [
     r"prescribe",
@@ -95,10 +83,6 @@ class LLMClient:
             "I understand your concern. Could you tell me more about your symptoms or "
             "what you'd like help with today?"
         )
-
-
-def detect_emergency(text: str) -> bool:
-    return any(re.search(p, text.lower()) for p in EMERGENCY_PATTERNS)
 
 
 def detect_prescription_request(text: str) -> bool:
