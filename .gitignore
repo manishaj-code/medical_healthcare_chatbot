@@ -1,0 +1,24 @@
+.env
+__pycache__/
+*.pyc
+.pytest_cache/
+.venv/
+venv/
+node_modules/
+dist/
+*.egg-info/
+.DS_Store
+.idea/
+.vscode/
+pgdata/
+miniodata/
+
+# Reports folder
+reports/
+
+# Local secrets / credentials — do not push
+testcredential.txt
+
+# Sample uploads (may contain personal health data)
+reports/
+backend/data/
