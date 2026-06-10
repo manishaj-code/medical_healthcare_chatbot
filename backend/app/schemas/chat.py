@@ -62,3 +62,4 @@ class ChatReply(BaseModel):
     emergency: bool = False
     message_id: UUID | None = None
     ui: dict[str, Any] | None = None
+    detected_symptoms: list[str] = Field(default_factory=list)

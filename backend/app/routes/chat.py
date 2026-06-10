@@ -9,6 +9,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.multi_agent.supervisor import multi_agent_supervisor
 from app.database import get_patient_profile
 from app.database import get_db
+from app.services.flow_state import get_flow
+from app.services.symptom_extraction import resolve_detected_symptoms
 from app.models import Conversation, Message, Patient
 from app.models.enums import MessageRole
 from app.schemas.chat import (
@@ -239,6 +241,35 @@ async def get_messages(
     return ResponseEnvelope(data=[_message_to_response(m) for m in result.scalars().all()])
 
 
+@router.get(
+    "/conversations/{conversation_id}/detected-symptoms",
+    response_model=ResponseEnvelope[list[str]],
+)
+async def get_detected_symptoms(
+    conversation_id: UUID,
+    patient: Patient = Depends(get_patient_profile),
+    db: AsyncSession = Depends(get_db),
+):
+    conv = await db.get(Conversation, conversation_id)
+    if not conv or conv.patient_id != patient.id:
+        raise HTTPException(status_code=404, detail="Conversation not found")
+    result = await db.execute(
+        select(Message)
+        .where(Message.conversation_id == conversation_id)
+        .order_by(Message.created_at, Message.id)
+    )
+    history = [
+        {
+            "role": m.role.value if hasattr(m.role, "value") else str(m.role),
+            "content": m.content,
+        }
+        for m in result.scalars().all()
+    ]
+    flow = await get_flow(conversation_id)
+    session = flow.get("session") or {}
+    return ResponseEnvelope(data=await resolve_detected_symptoms(session, history))
+
+
 @router.post("/conversations/{conversation_id}/report-upload", response_model=ResponseEnvelope[list[MessageResponse]])
 async def register_report_upload(
     conversation_id: UUID,
@@ -354,6 +385,20 @@ async def send_message(
     db.add(asst_msg)
     await db.flush()
 
+    flow = await get_flow(conversation_id)
+    session = flow.get("session") or {}
+    detected_symptoms = await resolve_detected_symptoms(
+        session,
+        history + [{"role": "user", "content": data.message}],
+    )
+
     return ResponseEnvelope(
-        data=ChatReply(reply=reply, agent=agent, emergency=emergency, message_id=asst_msg.id, ui=ui)
+        data=ChatReply(
+            reply=reply,
+            agent=agent,
+            emergency=emergency,
+            message_id=asst_msg.id,
+            ui=ui,
+            detected_symptoms=detected_symptoms,
+        )
     )

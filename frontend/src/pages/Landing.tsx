@@ -3,7 +3,7 @@ import { Link } from "react-router-dom";
 import GuestChatWidget from "../components/GuestChatWidget";
 
 export default function Landing() {
-  const [chatOpen, setChatOpen] = useState(false);
+  const [chatOpen, setChatOpen] = useState(true);
 
   const openChat = () => setChatOpen(true);
 

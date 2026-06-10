@@ -17,3 +17,8 @@ export async function ensureGuestSession(): Promise<string> {
   setGuestSessionId(res.session_id);
   return res.session_id;
 }
+
+export async function resetGuestSession(): Promise<string> {
+  localStorage.removeItem(GUEST_KEY);
+  return ensureGuestSession();
+}

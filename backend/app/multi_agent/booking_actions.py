@@ -412,6 +412,11 @@ def infer_recommended_specialty(session: dict, history: list[dict]) -> str:
     if session.get("recommended_specialty"):
         return session["recommended_specialty"]
 
+    if session.get("detected_symptoms"):
+        symptoms = session["detected_symptoms"]
+        if symptoms and symptoms != ["unspecified symptoms"]:
+            return assess_symptoms(symptoms, None, None)["recommended_specialty"]
+
     collected = session.get("triage_collected") or {}
     symptoms = collected.get("symptoms") or []
     if symptoms and symptoms != ["unspecified symptoms"]:
@@ -422,7 +427,7 @@ def infer_recommended_specialty(session: dict, history: list[dict]) -> str:
     user_text = " ".join(
         m.get("content", "") for m in history if m.get("role") in ("user", "User")
     )
-    symptoms = extract_symptoms(user_text)
+    symptoms = extract_symptoms(user_text, session=session)
     if symptoms and symptoms != ["unspecified symptoms"]:
         return assess_symptoms(symptoms, None, None)["recommended_specialty"]
 

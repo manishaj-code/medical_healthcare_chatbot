@@ -12,6 +12,10 @@ function isAuthPath(path: string): boolean {
   return AUTH_PATHS.some((p) => path.includes(p));
 }
 
+function isGuestPath(path: string): boolean {
+  return path.includes("/guest/");
+}
+
 export function getToken(): string | null {
   return localStorage.getItem("access_token");
 }
@@ -58,7 +62,7 @@ function parseError(res: Response, body: Record<string, unknown>): string {
 export async function apiUpload<T>(path: string, formData: FormData, retry = true): Promise<T> {
   const token = getToken();
   const headers: Record<string, string> = {};
-  if (token && !isAuthPath(path)) {
+  if (token && !isAuthPath(path) && !isGuestPath(path)) {
     headers.Authorization = `Bearer ${token}`;
   }
 
@@ -90,7 +94,7 @@ export async function api<T>(path: string, options: RequestInit = {}, retry = tr
     ...(options.headers as Record<string, string>),
   };
   // Do not send stale token on login/register — it causes 401 Invalid token
-  if (token && !isAuthPath(path)) {
+  if (token && !isAuthPath(path) && !isGuestPath(path)) {
     headers.Authorization = `Bearer ${token}`;
   }
 

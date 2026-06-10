@@ -10,6 +10,11 @@ from app.services.chat_ui import (
     build_symptom_picker_ui,
     build_yes_no_ui,
 )
+from app.services.symptom_extraction import (
+    extract_symptoms_offline,
+    is_non_symptom_message,
+    looks_like_health_complaint,
+)
 
 _DURATION_PATTERNS = (
     re.compile(r"(?:last|past|for)\s+\d+\s*(?:days|day|weeks|week|hours|hour)", re.I),
@@ -17,22 +22,6 @@ _DURATION_PATTERNS = (
     re.compile(r"from\s+\d+\s*(?:days|day|weeks|week|hours|hour)", re.I),
     re.compile(r"few\s+days|couple\s+of\s+days", re.I),
     re.compile(r"since\s+yesterday|since\s+last\s+week", re.I),
-)
-
-SYMPTOM_HINTS = (
-    "fever", "cough", "headache", "migraine", "pain", "nausea", "dizziness", "fatigue",
-    "cold", "sore throat", "vomiting", "rash", "swelling", "breathing", "chest",
-    "chills", "body ache", "weakness",
-)
-
-_HAVE_SYMPTOM_RE = re.compile(
-    r"(?:i have|i'?ve had|i am having|feeling|suffering from|experiencing)\s+(?:a\s+)?([a-z][\w\s-]{0,48})",
-    re.I,
-)
-
-_NON_SYMPTOM_RE = re.compile(
-    r"^(less than 1 day|1-3 days|4-7 days|over 1 week|yes|no|no other symptoms|\[start_symptom_triage\])",
-    re.I,
 )
 
 _START_TRIAGE_RE = re.compile(
@@ -49,47 +38,35 @@ def extract_duration(text: str) -> str | None:
     return None
 
 
-def _normalize_symptom_label(phrase: str) -> str:
-    p = phrase.strip().rstrip(".").lower()
-    if re.search(r"\bmigrain\w*\b", p):
-        return "migraine"
-    return p
+def extract_symptoms(text: str, prior: list[str] | None = None, session: dict | None = None) -> list[str]:
+    if session and session.get("detected_symptoms"):
+        return list(session["detected_symptoms"])
+    return extract_symptoms_offline(text, prior)
 
 
-def extract_symptoms(text: str, prior: list[str] | None = None) -> list[str]:
-    blob = " ".join([*(prior or []), text]).lower()
-    found: list[str] = []
-    for hint in SYMPTOM_HINTS:
-        if hint in blob:
-            found.append(hint)
-    if re.search(r"\bmigrain\w*\b", blob):
-        found.append("migraine")
-    if found:
-        return list(dict.fromkeys(found))
-
-    for segment in re.split(r"[.!?;\n]+", text):
-        seg = segment.strip()
-        if not seg or _NON_SYMPTOM_RE.match(seg) or _START_TRIAGE_RE.match(seg):
-            continue
-        if re.search(r"\b(mild|moderate|severe|getting worse)\b", seg, re.I):
-            continue
-        match = _HAVE_SYMPTOM_RE.search(seg)
-        if match:
-            label = _normalize_symptom_label(match.group(1))
-            if label:
-                return [label]
-        words = seg.split()
-        if 1 <= len(words) <= 5 and not extract_duration(seg):
-            return [_normalize_symptom_label(seg)]
-
-    return list(prior or [])
+def _starts_new_triage(text: str) -> bool:
+    tl = text.strip().lower()
+    if _START_TRIAGE_RE.match(tl):
+        return True
+    if is_non_symptom_message(text):
+        return False
+    return looks_like_health_complaint(text)
 
 
 def plan_triage_turn(text: str, session: dict) -> dict[str, Any]:
     """Decide the next triage action without LLM — collect info, then assess."""
     tl = text.strip().lower()
-    collected: dict[str, Any] = dict(session.get("triage_collected") or {})
-    notes: list[str] = list(collected.get("notes") or [])
+
+    if session.get("assessment_shown") and _starts_new_triage(text):
+        session.pop("assessment_shown", None)
+        session.pop("triage_assessed", None)
+        session.pop("booking_declined", None)
+        session.pop("awaiting", None)
+        collected: dict[str, Any] = {}
+        notes: list[str] = []
+    else:
+        collected = dict(session.get("triage_collected") or {})
+        notes = list(collected.get("notes") or [])
 
     if _START_TRIAGE_RE.match(tl) and not notes and not session.get("triage_assessed"):
         pname = session.get("_patient_first_name", "there")
@@ -123,7 +100,9 @@ def plan_triage_turn(text: str, session: dict) -> dict[str, Any]:
 
     if tl == "no other symptoms":
         collected["ready_to_assess"] = True
-        symptoms = collected.get("symptoms") or extract_symptoms(" ".join(notes))
+        symptoms = session.get("detected_symptoms") or collected.get("symptoms") or extract_symptoms(
+            " ".join(notes), session=session
+        )
         if symptoms and collected.get("duration"):
             return {
                 "tool": "assess_symptoms",
@@ -145,7 +124,9 @@ def plan_triage_turn(text: str, session: dict) -> dict[str, Any]:
             "session_patch": {"triage_collected": collected, "care_goal": "symptom_assessment"},
         }
 
-    symptoms = extract_symptoms(" ".join(notes), collected.get("symptoms"))
+    symptoms = session.get("detected_symptoms") or extract_symptoms(
+        " ".join(notes), collected.get("symptoms"), session=session
+    )
     collected["symptoms"] = symptoms
 
     if not symptoms:
@@ -182,6 +163,10 @@ def plan_triage_turn(text: str, session: dict) -> dict[str, Any]:
         collected["severity"] = severity
 
     if collected.get("ready_to_assess") or collected.get("severity") or len(notes) >= 3:
+        if session.get("assessment_shown"):
+            return {
+                "session_patch": {"triage_collected": collected, "care_goal": "symptom_assessment"},
+            }
         return {
             "tool": "assess_symptoms",
             "tool_args": {

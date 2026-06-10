@@ -4900,6 +4900,11 @@ th { font-weight: 600; background: #f8f9fa; }
   width: min(380px, calc(100vw - 2rem));
   height: 64px;
   pointer-events: none;
+  transition: width 0.35s ease;
+}
+
+.aura-chat-widget--expanded {
+  width: min(760px, calc(100vw - 2rem));
 }
 
 .aura-chat-fab {
@@ -4947,7 +4952,11 @@ th { font-weight: 600; background: #f8f9fa; }
   visibility: hidden;
   pointer-events: none;
   transform-origin: bottom right;
-  transition: transform 0.35s ease, opacity 0.35s ease, visibility 0.35s;
+  transition: transform 0.35s ease, opacity 0.35s ease, visibility 0.35s, height 0.35s ease;
+}
+
+.aura-chat-window--expanded {
+  height: min(1040px, calc(100vh - 6rem));
 }
 
 .aura-chat-window--open {
@@ -5075,17 +5084,41 @@ th { font-weight: 600; background: #f8f9fa; }
 }
 
 .aura-chat-bubble--ai {
-  background: #dce9ff;
-  border: 1px solid rgba(0, 104, 95, 0.12);
+  background: #e4f2f0;
+  border: 1px solid rgba(0, 104, 95, 0.14);
   border-top-left-radius: 4px;
   color: #0b1c30;
 }
 
 .aura-chat-bubble--user {
-  background: #2170e4;
+  background: linear-gradient(135deg, #008378 0%, #00685f 100%);
   color: #fff;
   border-top-right-radius: 4px;
-  box-shadow: 0 2px 8px rgba(33, 112, 228, 0.2);
+  box-shadow: 0 2px 8px rgba(0, 104, 95, 0.25);
+}
+
+.aura-chat-bubble--with-file {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  min-width: min(100%, 300px);
+  max-width: 100%;
+  padding: 0.5rem;
+}
+
+.aura-chat-bubble--user.aura-chat-bubble--with-file {
+  background: linear-gradient(135deg, #008378 0%, #00685f 100%);
+}
+
+.aura-chat-bubble--user .chat-file-attachment--upload {
+  width: 100%;
+  min-width: 0;
+}
+
+.aura-chat-bubble--user .chat-file-attachment-meta strong {
+  white-space: normal;
+  word-break: break-word;
+  overflow-wrap: anywhere;
 }
 
 .aura-chat-bubble p { margin: 0; }
@@ -5135,7 +5168,7 @@ th { font-weight: 600; background: #f8f9fa; }
 
 .aura-chat-input-wrap input {
   width: 100%;
-  padding: 0.75rem 3.25rem 0.75rem 1rem;
+  padding: 0.75rem 3.25rem 0.75rem 2.75rem;
   border: none;
   border-radius: 1rem;
   background: #eff4ff;
@@ -5149,7 +5182,28 @@ th { font-weight: 600; background: #f8f9fa; }
   box-shadow: 0 0 0 2px rgba(0, 104, 95, 0.15);
 }
 
-.aura-chat-input-wrap button {
+.aura-chat-attach {
+  position: absolute;
+  left: 0.35rem;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 32px;
+  height: 32px;
+  border: none;
+  border-radius: 0.65rem;
+  background: transparent;
+  color: #00685f;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.aura-chat-attach .material-symbols-outlined { font-size: 1.15rem; }
+.aura-chat-attach:hover:not(:disabled) { background: rgba(0, 104, 95, 0.08); }
+.aura-chat-attach:disabled { opacity: 0.45; cursor: not-allowed; }
+
+.aura-chat-send {
   position: absolute;
   right: 0.35rem;
   top: 50%;
@@ -5167,7 +5221,7 @@ th { font-weight: 600; background: #f8f9fa; }
   box-shadow: 0 4px 12px rgba(0, 104, 95, 0.25);
 }
 
-.aura-chat-input-wrap button:disabled { opacity: 0.45; cursor: not-allowed; }
+.aura-chat-send:disabled { opacity: 0.45; cursor: not-allowed; }
 
 .aura-chat-disclaimer {
   margin: 0.5rem 0 0;
@@ -5191,6 +5245,16 @@ th { font-weight: 600; background: #f8f9fa; }
 
 .aura-chat-disclaimer a { color: #00685f; }
 
+.aura-chat-dev-otp {
+  margin: 0.35rem 0 0 2.75rem;
+  font-size: 0.72rem;
+  color: #856404;
+  background: #fff3cd;
+  padding: 0.35rem 0.6rem;
+  border-radius: 8px;
+  width: fit-content;
+}
+
 .aura-chat-typing {
   display: flex;
   gap: 4px;
@@ -5211,10 +5275,70 @@ th { font-weight: 600; background: #f8f9fa; }
 
 .aura-chat-bubble .chat-booking-panel {
   margin-top: 0.65rem;
-  border-color: rgba(0, 104, 95, 0.2);
-  background: transparent;
-  border: none;
-  padding: 0;
+  background: rgba(255, 255, 255, 0.72);
+  border: 1px solid rgba(0, 104, 95, 0.18);
+  border-radius: 12px;
+  box-shadow: 0 4px 14px rgba(0, 104, 95, 0.08);
+  overflow: hidden;
+}
+
+.aura-chat-bubble .chat-booking-header {
+  background: rgba(0, 104, 95, 0.06);
+  border-bottom-color: rgba(0, 104, 95, 0.12);
+}
+
+.aura-chat-bubble .chat-booking-badge {
+  color: #00685f;
+  background: rgba(0, 104, 95, 0.1);
+  border-color: rgba(0, 104, 95, 0.22);
+}
+
+.aura-chat-bubble .chat-doctor-card {
+  background: #fff;
+  border-color: rgba(0, 104, 95, 0.14);
+}
+
+.aura-chat-bubble .chat-doctor-card:hover {
+  border-color: rgba(0, 104, 95, 0.35);
+}
+
+.aura-chat-bubble .chat-doctor-card--expanded {
+  background: rgba(0, 104, 95, 0.07);
+  border-color: #00685f;
+}
+
+.aura-chat-bubble .chat-doctor-avatar {
+  background: linear-gradient(135deg, #008378 0%, #00685f 100%);
+}
+
+.aura-chat-bubble .chat-next-badge {
+  color: #00685f;
+  border-color: rgba(0, 104, 95, 0.28);
+}
+
+.aura-chat-bubble .chat-toggle-slots {
+  color: #00685f;
+}
+
+.aura-chat-bubble .chat-select-doctor-btn {
+  border-color: #00685f !important;
+  color: #00685f !important;
+}
+
+.aura-chat-bubble .chat-select-doctor-btn:hover:not(:disabled) {
+  background: #00685f !important;
+  color: #fff !important;
+}
+
+.aura-chat-bubble .chat-slot-chip:hover:not(:disabled) {
+  background: #00685f;
+  border-color: #00685f;
+  color: #fff;
+}
+
+.aura-chat-bubble .chat-booking-hint {
+  background: rgba(0, 104, 95, 0.04);
+  border-top-color: rgba(0, 104, 95, 0.12);
 }
 
 .aura-chat-bubble .chat-choice-grid {
@@ -5244,8 +5368,16 @@ th { font-weight: 600; background: #f8f9fa; }
     width: calc(100vw - 2rem);
   }
 
+  .aura-chat-widget--expanded {
+    width: calc(100vw - 2rem);
+  }
+
   .aura-chat-window {
     height: min(520px, calc(100vh - 5rem));
+  }
+
+  .aura-chat-window--expanded {
+    height: min(1040px, calc(100vh - 4rem));
   }
 }
 

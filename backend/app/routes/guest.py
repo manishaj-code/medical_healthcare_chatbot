@@ -3,7 +3,7 @@ import secrets
 from datetime import datetime, timezone
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
 from pydantic import BaseModel, EmailStr, Field, field_validator
 from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
@@ -23,11 +23,9 @@ from app.utils.email import normalize_email
 from app.models.system import RefreshToken
 from app.schemas.auth import TokenResponse, UserResponse
 from app.schemas.common import ResponseEnvelope
-from app.services.guest_chat_service import (
-    create_guest_session,
-    migrate_guest_session,
-    process_guest_message,
-)
+from app.services.guest_chat_service import process_guest_message
+from app.services.guest_report_service import process_guest_report_upload
+from app.services.guest_session_store import create_guest_session, migrate_guest_session
 from app.services.otp_service import (
     can_send_otp,
     generate_otp,
@@ -55,6 +53,13 @@ class GuestChatReply(BaseModel):
     ui: dict | None = None
     requires_signup: bool = False
     signup_reason: str | None = None
+    awaiting_input: str | None = None  # email | otp | upload
+    dev_otp: str | None = None
+    auth_complete: bool = False
+    access_token: str | None = None
+    refresh_token: str | None = None
+    user: dict | None = None
+    conversation_id: str | None = None
 
 
 class SendOtpRequest(BaseModel):
@@ -97,11 +102,36 @@ async def start_guest_session():
 
 
 @router.post("/chat/messages", response_model=ResponseEnvelope[GuestChatReply])
-async def guest_chat_message(data: GuestMessageCreate):
+async def guest_chat_message(data: GuestMessageCreate, db: AsyncSession = Depends(get_db)):
     try:
-        result = await process_guest_message(data.session_id, data.message)
+        result = await process_guest_message(data.session_id, data.message, db)
     except ValueError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except HTTPException:
+        raise
+    except Exception:
+        await db.rollback()
+        raise HTTPException(status_code=500, detail="Guest chat processing failed.") from None
+    return ResponseEnvelope(data=GuestChatReply(**result))
+
+
+@router.post("/report-upload", response_model=ResponseEnvelope[GuestChatReply])
+async def guest_report_upload(
+    session_id: str = Form(...),
+    file: UploadFile = File(...),
+):
+    try:
+        data = await file.read()
+        result = await process_guest_report_upload(
+            session_id,
+            data,
+            file.filename or "report.pdf",
+            file.content_type,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except Exception:
+        raise HTTPException(status_code=500, detail="Report upload failed.") from None
     return ResponseEnvelope(data=GuestChatReply(**result))
 
 

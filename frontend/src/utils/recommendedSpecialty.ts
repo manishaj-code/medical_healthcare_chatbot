@@ -1,6 +1,5 @@
 import { api } from "../api/client";
 import { fetchConversations } from "./chatConversations";
-import { detectSymptomStringsFromMessages, isNonSymptomUserMessage } from "./symptomDetection";
 
 export interface HistoryRecommendation {
   specialty: string;
@@ -89,7 +88,7 @@ function normalizeSymptomList(symptoms: string[] | undefined | null): string[] {
   const cleaned: string[] = [];
   for (const raw of symptoms) {
     const text = raw.trim();
-    if (!text || isNonSymptomUserMessage(text)) continue;
+    if (!text) continue;
     const key = text.toLowerCase();
     if (seen.has(key)) continue;
     seen.add(key);
@@ -150,7 +149,9 @@ async function fromChatMessages(): Promise<HistoryRecommendation | null> {
 
   for (const conv of conversations) {
     const messages = await api<ChatMessage[]>(`/api/v1/chat/conversations/${conv.id}/messages`);
-    const symptoms = detectSymptomStringsFromMessages(messages);
+    const symptoms = normalizeSymptomList(
+      await api<string[]>(`/api/v1/chat/conversations/${conv.id}/detected-symptoms`)
+    );
     if (!symptoms.length) continue;
 
     let specialty = inferSpecialtyFromSymptoms(symptoms);

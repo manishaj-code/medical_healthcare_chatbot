@@ -11,6 +11,7 @@ from app.healthcare_policy import OFF_TOPIC_REPLY
 from app.models import Conversation, Patient
 from app.services.flow_state import clear_flow, get_flow, set_flow
 from app.services.patient_context import load_patient_context
+from app.services.symptom_extraction import update_session_symptoms
 
 from app.multi_agent.booking_actions import (
     _affirmative_booking,
@@ -68,6 +69,8 @@ class MultiAgentSupervisor:
         session: dict = dict(flow.get("session") or {})
 
         self._migrate_legacy_flow(flow, session, history)
+        await update_session_symptoms(session, text)
+        await set_flow(conv_id, {"session": session})
 
         if detect_prescription_request(text) and "refill" not in text.lower():
             return (
@@ -238,7 +241,9 @@ class MultiAgentSupervisor:
             content = (msg.get("content") or "").strip()
             if not content or self._affirmative(content):
                 continue
-            symptoms = extract_symptoms(content, collected.get("symptoms"))
+            symptoms = ctx.session.get("detected_symptoms") or extract_symptoms(
+                content, collected.get("symptoms"), session=ctx.session
+            )
             if symptoms and symptoms != ["unspecified symptoms"]:
                 if content not in notes:
                     notes.append(content)

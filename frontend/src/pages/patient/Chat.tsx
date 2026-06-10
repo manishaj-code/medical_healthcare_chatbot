@@ -25,8 +25,8 @@ import {
 } from "../../utils/recommendedSpecialty";
 import { REPORT_UPLOAD_ACCEPT } from "../../utils/reportUpload";
 import {
-  detectSymptomsFromMessages,
-  extractSymptomLabelsFromMessage,
+  DetectedSymptom,
+  toDetectedSymptoms,
 } from "../../utils/symptomDetection";
 
 interface Message {
@@ -167,9 +167,8 @@ function userInitials(name: string): string {
   return (parts[0]?.[0] ?? "P").toUpperCase();
 }
 
-function consultationInsights(messages: Message[], emergency: boolean) {
+function consultationInsights(messages: Message[], emergency: boolean, symptoms: DetectedSymptom[]) {
   const userCount = messages.filter((m) => m.role === "user").length;
-  const symptoms = detectSymptomsFromMessages(messages);
 
   let percent = 30;
   let phase = "Intake Phase";
@@ -254,6 +253,7 @@ export default function PatientChat() {
   const [loading, setLoading] = useState(false);
   const [initError, setInitError] = useState("");
   const [initializing, setInitializing] = useState(true);
+  const [detectedSymptoms, setDetectedSymptoms] = useState<DetectedSymptom[]>([]);
   const bottom = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const fileRef = useRef<HTMLInputElement>(null);
@@ -261,8 +261,17 @@ export default function PatientChat() {
   const lastSendRef = useRef<{ signature: string; at: number } | null>(null);
   const patientName = localStorage.getItem("user_name") || "Patient";
 
-  const insights = consultationInsights(messages, emergency);
+  const insights = consultationInsights(messages, emergency, detectedSymptoms);
   const sidebarItems = buildChatSidebar(conversations);
+
+  const fetchDetectedSymptoms = useCallback(async (convId: string) => {
+    try {
+      const labels = await api<string[]>(`/api/v1/chat/conversations/${convId}/detected-symptoms`);
+      setDetectedSymptoms(toDetectedSymptoms(labels));
+    } catch {
+      setDetectedSymptoms([]);
+    }
+  }, []);
 
   const hydrateMessages = async (history: ApiMessage[]) => {
     const enriched = await Promise.all(
@@ -282,6 +291,7 @@ export default function PatientChat() {
     const hydrated = await hydrateMessages(history);
     setMessages(hydrated);
     setEmergency(latestAssistantEmergency(hydrated));
+    await fetchDetectedSymptoms(convId);
   };
 
   const loadConversationMessages = async (convId: string, _list: Conversation[]) => {
@@ -302,7 +312,11 @@ export default function PatientChat() {
     const initChat = async () => {
       setInitError("");
       setInitializing(true);
-      const navState = location.state as { conversationId?: string; promptMessage?: string } | null;
+      const navState = location.state as {
+        conversationId?: string;
+        promptMessage?: string;
+        fromGuestBooking?: boolean;
+      } | null;
       if (navState?.promptMessage) {
         pendingPromptRef.current = navState.promptMessage;
         navigate(location.pathname, { replace: true, state: navState.conversationId ? { conversationId: navState.conversationId } : {} });
@@ -312,6 +326,9 @@ export default function PatientChat() {
       if (resumeId) sessionStorage.removeItem("post_signup_conversation_id");
       try {
         await loadConversations(resumeId);
+        if (navState?.fromGuestBooking && resumeId) {
+          await refreshMessages(resumeId);
+        }
       } catch (err: unknown) {
         if (!active) return;
         const msg = err instanceof Error ? err.message : "Could not start chat";
@@ -395,17 +412,26 @@ export default function PatientChat() {
       if (reportId) body.report_id = reportId;
       if (attachment?.filename) body.attachment_filename = attachment.filename;
       if (attachment?.size_bytes != null) body.attachment_size_bytes = attachment.size_bytes;
-      const res = await api<{ reply: string; emergency: boolean; agent: string; ui?: ChatUiPayload | null }>(
-        `/api/v1/chat/conversations/${conversationId}/messages`,
-        { method: "POST", body: JSON.stringify(body) }
-      );
+      const res = await api<{
+        reply: string;
+        emergency: boolean;
+        agent: string;
+        ui?: ChatUiPayload | null;
+        detected_symptoms?: string[];
+      }>(`/api/v1/chat/conversations/${conversationId}/messages`, {
+        method: "POST",
+        body: JSON.stringify(body),
+      });
       setEmergency(res.emergency);
+      if (res.detected_symptoms?.length) {
+        setDetectedSymptoms(toDetectedSymptoms(res.detected_symptoms));
+      }
       await refreshMessages(conversationId);
-      const userSymptoms = extractSymptomLabelsFromMessage(trimmed);
-      if (userSymptoms.length) {
+      const symptomLabels = res.detected_symptoms ?? [];
+      if (symptomLabels.length) {
         const recommended = parseSpecialtyFromText(res.reply);
-        const specialty = recommended || inferSpecialtyFromSymptoms(userSymptoms);
-        saveHistoryRecommendation({ specialty, symptoms: userSymptoms });
+        const specialty = recommended || inferSpecialtyFromSymptoms(symptomLabels);
+        saveHistoryRecommendation({ specialty, symptoms: symptomLabels });
       }
     } catch {
       setMessages((m) => [

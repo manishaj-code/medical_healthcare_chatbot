@@ -155,9 +155,10 @@ def build_severity_picker_ui() -> dict:
 
 
 def build_booking_offer_ui() -> dict:
+    """After symptom assessment — clear Book / Not now actions."""
     return build_yes_no_ui(
-        yes_label="Yes, show doctors",
-        yes_message="Yes",
-        no_label="No thanks",
+        yes_label="Book appointment",
+        yes_message="Book appointment",
+        no_label="Not now",
         no_message="No",
     )
