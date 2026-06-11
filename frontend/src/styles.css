@@ -3533,6 +3533,39 @@ th { font-weight: 600; background: #f8f9fa; }
   position: relative;
 }
 
+.notify-dropdown-badge {
+  position: absolute;
+  top: -2px;
+  right: -2px;
+  min-width: 1.1rem;
+  height: 1.1rem;
+  padding: 0 0.3rem;
+  border-radius: 999px;
+  background: #c62828;
+  color: #fff;
+  font-size: 0.65rem;
+  font-weight: 700;
+  line-height: 1.1rem;
+  text-align: center;
+  border: 2px solid #fff;
+  pointer-events: none;
+}
+
+.consult-topbar-notify,
+.patient-topbar-notify,
+.notify-dropdown-trigger--doctor {
+  position: relative;
+}
+
+.notify-dropdown-item--unread {
+  background: #f0f7ff;
+}
+
+.pd-notification-card--unread {
+  border-color: #90caf9;
+  background: #f5faff;
+}
+
 .patient-topbar-notify,
 .consult-topbar-notify {
   cursor: pointer;

@@ -1,43 +1,30 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Link } from "react-router-dom";
-import { api } from "../api/client";
-import {
-  formatNotificationTime,
-  NotificationItem,
-  typeIcon,
-  typeLabel,
-} from "../utils/notifications";
-
-const PREVIEW_LIMIT = 5;
+import { useNotifications } from "../hooks/useNotifications";
+import { formatNotificationTime, typeIcon, typeLabel } from "../utils/notifications";
 
 interface Props {
-  variant?: "pill" | "icon";
+  apiPrefix: string;
+  viewAllPath: string;
+  variant?: "pill" | "icon" | "doctor";
 }
 
-export default function NotificationDropdown({ variant = "pill" }: Props) {
+export default function NotificationDropdown({
+  apiPrefix,
+  viewAllPath,
+  variant = "pill",
+}: Props) {
   const [open, setOpen] = useState(false);
-  const [notifications, setNotifications] = useState<NotificationItem[]>([]);
-  const [loading, setLoading] = useState(false);
-  const [loaded, setLoaded] = useState(false);
   const rootRef = useRef<HTMLDivElement>(null);
-
-  const load = useCallback(async () => {
-    setLoading(true);
-    try {
-      const notes = await api<NotificationItem[]>("/api/v1/patients/me/notifications");
-      setNotifications(notes.slice(0, PREVIEW_LIMIT));
-    } catch {
-      setNotifications([]);
-    }
-    setLoading(false);
-    setLoaded(true);
-  }, []);
+  const { unreadCount, notifications, loading, fetchPreview, markRead } = useNotifications(apiPrefix);
 
   useEffect(() => {
-    if (open && !loaded) {
-      void load();
-    }
-  }, [open, loaded, load]);
+    if (!open) return;
+    void (async () => {
+      await fetchPreview(5);
+      await markRead();
+    })();
+  }, [open, fetchPreview, markRead]);
 
   useEffect(() => {
     if (!open) return;
@@ -61,15 +48,26 @@ export default function NotificationDropdown({ variant = "pill" }: Props) {
   }, [open]);
 
   const triggerClass =
-    variant === "icon" ? "consult-topbar-notify" : "patient-topbar-notify";
+    variant === "doctor"
+      ? "dp-icon-btn notify-dropdown-trigger--doctor"
+      : variant === "icon"
+        ? "consult-topbar-notify"
+        : "patient-topbar-notify";
+
+  const badge =
+    unreadCount > 0 ? (
+      <span className="notify-dropdown-badge" aria-hidden="true">
+        {unreadCount > 9 ? "9+" : unreadCount}
+      </span>
+    ) : null;
 
   return (
-    <div className="notify-dropdown" ref={rootRef}>
+    <div className={`notify-dropdown${variant === "doctor" ? " notify-dropdown--doctor" : ""}`} ref={rootRef}>
       <button
         type="button"
         className={triggerClass}
         title="Notifications"
-        aria-label="Notifications"
+        aria-label={unreadCount > 0 ? `Notifications, ${unreadCount} unread` : "Notifications"}
         aria-expanded={open}
         aria-haspopup="true"
         onClick={() => setOpen((v) => !v)}
@@ -78,6 +76,7 @@ export default function NotificationDropdown({ variant = "pill" }: Props) {
         {variant === "pill" && (
           <span className="patient-topbar-notify-label">Notifications</span>
         )}
+        {badge}
       </button>
 
       {open && (
@@ -96,7 +95,7 @@ export default function NotificationDropdown({ variant = "pill" }: Props) {
                 {notifications.map((n) => (
                   <li
                     key={n.id}
-                    className={`notify-dropdown-item notify-dropdown-item--${n.type.replace(/_/g, "-")}`}
+                    className={`notify-dropdown-item notify-dropdown-item--${n.type.replace(/_/g, "-")}${n.is_read ? "" : " notify-dropdown-item--unread"}`}
                   >
                     <span className="material-symbols-outlined notify-dropdown-item-icon">
                       {typeIcon(n.type)}
@@ -118,7 +117,7 @@ export default function NotificationDropdown({ variant = "pill" }: Props) {
 
           <div className="notify-dropdown-footer">
             <Link
-              to="/notifications"
+              to={viewAllPath}
               className="notify-dropdown-view-all"
               onClick={() => setOpen(false)}
             >

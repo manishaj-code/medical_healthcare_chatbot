@@ -90,7 +90,10 @@ export default function PatientLayout() {
           <header className="patient-topbar">
             <h2 className="patient-topbar-title">{pageTitle(loc.pathname)}</h2>
             <div className="patient-topbar-actions">
-              <NotificationDropdown />
+              <NotificationDropdown
+                apiPrefix="/api/v1/patients/me"
+                viewAllPath="/notifications"
+              />
               <div className="patient-topbar-user" aria-label={`Signed in as ${name}`}>
                 <span className="patient-topbar-user-name">{name}</span>
                 <div className="patient-topbar-avatar">{userInitials(name)}</div>

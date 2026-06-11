@@ -6,7 +6,7 @@ from fastapi import HTTPException
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.models import Appointment, DoctorAvailability, Notification
+from app.models import Appointment, Doctor, DoctorAvailability, Notification, User
 from app.models.enums import AppointmentStatus, NotificationType
 from app.services.appointment_email_service import send_appointment_scheduled_emails
 from app.services.cache import get_redis
@@ -153,13 +153,30 @@ async def reschedule_appointment(
 
     appt.slot_date = new_date
     appt.slot_time = new_time
+    when_time = new_time.strftime("%I:%M %p").lstrip("0")
+    apt_id = format_apt_id(appt.id)
     db.add(
         Notification(
             user_id=user_id,
             type=NotificationType.booking_confirmation,
-            message=f"Appointment {format_apt_id(appt.id)} rescheduled to {new_date} at {new_time}",
+            message=f"Appointment {apt_id} rescheduled to {new_date} at {when_time}",
         )
     )
+    doctor_user_row = await db.execute(
+        select(User.id, User.name)
+        .join(Doctor, Doctor.user_id == User.id)
+        .where(Doctor.id == appt.doctor_id)
+    )
+    doctor_user = doctor_user_row.one_or_none()
+    if doctor_user:
+        doctor_user_id, _doctor_name = doctor_user
+        db.add(
+            Notification(
+                user_id=doctor_user_id,
+                type=NotificationType.booking_confirmation,
+                message=f"Appointment {apt_id} rescheduled to {new_date} at {when_time}.",
+            )
+        )
     await db.flush()
     return appt
 
