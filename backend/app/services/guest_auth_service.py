@@ -295,7 +295,7 @@ async def process_guest_auth_turn(
             "Enter the code here to verify your identity and continue in the Patient Portal."
         )
         extra: dict[str, Any] = {"awaiting_input": "otp"}
-        if settings.is_dev:
+        if settings.dev_otp:
             extra["dev_otp"] = otp
 
         return await _append_and_save(session_id, data, session, history, text, reply, extra=extra)

@@ -1,3 +1,4 @@
+import logging
 from datetime import date, datetime, time
 from uuid import UUID
 
@@ -7,7 +8,10 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models import Appointment, DoctorAvailability, Notification
 from app.models.enums import AppointmentStatus, NotificationType
+from app.services.appointment_email_service import send_appointment_scheduled_emails
 from app.services.cache import get_redis
+
+logger = logging.getLogger(__name__)
 
 
 def format_apt_id(appointment_id: UUID) -> str:
@@ -68,14 +72,21 @@ async def book_appointment(
         status=AppointmentStatus.confirmed,
     )
     db.add(appt)
+    when_time = slot_time.strftime("%I:%M %p").lstrip("0")
     db.add(
         Notification(
             user_id=user_id,
             type=NotificationType.booking_confirmation,
-            message=f"Appointment confirmed for {slot_date} at {slot_time}",
+            message=f"Appointment confirmed for {slot_date} at {when_time}",
         )
     )
     await db.flush()
+
+    try:
+        await send_appointment_scheduled_emails(db, appt)
+    except Exception:
+        logger.exception("Failed to send appointment emails for %s", appt.id)
+
     return appt
 
 

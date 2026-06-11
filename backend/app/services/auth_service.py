@@ -106,7 +106,7 @@ async def request_password_reset(db: AsyncSession, email: str) -> str | None:
     await mark_password_reset_otp_sent(email)
     await send_password_reset_email(email, otp)
     settings = get_settings()
-    return otp if settings.is_dev else None
+    return otp if settings.dev_otp else None
 
 
 async def reset_password(db: AsyncSession, email: str, otp: str, new_password: str) -> None:

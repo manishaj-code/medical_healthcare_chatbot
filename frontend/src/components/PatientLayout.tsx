@@ -1,5 +1,6 @@
 import { Link, Outlet, useLocation, useNavigate } from "react-router-dom";
 import { clearTokens } from "../api/client";
+import NotificationDropdown from "./NotificationDropdown";
 
 function userInitials(name: string): string {
   const parts = name.trim().split(/\s+/);
@@ -89,10 +90,7 @@ export default function PatientLayout() {
           <header className="patient-topbar">
             <h2 className="patient-topbar-title">{pageTitle(loc.pathname)}</h2>
             <div className="patient-topbar-actions">
-              <Link to="/notifications" className="patient-topbar-notify" title="Notifications">
-                <span className="material-symbols-outlined">notifications</span>
-                <span className="patient-topbar-notify-label">Notifications</span>
-              </Link>
+              <NotificationDropdown />
               <div className="patient-topbar-user" aria-label={`Signed in as ${name}`}>
                 <span className="patient-topbar-user-name">{name}</span>
                 <div className="patient-topbar-avatar">{userInitials(name)}</div>

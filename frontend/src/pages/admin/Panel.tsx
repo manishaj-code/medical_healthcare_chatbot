@@ -39,6 +39,13 @@ interface AuditLogRow {
   at: string;
 }
 
+interface EmailStatus {
+  smtp_configured: boolean;
+  smtp_host: string;
+  smtp_port: number;
+  smtp_from: string;
+}
+
 type AdminTab = "patients" | "doctors" | "data";
 
 export default function AdminPanel() {
@@ -51,21 +58,26 @@ export default function AdminPanel() {
   const [actionLoading, setActionLoading] = useState(false);
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
+  const [emailStatus, setEmailStatus] = useState<EmailStatus | null>(null);
+  const [testEmail, setTestEmail] = useState("");
+  const [testOtp, setTestOtp] = useState("");
 
   const load = useCallback(async () => {
     setLoading(true);
     setError("");
     try {
-      const [overview, patientRows, doctorRows, auditRows] = await Promise.all([
+      const [overview, patientRows, doctorRows, auditRows, smtpStatus] = await Promise.all([
         api<Analytics>("/api/v1/admin/analytics/overview"),
         api<PatientRow[]>("/api/v1/admin/patients"),
         api<DoctorRow[]>("/api/v1/admin/doctors"),
         api<AuditLogRow[]>("/api/v1/admin/audit-logs"),
+        api<EmailStatus>("/api/v1/admin/email/status"),
       ]);
       setAnalytics(overview);
       setPatients(patientRows);
       setDoctors(doctorRows);
       setLogs(auditRows);
+      setEmailStatus(smtpStatus);
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : "Failed to load admin data");
     } finally {
@@ -104,6 +116,30 @@ export default function AdminPanel() {
       await load();
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : "Could not delete doctor");
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  const sendTestEmail = async () => {
+    const email = testEmail.trim();
+    if (!email) {
+      setError("Enter an email address for the SMTP test.");
+      return;
+    }
+    setActionLoading(true);
+    setMessage("");
+    setError("");
+    setTestOtp("");
+    try {
+      const res = await api<{ message: string; mode: string; dev_otp?: string }>(
+        "/api/v1/admin/email/test",
+        { method: "POST", body: JSON.stringify({ email }) }
+      );
+      setMessage(res.message);
+      if (res.dev_otp) setTestOtp(res.dev_otp);
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : "SMTP test failed");
     } finally {
       setActionLoading(false);
     }
@@ -266,6 +302,43 @@ export default function AdminPanel() {
 
       {!loading && tab === "data" && (
         <div className="admin-reset-grid">
+          <div className="card admin-card">
+            <h3>SMTP email test</h3>
+            <p>
+              Sends a sample chat verification email using the same OTP email path as guest chat
+              ({emailStatus?.smtp_configured ? "SMTP configured" : "console mode — OTP logged on server"}).
+            </p>
+            {emailStatus && (
+              <ul className="admin-email-status">
+                <li><strong>Host:</strong> {emailStatus.smtp_host || "—"}</li>
+                <li><strong>Port:</strong> {emailStatus.smtp_port}</li>
+                <li><strong>From:</strong> {emailStatus.smtp_from}</li>
+              </ul>
+            )}
+            <div className="admin-email-test-form">
+              <input
+                type="email"
+                className="admin-email-input"
+                placeholder="recipient@example.com"
+                value={testEmail}
+                onChange={(e) => setTestEmail(e.target.value)}
+                disabled={actionLoading}
+              />
+              <button
+                type="button"
+                className="btn btn-primary"
+                disabled={actionLoading}
+                onClick={() => void sendTestEmail()}
+              >
+                Send sample OTP email
+              </button>
+            </div>
+            {testOtp && (
+              <p className="admin-email-dev-otp">
+                Dev sample code: <code>{testOtp}</code>
+              </p>
+            )}
+          </div>
           <div className="card admin-card">
             <h3>Truncate patient data (keep doctors)</h3>
             <p>
