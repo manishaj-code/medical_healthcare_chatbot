@@ -1,3 +1,5 @@
+import { collapseRedundantSymptomLabels } from "./symptomDetection";
+
 export const DEFAULT_CLINICAL_RECOMMENDATION = "Physician evaluation advised.";
 
 export type RiskLevelKey = "low" | "medium" | "high" | "emergency" | "critical";
@@ -159,7 +161,7 @@ export function resolveSymptomLabels(sources: {
   for (const s of sources.historySymptoms ?? []) add(s);
   for (const s of complaintSymptoms(sources.chiefComplaintText ?? null)) add(s);
 
-  return out;
+  return collapseRedundantSymptomLabels(out);
 }
 
 export function parsePatientSummaryText(text: string): Partial<ClinicalSummaryFields> {
