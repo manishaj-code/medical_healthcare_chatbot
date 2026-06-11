@@ -3,6 +3,7 @@ from app.multi_agent.booking_actions import (
     _extract_appointment_uuid,
     _extract_apt_display_id,
     _is_appointment_management_message,
+    _parse_set_reminder_token,
     _parse_specialty_from_text,
     _wants_reminder,
     should_skip_booking_resolution,
@@ -25,12 +26,13 @@ def test_ent_specialty_still_parses_when_explicit():
     assert _parse_specialty_from_text("I need an ENT specialist") == "ENT Specialist"
 
 
-def test_reminder_message_extracts_display_and_uuid():
-    msg = (
-        "Set a reminder 30 minutes before appointment APT-34A90 "
-        "appointment_id:550e8400-e29b-41d4-a716-446655440000"
-    )
+def test_reminder_token_extracts_display_and_uuid():
+    msg = "[set_reminder:APT-34A90:550e8400-e29b-41d4-a716-446655440000]"
     assert _wants_reminder(msg)
+    assert _parse_set_reminder_token(msg) == {
+        "apt_id": "APT-34A90",
+        "appointment_id": "550e8400-e29b-41d4-a716-446655440000",
+    }
     assert _extract_apt_display_id(msg) == "APT-34A90"
     assert str(_extract_appointment_uuid(msg)) == "550e8400-e29b-41d4-a716-446655440000"
 

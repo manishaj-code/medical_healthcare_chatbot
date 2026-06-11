@@ -1,6 +1,7 @@
 import { useState, useMemo, useEffect } from "react";
 import type { ReactNode } from "react";
 import DoctorAvatar from "./DoctorAvatar";
+import { buildSetReminderMessage } from "../utils/chatTokens";
 
 interface SlotUi {
   label: string;
@@ -510,10 +511,7 @@ function AppointmentConfirmedCard({
 
   async function handleReminder() {
     if (reminderSet || isCancelled || actionsOff || reminderPending) return;
-    const apptUuid = ui.appointment_id;
-    const message = apptUuid
-      ? `Set a reminder 30 minutes before appointment ${aptId} appointment_id:${apptUuid}`
-      : `Set a reminder 30 minutes before appointment ${aptId}`;
+    const message = buildSetReminderMessage(aptId, ui.appointment_id);
     setReminderPending(true);
     try {
       await onPick(message);

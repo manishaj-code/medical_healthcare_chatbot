@@ -94,11 +94,33 @@ def _yes(text: str) -> bool:
 
 
 def _extract_apt_display_id(text: str) -> str | None:
+    token = _parse_set_reminder_token(text)
+    if token:
+        return token["apt_id"]
     match = re.search(r"APT-[A-F0-9]{5}", text, re.I)
     return match.group(0).upper() if match else None
 
 
+_SET_REMINDER_TOKEN_RE = re.compile(
+    r"^\[set_reminder:(?P<apt>APT-[A-F0-9]{5}):(?P<id>[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})\]$",
+    re.I,
+)
+
+
+def _parse_set_reminder_token(text: str) -> dict[str, str] | None:
+    match = _SET_REMINDER_TOKEN_RE.match(text.strip())
+    if not match:
+        return None
+    return {"apt_id": match.group("apt").upper(), "appointment_id": match.group("id")}
+
+
 def _extract_appointment_uuid(text: str) -> UUID | None:
+    token = _parse_set_reminder_token(text)
+    if token:
+        try:
+            return UUID(token["appointment_id"])
+        except ValueError:
+            return None
     match = re.search(
         r"\b[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\b",
         text,
@@ -235,12 +257,6 @@ async def _handle_reminder_request(ctx: AgentContext) -> AgentResponse | None:
         await mark_appointment_reminder_on_cards(ctx.db, ctx.conv_id, appt_uuid)
     except Exception:
         pass
-    card = await build_card_from_appointment(
-        ctx.db,
-        appt_uuid,
-        user_id=ctx.patient.user_id,
-        reminder_set=True,
-    )
     already_scheduled = reminder_result.get("already_scheduled")
     reply = (
         "You already have a reminder for this appointment."
@@ -250,7 +266,6 @@ async def _handle_reminder_request(ctx: AgentContext) -> AgentResponse | None:
     return AgentResponse(
         reply=reply,
         agent="scheduling_agent",
-        ui=card,
         session_patch={
             "care_goal": "manage_appointment",
             "awaiting": None,
@@ -491,6 +506,8 @@ async def _handle_reschedule_appointment(ctx: AgentContext) -> AgentResponse | N
 
 
 def _wants_reminder(text: str) -> bool:
+    if _parse_set_reminder_token(text):
+        return True
     t = text.strip().lower()
     return "reminder" in t
 

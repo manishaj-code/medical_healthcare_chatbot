@@ -49,7 +49,28 @@ export const CHAT_QUICK_ACTIONS = [
  * If the content is a raw internal token, return its friendly label.
  * Otherwise return the content unchanged.
  */
+const SET_REMINDER_TOKEN_RE =
+  /^\[set_reminder:(APT-[A-F0-9]{5}):[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\]$/i;
+
+/** API message for the Set Reminder button — UUID stays hidden from the chat UI. */
+export function buildSetReminderMessage(aptId: string, appointmentId?: string): string {
+  if (appointmentId) {
+    return `[set_reminder:${aptId}:${appointmentId}]`;
+  }
+  return `Set a reminder 30 minutes before appointment ${aptId}`;
+}
+
 export function resolveDisplayText(content: string): string {
   const trimmed = content.trim();
-  return INTERNAL_TOKEN_LABELS[trimmed] ?? trimmed;
+  if (INTERNAL_TOKEN_LABELS[trimmed]) return INTERNAL_TOKEN_LABELS[trimmed];
+
+  const reminderToken = trimmed.match(SET_REMINDER_TOKEN_RE);
+  if (reminderToken) return `🔔 Set reminder for ${reminderToken[1].toUpperCase()}`;
+
+  const legacyReminder = trimmed.match(
+    /^Set a reminder .+ appointment (APT-[A-F0-9]{5})\s+appointment_id:/i
+  );
+  if (legacyReminder) return `🔔 Set reminder for ${legacyReminder[1].toUpperCase()}`;
+
+  return trimmed;
 }

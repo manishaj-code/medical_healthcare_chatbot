@@ -17,7 +17,7 @@ _EMAIL_RE = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$", re.I)
 _OTP_RE = re.compile(r"^\d{6}$")
 _APT_ID_RE = re.compile(r"^APT-[A-Z0-9]+$", re.I)
 
-_INTERNAL_ACTION_TOKEN_RE = re.compile(r"^\[start_[^\]]+\]$", re.I)
+_INTERNAL_ACTION_TOKEN_RE = re.compile(r"^\[(?:start_[^\]]+|set_reminder:[^\]]+)\]$", re.I)
 _GREETING_RE = re.compile(r"^(hi|hello|hey|yo|good\s+(morning|afternoon|evening))[!?.]*$", re.I)
 _QUICK_ACTION_RE = re.compile(
     r"^(check my symptoms|find a specialist doctor|explain my medical report|"
