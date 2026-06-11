@@ -8,7 +8,11 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models import Appointment, Doctor, DoctorAvailability, Notification, User
 from app.models.enums import AppointmentStatus, NotificationType
-from app.services.appointment_email_service import send_appointment_scheduled_emails
+from app.services.appointment_email_service import (
+    send_appointment_cancelled_emails,
+    send_appointment_rescheduled_emails,
+    send_appointment_scheduled_emails,
+)
 from app.services.cache import get_redis
 
 logger = logging.getLogger(__name__)
@@ -118,6 +122,9 @@ async def reschedule_appointment(
     if not appt or appt.status != AppointmentStatus.confirmed:
         raise HTTPException(status_code=404, detail="Appointment not found")
 
+    previous_date = appt.slot_date
+    previous_time = appt.slot_time
+
     new_slot = await db.execute(
         select(DoctorAvailability).where(
             DoctorAvailability.doctor_id == appt.doctor_id,
@@ -178,6 +185,17 @@ async def reschedule_appointment(
             )
         )
     await db.flush()
+
+    try:
+        await send_appointment_rescheduled_emails(
+            db,
+            appt,
+            previous_date=previous_date,
+            previous_time=previous_time,
+        )
+    except Exception:
+        logger.exception("Failed to send reschedule emails for %s", appt.id)
+
     return appt
 
 
@@ -194,6 +212,10 @@ async def cancel_appointment(db: AsyncSession, appointment_id: UUID, patient_id:
     appt = result.scalar_one_or_none()
     if not appt:
         raise HTTPException(status_code=404, detail="Appointment not found")
+
+    cancelled_date = appt.slot_date
+    cancelled_time = appt.slot_time
+
     appt.status = AppointmentStatus.cancelled
     appt.cancellation_reason = reason
     avail = await db.execute(
@@ -207,4 +229,16 @@ async def cancel_appointment(db: AsyncSession, appointment_id: UUID, patient_id:
     if slot:
         slot.status = "available"
     await db.flush()
+
+    try:
+        await send_appointment_cancelled_emails(
+            db,
+            appt,
+            slot_date=cancelled_date,
+            slot_time=cancelled_time,
+            reason=reason,
+        )
+    except Exception:
+        logger.exception("Failed to send cancellation emails for %s", appt.id)
+
     return appt

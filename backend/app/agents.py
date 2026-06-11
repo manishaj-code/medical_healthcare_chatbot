@@ -4,7 +4,7 @@ from typing import Any
 
 from app.database import get_settings
 from app.emergency_detection import EMERGENCY_PATTERNS, detect_emergency
-from app.healthcare_policy import OFF_TOPIC_REPLY, is_off_topic_fallback
+from app.healthcare_policy import OFF_TOPIC_REPLY, is_off_topic_fallback, is_thanks_message
 
 settings = get_settings()
 
@@ -243,21 +243,28 @@ def _is_negative_reply(text: str) -> bool:
 
 
 def _is_thanks_reply(text: str) -> bool:
-    t = text.lower().strip()
-    if t in {"thanks", "thank you", "thankyou", "thx", "ty", "ok thanks", "ok thank you", "okay thanks", "got it", "alright", "ok", "okay"}:
-        return True
-    return bool(re.search(r"\b(thank|thanks|thank you|thx)\b", t))
+    return is_thanks_message(text)
 
 
 def _is_closure_message(last_bot: str) -> bool:
+    lb = last_bot.lower()
     return any(
-        phrase in last_bot
+        phrase in lb
         for phrase in (
             "self-care suggestions",
+            "self-care tips",
             "appointment booked successfully",
             "i'm here anytime if you'd like to book",
             "i can help book an appointment anytime",
             "please watch your symptoms",
+            "rest and drink plenty of water",
+            "drink plenty of water",
+            "based on what you've shared",
+            "based on your symptoms",
+            "recommend a ",
+            "physician evaluation",
+            "book appointment",
+            "see a general physician",
         )
     )
 
@@ -274,7 +281,7 @@ def _symptoms_in_history(history: list[dict] | None) -> bool:
 
 
 def get_contextual_reply(user: str, history: list[dict] | None) -> str | None:
-    """Multi-turn triage follow-ups per doc1.txt conversation flow."""
+    """Offline/dev fallback for short triage replies — not used during structured symptom assessment."""
     text = user.lower().strip()
     last_bot = _last_assistant_message(history)
 
@@ -311,13 +318,13 @@ def get_contextual_reply(user: str, history: list[dict] | None) -> str | None:
         if DURATION_UNIT_ONLY.match(text):
             num = _pending_duration_number(history)
             if num:
-                return "Do you have any breathing difficulty or shortness of breath?"
+                return None
             return f"How many {text} have you had these symptoms?"
         if _has_duration(text):
-            return "Do you have any breathing difficulty or shortness of breath?"
+            return None
 
     if last_bot and "how long" in last_bot and _has_duration(text):
-        return "Do you have any breathing difficulty or shortness of breath?"
+        return None
 
     # Bare number (e.g. "2") → ask days / hours / months
     if last_bot and "how long" in last_bot and re.fullmatch(r"\d+", text):
@@ -351,9 +358,6 @@ def get_contextual_reply(user: str, history: list[dict] | None) -> str | None:
             "I didn't catch a specific condition. Do you have diabetes, asthma, hypertension, "
             "or any other chronic condition? You can say the name or reply 'no'."
         )
-
-    if _symptoms_in_history(history) and _has_duration(text):
-        return "Do you have any breathing difficulty or shortness of breath?"
 
     return None
 

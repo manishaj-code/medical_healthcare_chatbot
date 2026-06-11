@@ -82,7 +82,8 @@ def build_reschedule_slots_ui(
 
 
 def doctor_list_intro(count: int) -> str:
-    return f"I found **{count} doctors** with open appointments."
+    noun = "doctor" if count == 1 else "doctors"
+    return f"I found **{count} {noun}** with open time slots."
 
 
 def slot_list_intro(doctor_name: str) -> str:
@@ -284,9 +285,15 @@ def infer_triage_quick_actions(reply: str, session: dict) -> tuple[dict | None, 
             "care_goal": "symptom_assessment",
             "active_specialist": "triage_agent",
         }
-    if "severe" in lower or "severity" in lower:
+    if "severe" in lower or "severity" in lower or "describe the severity" in lower:
         return build_severity_picker_ui(), {
             "awaiting": "pick_severity",
+            "care_goal": "symptom_assessment",
+            "active_specialist": "triage_agent",
+        }
+    if "would you like to book an appointment" in lower:
+        return build_post_assessment_ui(), {
+            "awaiting": "offer_booking",
             "care_goal": "symptom_assessment",
             "active_specialist": "triage_agent",
         }

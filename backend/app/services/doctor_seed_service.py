@@ -4,7 +4,12 @@ from __future__ import annotations
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.data.doctors_catalog import DOCTOR_CATALOG, SPECIALTIES, DoctorSeed
+from app.data.doctors_catalog import (
+    DOCTOR_CATALOG,
+    DOCTOR_DEFAULT_PASSWORD,
+    SPECIALTIES,
+    DoctorSeed,
+)
 from app.database import hash_password
 from app.models import Doctor, DoctorSpecialization, User
 from app.models.enums import UserRole
@@ -52,8 +57,24 @@ async def _link_specialty(db: AsyncSession, doctor_id, spec_map: dict, specialty
         db.add(DoctorSpecialization(doctor_id=doctor_id, specialization_id=spec.id))
 
 
-async def seed_doctor_catalog(db: AsyncSession) -> tuple[int, int]:
-    """Insert missing doctors and refresh profiles for existing catalog emails."""
+async def _prune_doctors_not_in_catalog(db: AsyncSession) -> int:
+    """Remove doctor accounts that are no longer in DOCTOR_CATALOG."""
+    from app.services.admin_service import delete_doctor_account
+
+    catalog_emails = {record.email.lower() for record in DOCTOR_CATALOG}
+    rows = await db.execute(
+        select(Doctor, User).join(User, User.id == Doctor.user_id).where(User.role == UserRole.doctor.value)
+    )
+    removed = 0
+    for doctor, user in rows.all():
+        if user.email.lower() not in catalog_emails:
+            await delete_doctor_account(db, doctor.id)
+            removed += 1
+    return removed
+
+
+async def seed_doctor_catalog(db: AsyncSession) -> tuple[int, int, int]:
+    """Insert missing doctors, refresh profiles, and drop catalog extras."""
     spec_map: dict[str, object] = {}
     for name in SPECIALTIES:
         spec_map[name] = await get_or_create_specialization(db, name)
@@ -91,7 +112,7 @@ async def seed_doctor_catalog(db: AsyncSession) -> tuple[int, int]:
         user = User(
             name=record.name,
             email=record.email,
-            password_hash=hash_password("Doctor@12345"),
+            password_hash=hash_password(DOCTOR_DEFAULT_PASSWORD),
             role=UserRole.doctor.value,
         )
         db.add(user)
@@ -104,5 +125,6 @@ async def seed_doctor_catalog(db: AsyncSession) -> tuple[int, int]:
         await create_default_availability(db, doctor.id)
         added += 1
 
+    removed = await _prune_doctors_not_in_catalog(db)
     await db.flush()
-    return added, updated
+    return added, updated, removed

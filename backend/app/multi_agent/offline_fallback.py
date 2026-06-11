@@ -10,7 +10,13 @@ from app.services.chat_ui import (
     build_severity_picker_ui,
     build_symptom_starter_ui,
 )
-from app.healthcare_policy import build_greeting_reply, is_active_care_flow, patient_first_name
+from app.healthcare_policy import (
+    build_greeting_reply,
+    build_thanks_reply,
+    is_active_care_flow,
+    is_thanks_message,
+    patient_first_name,
+)
 from app.services.symptom_extraction import (
     extract_symptoms_offline,
     is_non_symptom_message,
@@ -204,6 +210,17 @@ def conversational_triage_turn(
     pname = patient_first_name(session.get("_patient_first_name"))
     asked: list[str] = list((session.get("triage_collected") or {}).get("questions_asked") or [])
 
+    if is_thanks_message(text):
+        return {
+            "reply": build_thanks_reply(pname),
+            "session_patch": {
+                "care_goal": None,
+                "awaiting": None,
+                "active_specialist": None,
+                "triage_collected": None,
+            },
+        }
+
     if is_non_symptom_message(text) and not is_active_care_flow(session):
         return {
             "reply": build_greeting_reply(pname),
@@ -258,6 +275,8 @@ def conversational_triage_turn(
             collected["more_symptoms_answered"] = True
             collected["ready_to_assess"] = True
 
+    if session.get("detected_symptoms"):
+        collected["symptoms"] = list(session["detected_symptoms"])
     symptoms = collected.get("symptoms") or session.get("detected_symptoms") or []
 
     if "yes, i have more" in tl or (tl == "yes" and session.get("awaiting") == "more_symptoms"):
@@ -271,6 +290,16 @@ def conversational_triage_turn(
         }
 
     if not symptoms:
+        if is_thanks_message(text):
+            return {
+                "reply": build_thanks_reply(pname),
+                "session_patch": {
+                    "care_goal": None,
+                    "awaiting": None,
+                    "active_specialist": None,
+                    "triage_collected": None,
+                },
+            }
         if is_symptom_triage_kickoff(text) or "symptoms" not in asked:
             kickoff = kickoff_symptom_triage_turn(session)
             kickoff["session_patch"]["triage_collected"] = collected

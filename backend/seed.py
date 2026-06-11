@@ -35,8 +35,8 @@ async def seed() -> None:
             )
             created_any = True
 
-        added_docs, updated_docs = await seed_doctor_catalog(db)
-        if added_docs > 0 or updated_docs > 0:
+        added_docs, updated_docs, removed_docs = await seed_doctor_catalog(db)
+        if added_docs > 0 or updated_docs > 0 or removed_docs > 0:
             created_any = True
 
         for name, email, condition in PATIENTS:
@@ -85,7 +85,7 @@ async def seed() -> None:
 
         await db.commit()
         print("Seed complete.")
-        print(f"  Doctors added: {added_docs}, profiles updated: {updated_docs}")
+        print(f"  Doctors added: {added_docs}, updated: {updated_docs}, removed: {removed_docs}")
         print("  Patient: john@test.com / Patient@12345")
         print("  Doctor:  dr.sharma@clinic.com / Doctor@12345")
         print("  Admin:   admin@clinic.com / Admin@12345")

@@ -71,6 +71,31 @@ export function scheduleHeadingForDate(iso: string, today = todayIso()): string 
   return d.toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric" });
 }
 
+export function isActiveAppointmentStatus(status: string): boolean {
+  const s = status.toLowerCase();
+  return s !== "cancelled" && s !== "canceled";
+}
+
+export function queueVisitMetaForDate(iso: string, time: string, patientId: string, today = todayIso()): string {
+  const when = formatDoctorTime(time);
+  const caseId = patientCaseId(patientId);
+  if (iso === today) return `Today's visit · ${when} · ${caseId}`;
+  if (iso === shiftIsoDate(today, 1)) return `Tomorrow's visit · ${when} · ${caseId}`;
+  return `Visit · ${formatDisplayDate(iso)} ${when} · ${caseId}`;
+}
+
+export function queueTagForScheduleDate(iso: string, today = todayIso()): string {
+  if (iso === today) return "Today";
+  if (iso === shiftIsoDate(today, 1)) return "Tomorrow";
+  return formatDisplayDate(iso);
+}
+
+export function priorityQueueDescForDate(iso: string, today = todayIso()): string {
+  if (iso === today) return "Patients needing your attention — refills and today's visits.";
+  if (iso === shiftIsoDate(today, 1)) return "Patients needing your attention — refills and tomorrow's visits.";
+  return `Patients needing your attention — refills and visits on ${formatDisplayDate(iso)}.`;
+}
+
 export function isAppointmentPast(date: string, time: string): boolean {
   const normalized = time.length === 5 ? `${time}:00` : time;
   const slot = new Date(`${date}T${normalized}`);

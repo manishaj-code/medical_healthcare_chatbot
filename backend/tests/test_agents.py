@@ -37,6 +37,20 @@ def test_thanks_after_home_care():
     assert reply and "welcome" in reply.lower()
 
 
+def test_thanks_with_prefix_after_assessment():
+    from app.healthcare_policy import is_thanks_message
+
+    assert is_thanks_message("om thank you!!")
+    history = [
+        {
+            "role": "assistant",
+            "content": "Thanks, Aaaaaaaa. Rest and drink plenty of water. I recommend a General Physician.",
+        },
+    ]
+    reply = get_contextual_reply("om thank you!!", history)
+    assert reply and "welcome" in reply.lower()
+
+
 def test_decline_appointment_gives_home_care():
     history = [
         {"role": "user", "content": "I have fever"},
@@ -70,7 +84,7 @@ def test_triage_unit_only_after_number():
         {"role": "assistant", "content": "Just to confirm: is that 2 days, 2 hours, or 2 months?"},
     ]
     reply = get_contextual_reply("days", history)
-    assert reply and "breathing" in reply.lower()
+    assert reply is None
 
 
 def test_triage_condition_typo_astama():
@@ -87,7 +101,7 @@ def test_triage_multiturn_duration():
         {"role": "assistant", "content": "How long have you had these symptoms?"},
     ]
     reply = get_contextual_reply("from 2 days", history)
-    assert reply and "breathing" in reply.lower()
+    assert reply is None
 
 
 def test_triage_multiturn_diabetes():

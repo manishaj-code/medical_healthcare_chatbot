@@ -2,12 +2,15 @@ import { useState, useMemo, useEffect } from "react";
 import type { ReactNode } from "react";
 import DoctorAvatar from "./DoctorAvatar";
 import { buildSetReminderMessage } from "../utils/chatTokens";
+import { filterChatBookableSlots } from "../utils/chatUiHelpers";
 
 interface SlotUi {
   label: string;
   doctor_id: string;
   doctor_name: string;
   message: string;
+  slot_date?: string;
+  slot_time?: string;
 }
 
 interface DoctorUi {
@@ -696,7 +699,8 @@ function SlotButtons({
   compact?: boolean;
   chipClassName?: string;
 }) {
-  const groups = groupSlots(slots);
+  const bookable = useMemo(() => filterChatBookableSlots(slots), [slots]);
+  const groups = groupSlots(bookable);
   return (
     <div className={`chat-slot-groups ${compact ? "chat-slot-groups--compact" : ""}`}>
       {groups.map((g) => (
@@ -734,52 +738,55 @@ function RescheduleSlotCard({
   onPick: (message: string) => void;
 }) {
   const slots = ui.slots ?? [];
+  const bookableSlots = useMemo(() => filterChatBookableSlots(slots), [slots]);
   const aptId = ui.apt_id ?? "";
   const doctorName = ui.doctor_name ?? "Doctor";
   const currentTime = ui.current_time ?? ui.current ?? "";
 
   return (
-    <div className="reschedule-card">
+    <div className="reschedule-card reschedule-card--compact">
       <div className="reschedule-card-header">
         <span className="reschedule-card-header-icon" aria-hidden="true">
           <span className="material-symbols-outlined">event_repeat</span>
         </span>
         <div className="reschedule-card-header-text">
-          <span className="reschedule-card-title">Reschedule Appointment</span>
+          <span className="reschedule-card-title">Reschedule</span>
           {aptId && <span className="reschedule-card-apt-id">{aptId}</span>}
         </div>
       </div>
 
       <div className="reschedule-card-body">
-        <div className="reschedule-card-meta">
-          <div className="reschedule-card-row">
-            <span className="reschedule-card-label">Doctor</span>
-            <span className="reschedule-card-value">{doctorName}</span>
+        <dl className="reschedule-card-facts">
+          <div className="reschedule-card-fact">
+            <dt>Doctor</dt>
+            <dd>{doctorName}</dd>
           </div>
           {currentTime && (
-            <div className="reschedule-card-row reschedule-card-row--current">
-              <span className="reschedule-card-label">Current time</span>
-              <span className="reschedule-card-value">{currentTime}</span>
+            <div className="reschedule-card-fact reschedule-card-fact--current">
+              <dt>Current</dt>
+              <dd>{currentTime}</dd>
             </div>
           )}
-        </div>
+        </dl>
 
         <div className="reschedule-card-slots">
           <div className="reschedule-card-slots-head">
-            <span className="reschedule-card-slots-title">Select a new time</span>
-            <span className="reschedule-card-slots-badge">{slots.length} available</span>
+            <span className="reschedule-card-slots-title">New time</span>
+            <span className="reschedule-card-slots-badge">{bookableSlots.length} open</span>
           </div>
-          <SlotButtons
-            slots={slots}
-            disabled={disabled}
-            onPick={onPick}
-            compact
-            chipClassName="reschedule-slot-chip"
-          />
+          {bookableSlots.length > 0 ? (
+            <SlotButtons
+              slots={bookableSlots}
+              disabled={disabled}
+              onPick={onPick}
+              compact
+              chipClassName="reschedule-slot-chip"
+            />
+          ) : (
+            <p className="reschedule-card-empty">No later slots today. Try tomorrow or check back soon.</p>
+          )}
         </div>
       </div>
-
-      <p className="reschedule-card-footnote">Tap a time to continue — you&apos;ll confirm before anything changes.</p>
     </div>
   );
 }

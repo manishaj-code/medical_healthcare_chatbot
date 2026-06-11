@@ -1,5 +1,20 @@
 """Structured triage conversation — no assumed symptoms from clarifying questions."""
+from app.healthcare_policy import should_use_legacy_contextual_reply
 from app.multi_agent.offline_fallback import conversational_triage_turn, _parse_severity
+
+
+def test_structured_triage_disables_legacy_contextual_reply():
+    session = {
+        "care_goal": "symptom_assessment",
+        "awaiting": "pick_duration",
+        "detected_symptoms": ["Fever"],
+    }
+    assert should_use_legacy_contextual_reply(session) is False
+    assert should_use_legacy_contextual_reply({"detected_symptoms": ["Fever"]}) is False
+    assert should_use_legacy_contextual_reply(
+        {"triage_collected": {"symptoms": ["Fever"], "questions_asked": ["symptoms"]}}
+    ) is False
+    assert should_use_legacy_contextual_reply({"care_goal": "symptom_assessment", "triage_assessed": True}) is True
 
 
 def test_duration_digits_are_not_parsed_as_severity():

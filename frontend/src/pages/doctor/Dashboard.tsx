@@ -12,9 +12,13 @@ import {
   filterBookableSlots,
   formatDisplayDate,
   formatDoctorTime,
+  isActiveAppointmentStatus,
   isAppointmentPast,
   patientCaseId,
   patientInitials,
+  priorityQueueDescForDate,
+  queueTagForScheduleDate,
+  queueVisitMetaForDate,
   scheduleHeadingForDate,
   shiftIsoDate,
   todayIso,
@@ -128,12 +132,16 @@ export default function DoctorDashboard() {
   );
 
   const scheduleAppts = useMemo(
-    () => appointments.filter((a) => a.date === scheduleDate).sort((a, b) => a.time.localeCompare(b.time)),
+    () =>
+      appointments
+        .filter((a) => a.date === scheduleDate && isActiveAppointmentStatus(a.status))
+        .sort((a, b) => a.time.localeCompare(b.time)),
     [appointments, scheduleDate],
   );
 
   const scheduleHeading = scheduleHeadingForDate(scheduleDate, today);
   const scheduleIsToday = scheduleDate === today;
+  const priorityQueueDesc = priorityQueueDescForDate(scheduleDate, today);
 
   const pendingRefills = refillRequests.filter((r) => r.status === "pending");
 
@@ -144,20 +152,21 @@ export default function DoctorDashboard() {
   }, [patients, search]);
 
   const currentApptId = useMemo(() => {
+    if (!scheduleIsToday) return null;
     const now = Date.now();
     let current: string | null = null;
-    for (const a of todayAppts) {
+    for (const a of scheduleAppts) {
       const slot = new Date(`${a.date}T${a.time}`).getTime();
-      if (slot <= now + 30 * 60 * 1000 && a.status !== "completed" && a.status !== "cancelled") {
+      if (slot <= now + 30 * 60 * 1000 && a.status !== "completed") {
         current = a.appointment_id;
       }
     }
     if (!current) {
-      const upcoming = todayAppts.find((a) => a.status !== "completed" && a.status !== "cancelled");
+      const upcoming = scheduleAppts.find((a) => a.status !== "completed");
       if (upcoming) current = upcoming.appointment_id;
     }
     return current;
-  }, [todayAppts]);
+  }, [scheduleAppts, scheduleIsToday]);
 
   const urgentQueue: QueueItem[] = useMemo(() => {
     const items: QueueItem[] = [];
@@ -177,23 +186,27 @@ export default function DoctorDashboard() {
       });
     }
 
-    for (const a of todayAppts) {
+    for (const a of scheduleAppts) {
       if (seen.has(a.patient_id) || items.length >= 4) continue;
-      if (a.status === "completed" || a.status === "cancelled") continue;
+      if (a.status === "completed") continue;
       seen.add(a.patient_id);
+      const dateTag = queueTagForScheduleDate(scheduleDate, today);
       items.push({
         patientId: a.patient_id,
         name: a.patient_name,
-        meta: `Today's visit · ${formatDoctorTime(a.time)} · ${patientCaseId(a.patient_id)}`,
+        meta: queueVisitMetaForDate(scheduleDate, a.time, a.patient_id, today),
         tags: [
-          { label: a.appointment_id === currentApptId ? "Now" : "Today", variant: "info" },
+          {
+            label: scheduleIsToday && a.appointment_id === currentApptId ? "Now" : dateTag,
+            variant: "info",
+          },
         ],
         summary: "Loading clinical summary…",
       });
     }
 
     return items;
-  }, [pendingRefills, todayAppts, currentApptId]);
+  }, [pendingRefills, scheduleAppts, scheduleDate, scheduleIsToday, today, currentApptId]);
 
   useEffect(() => {
     const ids = urgentQueue.map((q) => q.patientId).filter((id) => !loadedSummaryIds.current.has(id));
@@ -413,8 +426,7 @@ export default function DoctorDashboard() {
             ) : (
               <div className="dp-timeline">
                 {scheduleAppts.map((a) => {
-                  const done =
-                    a.status === "completed" || (isAppointmentPast(a.date, a.time) && a.status !== "cancelled");
+                  const done = a.status === "completed" || isAppointmentPast(a.date, a.time);
                   const isCurrent = scheduleIsToday && a.appointment_id === currentApptId && !done;
                   return (
                     <div key={a.appointment_id} className="dp-timeline-item">
@@ -459,7 +471,7 @@ export default function DoctorDashboard() {
                 All patients →
               </button>
             </div>
-            <p className="dp-panel-desc">Patients needing your attention — refills and today&apos;s visits.</p>
+            <p className="dp-panel-desc">{priorityQueueDesc}</p>
             {urgentQueue.length === 0 ? (
               <EmptyBlock icon="check_circle" title="All caught up" desc="No urgent items in your queue right now." />
             ) : (

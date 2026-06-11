@@ -18,7 +18,7 @@ from app.services.appointment_service import (
     reschedule_appointment,
     schedule_reminder,
 )
-from app.services.doctor_service import get_availability, list_doctors_with_availability
+from app.services.doctor_service import _fetch_doctor_slots, get_availability, list_doctors_with_availability
 from app.services.summary_service import prepare_appointment_summary
 from app.services.symptom_service import assess_symptoms, save_assessment
 
@@ -30,7 +30,9 @@ def _format_time(t: time) -> str:
 
 
 def _day_label(d: date) -> str:
-    today = date.today()
+    from app.utils.clinic_time import clinic_today
+
+    today = clinic_today()
     if d == today:
         return "Today"
     if d == today + timedelta(days=1):
@@ -200,22 +202,9 @@ async def tool_get_doctor_slots(db: AsyncSession, doctor_id: UUID, limit: int = 
     if not doc:
         return {"slots": [], "doctor_name": "Unknown"}
     user = await db.get(User, doc.user_id)
-    today = date.today()
-    rows = await db.execute(
-        select(DoctorAvailability)
-        .where(
-            DoctorAvailability.doctor_id == doctor_id,
-            DoctorAvailability.slot_date >= today,
-            DoctorAvailability.status == "available",
-        )
-        .order_by(DoctorAvailability.slot_date, DoctorAvailability.slot_time)
-        .limit(limit)
-    )
-    slots = [
-        serialize_slot(doctor_id, user.name if user else "Doctor", s.slot_date, s.slot_time)
-        for s in rows.scalars().all()
-    ]
-    return {"doctor_name": user.name if user else "Doctor", "slots": slots}
+    doctor_name = user.name if user else "Doctor"
+    slots = await _fetch_doctor_slots(db, doctor_id, doctor_name, limit=limit)
+    return {"doctor_name": doctor_name, "slots": slots}
 
 
 async def tool_list_appointments(db: AsyncSession, patient_id: UUID) -> dict:
@@ -412,7 +401,9 @@ async def tool_assess_symptoms_llm(
         "Based on symptom triage data, recommend next steps. Return ONLY JSON:\n"
         '{"risk_level": "low|medium|high|emergency", '
         '"recommended_specialty": "General Physician|Cardiologist|...", '
-        '"recommendation": "2-3 sentences, no diagnosis or prescribing"}\n\n'
+        '"recommendation": "2-3 short sentences in plain, simple English (easy for non-native speakers). '
+        'Use common words and short sentences. Focus on rest, hydration, and when to see a doctor. '
+        'Do not diagnose or prescribe. Do not start with booking or scheduling — that comes later."}\n\n'
         f"DATA:\n{payload}"
     )
     result = await llm.json_prompt(prompt)

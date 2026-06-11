@@ -62,6 +62,7 @@ class Settings(BaseSettings):
 
     cors_origins: str = "http://localhost:5173,http://localhost:3000"
     guest_session_persist: bool = True
+    clinic_timezone: str = "Asia/Kolkata"
     rate_limit_chat_per_minute: int = 60
     rate_limit_auth_per_minute: int = 10
     secure_headers_enabled: bool = False

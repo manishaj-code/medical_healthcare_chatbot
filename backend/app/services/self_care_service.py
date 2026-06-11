@@ -169,21 +169,27 @@ def build_self_care_reply(
 
     if not tips:
         tips = [
-            "Drink plenty of water and stay well hydrated.",
-            "Get adequate rest and avoid overexertion.",
-            "Eat light, nutritious meals when you feel hungry.",
-            "Monitor your symptoms and note any changes.",
+            "Drink plenty of water.",
+            "Get enough rest.",
+            "Eat light meals when you feel hungry.",
+            "Watch your symptoms and note any changes.",
         ]
 
-    assessment = assess_symptoms(symptoms or ["general discomfort"], duration or None, conditions or None)
+    if not symptoms:
+        return (
+            "I'd like to give you relevant self-care tips. "
+            "Could you briefly describe what symptoms or concerns you're experiencing?"
+        )
+
+    assessment = assess_symptoms(symptoms, duration or None, conditions or None)
     risk = assessment["risk_level"]
     risk_val = risk.value if hasattr(risk, "value") else str(risk)
 
     if symptoms:
         symptom_label = ", ".join(symptoms[:3])
-        intro = f"Here are self-care suggestions that may help with your **{symptom_label}**:"
+        intro = f"Here are simple things that may help with your **{symptom_label}**:"
     else:
-        intro = "Here are general self-care suggestions that may help while you recover:"
+        intro = "Here are simple things you can try at home while you recover:"
 
     if duration and duration.lower() not in {"not sure", "unspecified", "skip"}:
         intro += f"\n\nYou've mentioned this has been going on for **{duration}**."
@@ -195,18 +201,20 @@ def build_self_care_reply(
 
     if risk_val in ("high", "emergency"):
         footer = (
-            "\n\n⚠️ Given the nature of your symptoms, home care alone may not be enough. "
-            "Please consult a doctor or urgent care promptly, especially if symptoms worsen."
+            "\n\n⚠️ Your symptoms may need a doctor soon. "
+            "Please get medical help, especially if things get worse."
         )
     else:
         footer = (
-            "\n\nPlease watch your symptoms over the next 1–2 days. "
-            "See a doctor if they worsen, last longer than expected, or you develop "
-            "breathing difficulty, persistent high fever, severe pain, or confusion."
+            "\n\nWatch how you feel over the next day or two. "
+            "See a doctor if symptoms get worse, last too long, or you have "
+            "trouble breathing, high fever, strong pain, or feel confused."
         )
 
     closing = (
-        "\n\nI'm here if you'd like more information or help **booking an appointment**."
+        "\n\nI can share more tips or help you **book a visit**."
     )
 
-    return f"{intro}\n\n{body}{footer}{closing}"
+    from app.healthcare_policy import MEDICAL_DISCLAIMER
+
+    return f"{intro}\n\n{body}{footer}{closing}{MEDICAL_DISCLAIMER}"

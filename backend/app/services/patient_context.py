@@ -16,7 +16,25 @@ from app.models import (
     User,
 )
 from app.models.enums import AppointmentStatus
+from app.healthcare_policy import patient_first_name
 from app.services.appointment_service import format_apt_id
+
+
+async def resolve_patient_first_name(
+    db: AsyncSession,
+    patient_ctx: dict | None,
+    patient: Patient | None = None,
+) -> str:
+    """First name for chat replies — falls back to User.name when context is empty."""
+    raw = ((patient_ctx or {}).get("name") or "").strip()
+    pname = patient_first_name(raw)
+    if pname != "there":
+        return pname
+    if patient is not None:
+        user = await db.get(User, patient.user_id)
+        if user and (user.name or "").strip():
+            return patient_first_name(user.name)
+    return "there"
 
 
 def _age(dob: date | None) -> int | None:
@@ -84,7 +102,7 @@ async def load_patient_context(db: AsyncSession, patient: Patient) -> dict:
 
     return {
         "patient_id": str(patient.id),
-        "name": user.name if user else "Patient",
+        "name": (user.name or "").strip() if user else "",
         "age": _age(patient.dob),
         "gender": patient.gender,
         "blood_group": patient.blood_group,

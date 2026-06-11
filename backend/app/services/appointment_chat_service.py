@@ -9,7 +9,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models import DoctorAvailability, Patient
 from app.services.appointment_service import book_appointment
-from app.services.doctor_service import list_doctors
+from app.services.doctor_service import _filter_bookable_slots, list_doctors
+from app.utils.clinic_time import clinic_today
 from app.services.summary_service import prepare_appointment_summary
 
 
@@ -48,7 +49,7 @@ async def get_doctors_with_slots(
     slots_per_doctor: int = 3,
 ) -> list[dict]:
     all_docs = await list_doctors(db)
-    today = date.today()
+    today = clinic_today()
     result = []
     for doc in all_docs:
         if specialty.lower() not in [s.lower() for s in doc["specializations"]] and specialty != "General Physician":
@@ -61,10 +62,12 @@ async def get_doctors_with_slots(
                 DoctorAvailability.status == "available",
             )
             .order_by(DoctorAvailability.slot_date, DoctorAvailability.slot_time)
-            .limit(slots_per_doctor)
+            .limit(max(slots_per_doctor * 4, 20))
         )
         slots = []
         for s in rows.scalars().all():
+            if not _filter_bookable_slots(s.slot_date, s.slot_time):
+                continue
             day_label = "Today" if s.slot_date == today else (
                 "Tomorrow" if s.slot_date == today + timedelta(days=1) else str(s.slot_date)
             )
@@ -79,6 +82,8 @@ async def get_doctors_with_slots(
                 "slot_time": s.slot_time,
                 "label": f"{day_label}: {time_label}",
             })
+            if len(slots) >= slots_per_doctor:
+                break
         if slots:
             result.append({**doc, "slots": slots})
         if len(result) >= max_doctors:

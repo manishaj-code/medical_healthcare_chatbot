@@ -11,6 +11,7 @@ from app.emergency_detection import (
 )
 from app.healthcare_policy import (
     HEALTH_QA_PROMPT,
+    PLAIN_LANGUAGE_RULES,
     OFF_TOPIC_REPLY,
     build_greeting_reply,
     is_active_care_flow,
@@ -71,6 +72,7 @@ AGENT_TOOLS = {
 SPECIALIST_PROMPT = """You are the {name} in a multi-agent healthcare assistant team.
 
 Patient context, session state, and tool results are provided. You reason dynamically — NO fixed symptom scripts or disease-specific decision trees.
+""" + PLAIN_LANGUAGE_RULES + """
 
 Allowed tools for you: {tools}
 
@@ -91,7 +93,7 @@ Core rules:
 - Never invent doctors, slots, labs, or appointments
 - Ask ONE tailored follow-up when information is missing
 - Be empathetic and conversational — this is a healthcare companion, not a form-filler
-- Never address the patient as "Guest" — if no real name is in context, omit the name or use neutral phrasing
+- Never address the patient as "Guest" or "Patient" — use their first name from context, or omit the name
 
 Triage rules:
 - Engage in natural two-way conversation before suggesting any action
@@ -274,7 +276,9 @@ class TriageAgent(BaseSpecialist):
     agent_label = "symptom_assessment"
 
     async def run(self, ctx: AgentContext) -> AgentResponse:
-        pname = patient_first_name(ctx.patient_ctx.get("name"))
+        from app.services.patient_context import resolve_patient_first_name
+
+        pname = await resolve_patient_first_name(ctx.db, ctx.patient_ctx, ctx.patient)
         ctx.session["_patient_first_name"] = pname
         triage = ctx.session.get("triage_collected") or {}
         has_symptoms = bool(
@@ -293,7 +297,7 @@ class TriageAgent(BaseSpecialist):
         if wants_self_care_advice(ctx.text) and (
             ctx.session.get("triage_assessed") or has_identified_symptoms(ctx.session, ctx.history)
         ):
-            return _self_care_response(ctx)
+            return await _self_care_response(ctx)
 
         if (
             not ctx.session.get("triage_assessed")

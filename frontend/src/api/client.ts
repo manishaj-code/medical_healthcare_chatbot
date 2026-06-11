@@ -68,7 +68,7 @@ export async function apiUpload<T>(path: string, formData: FormData, retry = tru
 
   const res = await fetch(`${API}${path}`, { method: "POST", headers, body: formData });
 
-  if (res.status === 401 && retry && !isAuthPath(path)) {
+  if (res.status === 401 && retry && !isAuthPath(path) && !isGuestPath(path)) {
     const newToken = await refreshAccessToken();
     if (newToken) return apiUpload<T>(path, formData, false);
     clearTokens();
@@ -100,7 +100,7 @@ export async function api<T>(path: string, options: RequestInit = {}, retry = tr
 
   const res = await fetch(`${API}${path}`, { ...options, headers });
 
-  if (res.status === 401 && retry && !isAuthPath(path)) {
+  if (res.status === 401 && retry && !isAuthPath(path) && !isGuestPath(path)) {
     const newToken = await refreshAccessToken();
     if (newToken) return api<T>(path, options, false);
     clearTokens();

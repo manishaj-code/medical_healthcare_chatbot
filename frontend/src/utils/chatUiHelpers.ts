@@ -1,5 +1,18 @@
 import type { ChatUiPayload } from "../components/ChatBookingUI";
 
+export function isChatSlotPast(slotDate?: string, slotTime?: string): boolean {
+  if (!slotDate || !slotTime) return false;
+  const normalized = slotTime.length === 5 ? `${slotTime}:00` : slotTime;
+  const slot = new Date(`${slotDate}T${normalized}`);
+  return !Number.isNaN(slot.getTime()) && slot.getTime() < Date.now();
+}
+
+export function filterChatBookableSlots<
+  T extends { slot_date?: string; slot_time?: string },
+>(slots: T[]): T[] {
+  return slots.filter((s) => !isChatSlotPast(s.slot_date, s.slot_time));
+}
+
 interface ReminderSyncMessage {
   role: string;
   content: string;
@@ -92,14 +105,16 @@ export function buildDoctorListUi(doctors: ApiDoctor[]): ChatUiPayload {
       specialty: d.specialty,
       experience_years: d.experience_years,
       rating: d.rating,
-      slots: (d.slots ?? []).slice(0, 6).map((s) => ({
-        label: s.label,
-        doctor_id: s.doctor_id ?? d.id,
-        doctor_name: s.doctor_name ?? d.name,
-        slot_date: s.slot_date,
-        slot_time: s.slot_time,
-        message: `${d.name} ${s.label}`,
-      })),
+      slots: filterChatBookableSlots(d.slots ?? [])
+        .slice(0, 6)
+        .map((s) => ({
+          label: s.label,
+          doctor_id: s.doctor_id ?? d.id,
+          doctor_name: s.doctor_name ?? d.name,
+          slot_date: s.slot_date,
+          slot_time: s.slot_time,
+          message: `${d.name} ${s.label}`,
+        })),
     })),
   };
 }
@@ -109,7 +124,11 @@ function isDoctorListIntro(content: string): boolean {
 }
 
 function isBookingOfferPrompt(content?: string): boolean {
-  return !!content && /would you like me to show available doctors/i.test(content);
+  return (
+    !!content &&
+    (/would you like me to show available doctors/i.test(content) ||
+      /would you like to book an appointment/i.test(content))
+  );
 }
 
 function parseConfirmBookingUi(content: string): ChatUiPayload | null {
@@ -131,13 +150,104 @@ function parseConfirmBookingUi(content: string): ChatUiPayload | null {
 
 function parseBookingOfferUi(content: string): ChatUiPayload | null {
   if (!isBookingOfferPrompt(content)) return null;
+  const showDoctors = /show available doctors/i.test(content);
   return {
-    type: "yes_no",
+    type: showDoctors ? "yes_no" : "post_assessment",
+    options: showDoctors
+      ? [
+          { label: "Yes, show doctors", message: "Yes" },
+          { label: "No thanks", message: "No" },
+        ]
+      : [
+          { label: "Self-care tips", message: "Tell me self-care advice for my symptoms" },
+          { label: "Book appointment", message: "Book appointment" },
+        ],
+  };
+}
+
+function parseDurationPickerUi(content: string): ChatUiPayload | null {
+  if (!/how long have you been experiencing/i.test(content)) return null;
+  return {
+    type: "duration_picker",
+    variant: "stack",
     options: [
-      { label: "Yes, show doctors", message: "Yes" },
-      { label: "No thanks", message: "No" },
+      { label: "Less than 1 day", message: "Less than 1 day" },
+      { label: "1–3 days", message: "1-3 days" },
+      { label: "4–7 days", message: "4-7 days" },
+      { label: "Over 1 week", message: "Over 1 week" },
+      { label: "Not sure", message: "Not sure" },
     ],
   };
+}
+
+function parseSeverityPickerUi(content: string): ChatUiPayload | null {
+  if (!/severity of your symptoms|describe the severity/i.test(content)) return null;
+  return {
+    type: "severity_picker",
+    variant: "stack",
+    options: [
+      { label: "Mild", message: "Mild" },
+      { label: "Moderate", message: "Moderate" },
+      { label: "Severe", message: "Severe" },
+      { label: "Not sure", message: "Not sure" },
+    ],
+  };
+}
+
+function parseMoreSymptomsUi(content: string): ChatUiPayload | null {
+  if (!/other symptoms|anything else|additional symptom/i.test(content)) return null;
+  return {
+    type: "more_symptoms",
+    variant: "stack",
+    options: [
+      { label: "Yes, more symptoms", message: "Yes, I have more symptoms" },
+      { label: "No, that's all", message: "No other symptoms" },
+    ],
+  };
+}
+
+function parseYesNoUi(content: string): ChatUiPayload | null {
+  if (/do you have any breathing/i.test(content)) {
+    return {
+      type: "yes_no",
+      options: [
+        { label: "Yes", message: "Yes" },
+        { label: "No", message: "No" },
+      ],
+    };
+  }
+  if (/existing conditions|diabetes, asthma/i.test(content)) {
+    return {
+      type: "yes_no",
+      options: [
+        { label: "Yes", message: "Yes" },
+        { label: "No conditions", message: "No" },
+      ],
+    };
+  }
+  return null;
+}
+
+/** Infer structured quick-action UI from assistant text when the API omitted `ui`. */
+export function resolveChatUiSync(
+  ui: ChatUiPayload | null | undefined,
+  content?: string
+): ChatUiPayload | null {
+  if (ui?.options?.length) return ui;
+  if (ui?.type === "doctor_list" && ui.doctors?.length) return ui;
+  if (ui?.type === "slot_list" && ui.slots?.length) return ui;
+  if (ui?.type === "appointment_confirmed" && ui.appointment_id) return ui;
+  if (!content) return ui ?? null;
+  return (
+    parseConfirmBookingUi(content) ??
+    parseBookingOfferUi(content) ??
+    parseDurationPickerUi(content) ??
+    parseSeverityPickerUi(content) ??
+    parseMoreSymptomsUi(content) ??
+    parseYesNoUi(content) ??
+    ui ??
+    null
+  );
 }
 
 /** Booking confirmation cards stay visible in chat history (not only on the latest turn). */
@@ -169,26 +279,15 @@ export async function resolveBookingUi(
   agent?: string,
   content?: string
 ): Promise<ChatUiPayload | null> {
-  if (ui?.type === "doctor_list" && ui.doctors?.length) return ui;
-  if (ui?.type === "slot_list" && ui.slots?.length) return ui;
-  if (ui?.type === "reschedule_slots" && ui.slots?.length) return ui;
-  if (ui?.type === "appointment_confirmed" && ui.appointment_id) return ui;
-  if (ui?.type === "confirm_booking" && ui.options?.length) return ui;
-  if (ui?.type === "confirm_reschedule" && ui.options?.length) return ui;
-  if (ui?.type === "yes_no" && ui.options?.length) return ui;
-  if (ui?.type === "symptom_picker" && ui.options?.length) return ui;
-  if (ui?.type === "duration_picker" && ui.options?.length) return ui;
-  if (ui?.type === "severity_picker" && ui.options?.length) return ui;
-
-  if (content) {
-    const confirmUi = parseConfirmBookingUi(content);
-    if (confirmUi) return confirmUi;
-    const offerUi = parseBookingOfferUi(content);
-    if (offerUi) return offerUi;
-  }
+  const resolved = resolveChatUiSync(ui, content);
+  if (resolved?.options?.length) return resolved;
+  if (resolved?.type === "appointment_confirmed" && resolved.appointment_id) return resolved;
+  if (resolved?.type === "slot_list" && resolved.slots?.length) return resolved;
+  if (resolved?.type === "reschedule_slots" && resolved.slots?.length) return resolved;
+  if (resolved?.type === "doctor_list" && resolved.doctors?.length) return resolved;
 
   // Never attach doctor list UI to the triage offer prompt — wait for yes/doctor pick
-  if (isBookingOfferPrompt(content)) return ui ?? null;
+  if (isBookingOfferPrompt(content)) return resolved ?? null;
 
   // Only attach doctor UI to real doctor-list responses — not Yes/No offer prompts
   const shouldFetch =
@@ -196,14 +295,14 @@ export async function resolveBookingUi(
     (agent === "appointment" && content && isDoctorListIntro(content)) ||
     (!ui && agent && agent !== "symptom_assessment" && content && isDoctorListIntro(content));
 
-  if (!shouldFetch) return ui ?? null;
+  if (!shouldFetch) return resolved ?? null;
 
   const { api } = await import("../api/client");
   try {
     const doctors = await api<ApiDoctor[]>("/api/v1/doctors/with-availability");
-    if (!doctors.length) return ui ?? null;
+    if (!doctors.length) return resolved ?? null;
     return buildDoctorListUi(doctors);
   } catch {
-    return ui ?? null;
+    return resolved ?? null;
   }
 }
