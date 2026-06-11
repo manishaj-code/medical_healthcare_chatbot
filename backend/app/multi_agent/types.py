@@ -13,7 +13,7 @@ from app.models import Conversation, Patient
 class AgentContext:
     db: AsyncSession
     conversation: Conversation
-    patient: Patient
+    patient: Patient | None
     conv_id: UUID
     text: str
     history: list[dict]
@@ -21,6 +21,8 @@ class AgentContext:
     session: dict = field(default_factory=dict)
     tool_result: dict | None = None
     report_id: str | None = None
+    is_guest: bool = False
+    guest_session_id: str | None = None
 
 
 @dataclass

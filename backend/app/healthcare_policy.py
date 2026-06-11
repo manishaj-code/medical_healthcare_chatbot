@@ -7,6 +7,38 @@ OFF_TOPIC_REPLY = (
     "questions. Please ask a healthcare-related query."
 )
 
+_ANONYMOUS_PATIENT_NAMES = frozenset({"guest", "anonymous", "visitor"})
+
+
+def patient_first_name(name: str | None, *, default: str = "there") -> str:
+    """First name for conversational replies — never 'Guest' or other placeholders."""
+    raw = (name or "").strip()
+    if not raw:
+        return default
+    first = raw.split()[0]
+    if first.lower() in _ANONYMOUS_PATIENT_NAMES:
+        return default
+    return first
+
+
+def patient_display_name(name: str | None, *, anonymous_label: str = "You") -> str:
+    """Full display name for booking confirmations — anonymous users get a neutral label."""
+    raw = (name or "").strip()
+    if not raw:
+        return anonymous_label
+    if raw.split()[0].lower() in _ANONYMOUS_PATIENT_NAMES:
+        return anonymous_label
+    return raw
+
+
+def patient_ctx_for_llm(patient_ctx: dict) -> dict:
+    """Patient context for LLM prompts — omit placeholder guest names."""
+    ctx = dict(patient_ctx)
+    name = (ctx.get("name") or "").strip()
+    if not name or name.split()[0].lower() in _ANONYMOUS_PATIENT_NAMES:
+        ctx.pop("name", None)
+    return ctx
+
 HEALTH_QA_PROMPT = """You are MedAssist AI — a safe, production-grade healthcare assistant.
 
 SCOPE: Answer ONLY healthcare, medical, wellness, and clinic-service questions.
@@ -18,6 +50,7 @@ STRICT SAFETY RULES:
 - Never invent lab results, doctors, appointments, or clinic policies
 - Provide general medical education in clear, empathetic language
 - If information is insufficient, ask ONE clarifying follow-up question
+- Never address the patient as "Guest" — if no name is in context, omit it or use neutral phrasing
 - If uncertain, state your limitation and recommend consulting a licensed clinician
 - For emergencies, tell the patient to seek immediate emergency care
 
@@ -49,9 +82,80 @@ _HEALTH_TOPIC_PATTERNS = (
 )
 
 _GREETING_ONLY = re.compile(
-    r"^(hi|hello|hey|good\s+(morning|afternoon|evening)|thanks|thank\s+you|ok|okay|yes|no|sure)[!.?\s]*$",
+    r"^(hi|hello|hey|good\s+(morning|afternoon|evening)|thanks|thank\s+you)[!.?\s]*$",
     re.I,
 )
+
+_ACTIVE_CARE_AWAITING = frozenset({
+    "pick_symptom",
+    "pick_duration",
+    "pick_severity",
+    "more_symptoms",
+    "free_text_symptoms",
+    "symptom_image",
+    "post_assessment",
+    "offer_booking",
+    "pick_doctor",
+    "pick_slot",
+    "confirm_booking",
+    "confirm_reschedule",
+    "confirm_refill",
+    "pick_refill_med",
+    "report_followup",
+    "find_doctor_menu",
+    "pick_specialty",
+    "guest_email",
+    "guest_otp",
+})
+
+_ACTIVE_CARE_GOALS = frozenset({
+    "symptom_assessment",
+    "book_after_triage",
+    "appointment",
+    "find_doctor",
+    "guest_report",
+    "guest_report_done",
+    "refill",
+    "manage_appointment",
+    "video_consultation",
+})
+
+
+def is_greeting_only(text: str) -> bool:
+    """True only for hi/hello/thanks — not yes/no/ok (those are triage flow answers)."""
+    return bool(_GREETING_ONLY.match(text.strip()))
+
+
+def is_active_care_flow(session: dict) -> bool:
+    """Patient is mid-consultation — short replies must continue the flow, not reset."""
+    if not session:
+        return False
+    awaiting = session.get("awaiting")
+    if awaiting in _ACTIVE_CARE_AWAITING:
+        return True
+    if session.get("care_goal") in _ACTIVE_CARE_GOALS:
+        return True
+    if session.get("active_specialist") == "triage_agent" and not session.get("triage_assessed"):
+        return True
+    if session.get("detected_symptoms") and not session.get("triage_assessed"):
+        return True
+    if session.get("report_qa_open"):
+        return True
+    return False
+
+
+def should_reset_to_greeting(text: str, session: dict) -> bool:
+    """Only reset to welcome when the patient sends a bare greeting outside an active flow."""
+    return is_greeting_only(text) and not is_active_care_flow(session)
+
+
+def build_greeting_reply(patient_name: str = "there") -> str:
+    first = patient_first_name(patient_name)
+    return (
+        f"Hello {first}! I'm your AI Healthcare Assistant. "
+        "I can help you understand symptoms, answer health questions, book appointments, "
+        "and review medical reports. How can I help you today?"
+    )
 
 
 def is_short_flow_reply(text: str) -> bool:

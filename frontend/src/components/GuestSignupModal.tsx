@@ -61,6 +61,8 @@ export default function GuestSignupModal({ open, sessionId, reason, onClose }: P
         refresh_token: string;
         user: { name: string; role: string };
         conversation_id?: string | null;
+        resume_prompt?: string | null;
+        pending_auth_action?: string | null;
       }>("/api/v1/guest/auth/verify-otp", {
         method: "POST",
         body: JSON.stringify({
@@ -77,10 +79,18 @@ export default function GuestSignupModal({ open, sessionId, reason, onClose }: P
       if (res.conversation_id) {
         sessionStorage.setItem("post_signup_conversation_id", res.conversation_id);
       }
+      if (res.pending_auth_action) {
+        sessionStorage.setItem("post_signup_pending_action", res.pending_auth_action);
+      }
       onClose();
       nav("/chat", {
         replace: true,
-        state: res.conversation_id ? { conversationId: res.conversation_id } : undefined,
+        state: res.conversation_id
+          ? {
+              conversationId: res.conversation_id,
+              fromGuestBooking: true,
+            }
+          : undefined,
       });
     } catch (err: unknown) {
       const errMsg = err instanceof Error ? err.message : "Verification failed";

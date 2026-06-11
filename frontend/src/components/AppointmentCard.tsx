@@ -6,6 +6,9 @@ export interface AppointmentItem {
   date: string;
   time: string;
   status: string;
+  consultation_mode?: string;
+  video_room_id?: string | null;
+  apt_id?: string;
 }
 
 export function formatApptTime(t: string): string {
@@ -40,6 +43,7 @@ export default function AppointmentCard({
 }: Props) {
   const { month, day } = apptDateParts(a.date);
   const isConfirmed = a.status === "confirmed";
+  const isVideoConsultation = a.consultation_mode === "video";
   const statusLabel = a.status.charAt(0).toUpperCase() + a.status.slice(1);
 
   return (
@@ -63,8 +67,10 @@ export default function AppointmentCard({
             {formatApptTime(a.time)}
           </span>
           <span>
-            <span className="material-symbols-outlined">location_on</span>
-            In-person visit
+            <span className="material-symbols-outlined">
+              {isVideoConsultation ? "videocam" : "location_on"}
+            </span>
+            {isVideoConsultation ? "Video consultation" : "In-person visit"}
           </span>
         </div>
       </div>
@@ -72,6 +78,23 @@ export default function AppointmentCard({
       <div className="pd-appt-actions">
         {isConfirmed && (
           <>
+            {isVideoConsultation ? (
+              <Link
+                to={`/video/${a.id}`}
+                className="pd-appt-btn pd-appt-btn--video"
+              >
+                Join Video
+              </Link>
+            ) : (
+              <button
+                type="button"
+                className="pd-appt-btn pd-appt-btn--video pd-appt-btn--disabled"
+                disabled
+                title="Online consultation has not been approved for this appointment"
+              >
+                Join Video
+              </button>
+            )}
             <Link to="/chat" className="pd-appt-btn pd-appt-btn--reschedule">
               Reschedule
             </Link>

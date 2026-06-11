@@ -7,6 +7,7 @@ import PatientDoctors from "./pages/patient/Doctors";
 import PatientAppointments from "./pages/patient/Appointments";
 import PatientReports from "./pages/patient/Reports";
 import PatientNotifications from "./pages/patient/Notifications";
+import VideoConsultation from "./pages/patient/VideoConsultation";
 import DoctorDashboard from "./pages/doctor/Dashboard";
 import AdminPanel from "./pages/admin/Panel";
 import Layout from "./components/Layout";
@@ -43,6 +44,7 @@ export default function App() {
         <Route path="/chat" element={<Protected roles={["patient"]}><PatientChat /></Protected>} />
         <Route path="/doctors" element={<Protected roles={["patient"]}><PatientDoctors /></Protected>} />
         <Route path="/appointments" element={<Protected roles={["patient"]}><PatientAppointments /></Protected>} />
+        <Route path="/video/:appointmentId" element={<Protected roles={["patient"]}><VideoConsultation /></Protected>} />
         <Route path="/reports" element={<Protected roles={["patient"]}><PatientReports /></Protected>} />
         <Route path="/notifications" element={<Protected roles={["patient"]}><PatientNotifications /></Protected>} />
         <Route path="/doctor" element={<Protected roles={["doctor"]}><DoctorDashboard /></Protected>} />

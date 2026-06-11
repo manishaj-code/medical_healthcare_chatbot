@@ -1,4 +1,5 @@
-"""Multi-agent autonomous healthcare assistant."""
-from app.multi_agent.supervisor import multi_agent_supervisor
+"""Multi-agent autonomous healthcare assistant.
 
-__all__ = ["multi_agent_supervisor"]
+Import submodules directly (e.g. ``from app.multi_agent.supervisor import multi_agent_supervisor``)
+to avoid circular imports at package load time.
+"""

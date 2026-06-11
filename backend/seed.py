@@ -4,26 +4,10 @@ import asyncio
 from sqlalchemy import select
 
 from app.database import AsyncSessionLocal, hash_password
-from app.models import (
-    Allergy,
-    Doctor,
-    DoctorSpecialization,
-    MedicalHistory,
-    Medication,
-    Patient,
-    User,
-)
+from app.models import Allergy, MedicalHistory, Medication, Patient, User
 from app.models.enums import UserRole
-from app.services.doctor_service import create_default_availability, get_or_create_specialization
+from app.services.doctor_seed_service import seed_doctor_catalog
 
-SPECIALTIES = ["General Physician", "Cardiologist", "Neurologist", "Dermatologist", "Pediatrician"]
-DOCTORS = [
-    ("Dr. Sharma", "dr.sharma@clinic.com", "General Physician", 15, 4.8),
-    ("Dr. Patel", "dr.patel@clinic.com", "Cardiologist", 12, 4.7),
-    ("Dr. Kumar", "dr.kumar@clinic.com", "Neurologist", 10, 4.6),
-    ("Dr. Singh", "dr.singh@clinic.com", "Dermatologist", 8, 4.5),
-    ("Dr. Reddy", "dr.reddy@clinic.com", "Pediatrician", 20, 4.9),
-]
 PATIENTS = [
     ("John Doe", "john@test.com", "diabetes"),
     ("Jane Smith", "jane@test.com", None),
@@ -51,33 +35,8 @@ async def seed() -> None:
             )
             created_any = True
 
-        spec_map = {}
-        for name in SPECIALTIES:
-            spec_map[name] = await get_or_create_specialization(db, name)
-        await db.flush()
-
-        new_doctors: list[Doctor] = []
-        for name, email, specialty, exp, rating in DOCTORS:
-            if await _user_exists(db, email):
-                continue
-            user = User(
-                name=name,
-                email=email,
-                password_hash=hash_password("Doctor@12345"),
-                role=UserRole.doctor.value,
-            )
-            db.add(user)
-            await db.flush()
-            doc = Doctor(
-                user_id=user.id,
-                experience_years=exp,
-                rating=rating,
-                bio=f"Experienced {specialty}",
-            )
-            db.add(doc)
-            await db.flush()
-            db.add(DoctorSpecialization(doctor_id=doc.id, specialization_id=spec_map[specialty].id))
-            new_doctors.append(doc)
+        added_docs, updated_docs = await seed_doctor_catalog(db)
+        if added_docs > 0 or updated_docs > 0:
             created_any = True
 
         for name, email, condition in PATIENTS:
@@ -120,16 +79,13 @@ async def seed() -> None:
                     )
             created_any = True
 
-        await db.flush()
-        for doc in new_doctors:
-            await create_default_availability(db, doc.id)
-
         if not created_any:
             print("Seed already applied, nothing new to add.")
             return
 
         await db.commit()
         print("Seed complete.")
+        print(f"  Doctors added: {added_docs}, profiles updated: {updated_docs}")
         print("  Patient: john@test.com / Patient@12345")
         print("  Doctor:  dr.sharma@clinic.com / Doctor@12345")
         print("  Admin:   admin@clinic.com / Admin@12345")

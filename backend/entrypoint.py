@@ -32,12 +32,15 @@ def run(cmd: list[str]) -> None:
 
 
 def main() -> None:
+    print("==> MediAI startup")
     print("==> Waiting for database...")
     asyncio.run(wait_for_db())
+    print("==> Running migrations...")
     run(["alembic", "upgrade", "head"])
+    print("==> Checking seed data (skips if already up to date)...")
     run([sys.executable, "seed.py"])
     run([sys.executable, "seed_demo.py"])
-    print("==> Starting API server...")
+    print("==> Starting API server on http://0.0.0.0:8000")
     os.execvp(
         "uvicorn",
         ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--reload"],

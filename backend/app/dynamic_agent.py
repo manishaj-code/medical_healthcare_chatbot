@@ -90,33 +90,40 @@ Rules:
 
 TRIAGE_PLAN_PROMPT = """You conduct adaptive symptom triage for a healthcare assistant.
 
-The patient may describe ANY health concern in natural language (injury, rash, stomach pain, anxiety, pregnancy questions, chronic disease flare, etc.). Do NOT assume cough, fever, or any fixed symptom list.
+The patient may describe ANY health concern in natural language. Do NOT assume a fixed symptom list.
 
 Given patient context, conversation history, known symptoms, collected facts, and the latest message, decide:
 1. Normalized symptom/concern labels (short phrases the patient actually mentioned)
-2. Update collected clinical facts from the latest message
-3. ONE empathetic follow-up question tailored to this patient — only if more detail is needed for safe triage
+2. Update collected clinical facts — including duration expressed in ANY way ("from yesterday",
+   "since last night", "for about 3 days", "almost a week", "just started today" — all valid)
+3. ONE empathetic follow-up question if more detail is needed
 4. Whether triage has enough information to recommend next steps (ready_to_assess)
 
 Return ONLY valid JSON:
 {
   "symptoms": ["concise labels from patient wording"],
   "collected": {
-    "duration": "string or null",
+    "duration": "normalised duration string or null — extract from any natural phrasing",
     "severity": "1-10 string or null",
     "details": "free-text summary of relevant facts so far",
-    "notes": ["important fact from conversation", "..."]
+    "notes": ["important fact from conversation"]
   },
   "next_question": "one specific question or null when ready_to_assess",
   "ready_to_assess": false,
   "emergency": false
 }
 
-Rules:
+Duration rules:
+- Accept any natural phrasing: "from yesterday" → "since yesterday", "since last night" → "since last night",
+  "for about 3 days" → "about 3 days", "almost a week" → "almost a week", "just started" → "just started"
+- If patient selects a button option ("Less than 1 day", "1-3 days", "4-7 days", "Over 1 week") store it as-is
+- Never ask for duration again if it was already provided in any form
+
+General rules:
 - Ask at most ONE new question per turn; never repeat what history already answered
-- Questions must fit the actual complaint (not generic cough/fever templates unless the patient mentioned them)
-- ready_to_assess=true when you know: main concern, timing/duration (or clearly acute), and enough detail for a sensible care recommendation (usually 2-4 exchanges)
-- emergency=true ONLY for chest pain, severe breathing difficulty, stroke signs, severe bleeding, loss of consciousness, suicidal intent
+- ready_to_assess=true when you know: main concern, timing/duration, and enough detail (usually 2-4 exchanges)
+- emergency=true ONLY for chest pain, severe breathing difficulty, stroke signs, severe bleeding,
+  loss of consciousness, or suicidal intent
 - Do not diagnose; gather information for triage and routing only
 """
 
@@ -1004,11 +1011,29 @@ class DynamicHealthcareAgent:
         })
         conversation.active_agent = "symptom_assessment"
         pname = patient_ctx.get("name", "there").split()[0]
+        risk = assessment.get("risk_level", "low")
+
+        # HIGH risk or emergency — recommend urgent care immediately
+        if risk in ("high", "emergency"):
+            return (
+                f"Thanks, {pname}. Based on what you've shared: {assessment['recommendation']}\n\n"
+                f"⚠️ Given the nature of your symptoms, I strongly recommend seeking medical attention "
+                f"from a **{assessment['recommended_specialty']}** promptly.\n\n"
+                f"Would you like me to show available doctors so you can book right away?"
+            ), "symptom_assessment", assessment.get("risk_level") == "emergency", None
+
+        # LOW/MEDIUM risk — give self-care advice first, then gently offer booking
         return (
-            f"Thanks, {pname}. Based on what you've told me: {assessment['recommendation']}\n\n"
-            f"I'd recommend seeing a {assessment['recommended_specialty']}.\n\n"
-            f"Would you like me to show available doctors and book an appointment?"
-        ), "symptom_assessment", assessment.get("risk_level") == "emergency", None
+            f"Thanks for sharing that, {pname}. {assessment['recommendation']}\n\n"
+            f"**General self-care guidance:**\n"
+            f"• Rest as much as possible and avoid strenuous activity\n"
+            f"• Stay well hydrated — water, clear fluids, or herbal teas\n"
+            f"• Monitor your symptoms and note any changes\n"
+            f"• Use over-the-counter relief (e.g. paracetamol for fever/pain) if appropriate\n\n"
+            f"If symptoms persist beyond 2–3 days, worsen, or you develop high fever or difficulty breathing, "
+            f"seeing a **{assessment['recommended_specialty']}** would be a good next step.\n\n"
+            "Would you like me to help you find an available doctor?"
+        ), "symptom_assessment", False, None
 
     async def _handle_triage(
         self, db, patient, text, flow, conv_id, patient_ctx, conversation, history: list[dict]

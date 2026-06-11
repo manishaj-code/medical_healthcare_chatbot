@@ -32,11 +32,13 @@ class MessageRole(str, enum.Enum):
 class NotificationType(str, enum.Enum):
     booking_confirmation = "booking_confirmation"
     reminder = "reminder"
+    reminder_scheduled = "reminder_scheduled"
     cancellation = "cancellation"
     system = "system"
     refill_request = "refill_request"
     refill_approved = "refill_approved"
     refill_denied = "refill_denied"
+    video_consultation = "video_consultation"
 
 
 class RefillRequestStatus(str, enum.Enum):

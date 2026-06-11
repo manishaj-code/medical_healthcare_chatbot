@@ -3,7 +3,13 @@ import { Link, useNavigate } from "react-router-dom";
 import { api, apiUpload, setTokens } from "../api/client";
 import ChatFileAttachment, { ChatAttachment } from "./ChatFileAttachment";
 import { ChatBookingUI, ChatUiPayload, formatChatText } from "./ChatBookingUI";
+import { CHAT_QUICK_ACTIONS, resolveDisplayText } from "../utils/chatTokens";
 import { ensureGuestSession, resetGuestSession } from "../utils/guestSession";
+import {
+  finalizeChatMessages,
+  shouldHideBookingCardCaption,
+  shouldShowInteractiveBookingUi,
+} from "../utils/chatUiHelpers";
 import { REPORT_UPLOAD_ACCEPT } from "../utils/reportUpload";
 
 interface GuestMessage {
@@ -24,30 +30,32 @@ interface GuestChatResponse {
   refresh_token?: string | null;
   user?: { name: string; role: string } | null;
   conversation_id?: string | null;
+  resume_prompt?: string | null;
+  pending_auth_action?: string | null;
+  upload_kind?: "symptom" | "report" | null;
 }
 
-const START_SYMPTOM_TRIAGE = "[start_symptom_triage]";
-const START_FIND_DOCTOR = "[start_find_doctor]";
-const START_EXPLAIN_REPORT = "[start_explain_report]";
+interface GuestHistoryResponse {
+  messages: GuestMessage[];
+  awaiting_input?: "email" | "otp" | "upload" | null;
+}
 
-/** Hidden API tokens → friendly text shown in the chat bubble */
-const INTERNAL_TOKEN_LABELS: Record<string, string> = {
-  [START_SYMPTOM_TRIAGE]: "Check my symptoms",
-  [START_FIND_DOCTOR]: "Find a specialist doctor",
-  [START_EXPLAIN_REPORT]: "Explain my medical report",
-};
+const GUEST_WELCOME_TEXT =
+  "Hello! I'm MediAI, your AI health assistant. Describe any symptom or concern " +
+  "in your own words — I'll listen, ask follow-up questions, and guide you with care.";
 
-const QUICK_ACTIONS = [
-  { label: "Check my symptoms", token: START_SYMPTOM_TRIAGE },
-  { label: "Find a specialist doctor", token: START_FIND_DOCTOR },
-  { label: "Explain my medical report", token: START_EXPLAIN_REPORT },
-];
+function makeGuestWelcomeMessage(): GuestMessage {
+  return { role: "assistant", content: GUEST_WELCOME_TEXT };
+}
 
-function inputPlaceholder(awaiting: string | null): string {
+function inputPlaceholder(awaiting: string | null, uploadKind: "symptom" | "report" | null): string {
   if (awaiting === "email") return "Enter your email address...";
   if (awaiting === "otp") return "Enter 6-digit verification code...";
-  if (awaiting === "upload") return "Upload your report with the paperclip...";
-  return "Type your health concern...";
+  if (awaiting === "upload" && uploadKind === "symptom") {
+    return "Choose a symptom photo to upload...";
+  }
+  if (awaiting === "upload") return "Choose a file to upload...";
+  return "Describe your symptoms or ask a health question...";
 }
 
 interface Props {
@@ -58,17 +66,19 @@ interface Props {
 export default function GuestChatWidget({ open, onOpenChange }: Props) {
   const navigate = useNavigate();
   const [sessionId, setSessionId] = useState<string | null>(null);
-  const [messages, setMessages] = useState<GuestMessage[]>([]);
+  const [messages, setMessages] = useState<GuestMessage[]>(() => [makeGuestWelcomeMessage()]);
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
   const [initError, setInitError] = useState("");
-  const [intakeStarted, setIntakeStarted] = useState(false);
   const [awaitingInput, setAwaitingInput] = useState<"email" | "otp" | "upload" | null>(null);
+  const [uploadKind, setUploadKind] = useState<"symptom" | "report" | null>(null);
   const [devOtpHint, setDevOtpHint] = useState<string | null>(null);
   const [expanded, setExpanded] = useState(false);
+  const [redirecting, setRedirecting] = useState(false);
   const bottom = useRef<HTMLDivElement>(null);
   const widgetRef = useRef<HTMLDivElement>(null);
   const fileRef = useRef<HTMLInputElement>(null);
+  const pendingUploadOpen = useRef(false);
 
   useEffect(() => {
     ensureGuestSession()
@@ -77,8 +87,52 @@ export default function GuestChatWidget({ open, onOpenChange }: Props) {
   }, []);
 
   useEffect(() => {
+    if (!sessionId) return;
+    let active = true;
+    api<GuestHistoryResponse>(`/api/v1/guest/chat/history?session_id=${encodeURIComponent(sessionId)}`)
+      .then((data) => {
+        if (!active) return;
+        if (data.messages?.length) {
+          setMessages(
+            finalizeChatMessages(
+              data.messages.map((m) =>
+                m.role === "user" ? { ...m, content: resolveDisplayText(m.content) } : m
+              )
+            )
+          );
+        } else {
+          setMessages([makeGuestWelcomeMessage()]);
+        }
+        if (data.awaiting_input) setAwaitingInput(data.awaiting_input);
+        if (data.awaiting_input === "upload") {
+          setUploadKind(
+            (data as GuestHistoryResponse & { upload_kind?: string }).upload_kind === "symptom"
+              ? "symptom"
+              : "report"
+          );
+        }
+      })
+      .catch(() => {
+        if (!active) return;
+        void resetGuestSession().then((freshId) => {
+          if (active) setSessionId(freshId);
+        });
+      });
+    return () => {
+      active = false;
+    };
+  }, [sessionId]);
+
+  useEffect(() => {
     if (open) bottom.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages, loading, open, devOtpHint]);
+
+  useEffect(() => {
+    if (!pendingUploadOpen.current || loading || !sessionId || awaitingInput !== "upload") return;
+    pendingUploadOpen.current = false;
+    const timer = window.setTimeout(() => fileRef.current?.click(), 120);
+    return () => window.clearTimeout(timer);
+  }, [awaitingInput, uploadKind, loading, sessionId]);
 
   useEffect(() => {
     if (!expanded) return;
@@ -101,16 +155,21 @@ export default function GuestChatWidget({ open, onOpenChange }: Props) {
       if (res.conversation_id) {
         sessionStorage.setItem("post_signup_conversation_id", res.conversation_id);
       }
+      if (res.pending_auth_action) {
+        sessionStorage.setItem("post_signup_pending_action", res.pending_auth_action);
+      }
       setAwaitingInput(null);
       setDevOtpHint(null);
+      setRedirecting(true);
       setTimeout(() => {
         navigate("/chat", {
           replace: true,
-          state: res.conversation_id
-            ? { conversationId: res.conversation_id, fromGuestBooking: true }
-            : { fromGuestBooking: true },
+          state: {
+            conversationId: res.conversation_id,
+            fromGuestBooking: true,
+          },
         });
-      }, 800);
+      }, 2200);
     },
     [navigate]
   );
@@ -129,7 +188,7 @@ export default function GuestChatWidget({ open, onOpenChange }: Props) {
     async (text: string, displayText?: string) => {
       if (!text.trim() || !sessionId || loading) return;
       const trimmed = text.trim();
-      const shown = displayText ?? INTERNAL_TOKEN_LABELS[trimmed] ?? trimmed;
+      const shown = displayText ?? resolveDisplayText(trimmed);
       setMessages((m) => [...m, { role: "user", content: shown }]);
       setLoading(true);
       let sid = sessionId;
@@ -137,62 +196,89 @@ export default function GuestChatWidget({ open, onOpenChange }: Props) {
         let res: GuestChatResponse;
         try {
           res = await postGuestMessage(sid, trimmed);
-        } catch (err) {
-          const msg = err instanceof Error ? err.message.toLowerCase() : "";
-          if (msg.includes("expired") || msg.includes("not found") || msg.includes("404")) {
+        } catch (firstErr) {
+          const firstMsg = firstErr instanceof Error ? firstErr.message : "";
+          const sessionLost = /expired|session/i.test(firstMsg);
+          if (sessionLost) {
             sid = await resetGuestSession();
             setSessionId(sid);
             res = await postGuestMessage(sid, trimmed);
           } else {
-            throw err;
+            throw firstErr;
           }
         }
+        if (!res?.reply) {
+          throw new Error("Empty response from assistant");
+        }
         setAwaitingInput(res.awaiting_input ?? null);
+        setUploadKind(res.upload_kind ?? null);
+        if (res.awaiting_input === "upload") pendingUploadOpen.current = true;
         setDevOtpHint(res.dev_otp ?? null);
-        setMessages((m) => [...m, { role: "assistant", content: res.reply, ui: res.ui }]);
+        setMessages((m) =>
+          finalizeChatMessages([
+            ...m,
+            { role: "assistant", content: res.reply, ui: res.ui },
+          ])
+        );
         if (res.auth_complete) {
           handleAuthComplete(res);
         }
       } catch {
-        setMessages((m) => [
-          ...m,
-          { role: "assistant", content: "Sorry, something went wrong. Please try again." },
-        ]);
+        setMessages((m) =>
+          finalizeChatMessages([
+            ...m,
+            {
+              role: "assistant",
+              content:
+                "Sorry, something went wrong. Please refresh the page and try again — your session may have expired after a restart.",
+            },
+          ])
+        );
       }
       setLoading(false);
     },
     [sessionId, loading, handleAuthComplete, postGuestMessage]
   );
 
-  const uploadReport = useCallback(
-    async (file: File) => {
+  const uploadFile = useCallback(
+    async (file: File, kind: "symptom" | "report") => {
       if (!sessionId || loading) return;
-      setIntakeStarted(true);
       setMessages((m) => [
         ...m,
         {
           role: "user",
           content: "",
           attachment: {
-            type: "report",
+            type: kind === "symptom" ? "image" : "report",
             filename: file.name,
             size_bytes: file.size,
           },
         },
       ]);
       setLoading(true);
+      const endpoint =
+        kind === "symptom" ? "/api/v1/guest/symptom-image" : "/api/v1/guest/report-upload";
       try {
         const form = new FormData();
         form.append("session_id", sessionId);
         form.append("file", file);
-        const res = await apiUpload<GuestChatResponse>("/api/v1/guest/report-upload", form);
+        const res = await apiUpload<GuestChatResponse>(endpoint, form);
         setAwaitingInput(res.awaiting_input ?? null);
-        setMessages((m) => [...m, { role: "assistant", content: res.reply, ui: res.ui }]);
+        setUploadKind(res.upload_kind ?? null);
+        setMessages((m) =>
+          finalizeChatMessages([
+            ...m,
+            { role: "assistant", content: res.reply, ui: res.ui },
+          ])
+        );
       } catch (err) {
         const detail = err instanceof Error ? err.message : "Upload failed.";
         setMessages((m) => [
           ...m,
-          { role: "assistant", content: `Sorry, report upload failed. ${detail}` },
+          {
+            role: "assistant",
+            content: `Sorry, ${kind === "symptom" ? "symptom photo" : "report"} upload failed. ${detail}`,
+          },
         ]);
       }
       setLoading(false);
@@ -200,14 +286,41 @@ export default function GuestChatWidget({ open, onOpenChange }: Props) {
     [sessionId, loading]
   );
 
+  const uploadReport = useCallback(
+    (file: File) => uploadFile(file, "report"),
+    [uploadFile]
+  );
+
+  const uploadSymptomImage = useCallback(
+    (file: File) => uploadFile(file, "symptom"),
+    [uploadFile]
+  );
+
   const onPick = (message: string) => {
-    setIntakeStarted(true);
-    void sendText(message);
+    void sendText(message, resolveDisplayText(message));
   };
 
-  const handleQuickAction = (action: (typeof QUICK_ACTIONS)[number]) => {
-    setIntakeStarted(true);
+  const handleQuickAction = (action: (typeof CHAT_QUICK_ACTIONS)[number]) => {
     void sendText(action.token, action.label);
+  };
+
+  const startOver = async () => {
+    if (loading) return;
+    setLoading(true);
+    setInitError("");
+    try {
+      const freshId = await resetGuestSession();
+      setSessionId(freshId);
+      setMessages([makeGuestWelcomeMessage()]);
+      setAwaitingInput(null);
+      setUploadKind(null);
+      setDevOtpHint(null);
+      setInput("");
+    } catch {
+      setInitError("Could not start a new chat. Please refresh the page.");
+    } finally {
+      setLoading(false);
+    }
   };
 
   const lastAssistantIdx = messages.reduce(
@@ -216,18 +329,43 @@ export default function GuestChatWidget({ open, onOpenChange }: Props) {
   );
 
   const hasUserMessages = messages.some((m) => m.role === "user");
-  const showWelcome = !hasUserMessages && !initError && !intakeStarted;
+  const showQuickActions = !hasUserMessages && !initError;
 
   return (
     <div
       ref={widgetRef}
       className={`aura-chat-widget${expanded ? " aura-chat-widget--expanded" : ""}`}
+      onClick={() => { if (open) setExpanded(true); }}
     >
+      {/* Redirect loading overlay */}
+      {redirecting && (
+        <div className="aura-redirect-overlay">
+          <div className="aura-redirect-card">
+            <div className="aura-redirect-spinner">
+              <div className="aura-redirect-spinner-ring" />
+              <span className="aura-redirect-spinner-icon">🏥</span>
+            </div>
+            <h4 className="aura-redirect-title">Redirecting to AI Consultation Portal</h4>
+            <p className="aura-redirect-msg">
+              Please wait while we securely prepare your session…
+            </p>
+            <div className="aura-redirect-progress">
+              <div className="aura-redirect-progress-bar" />
+            </div>
+            <p className="aura-redirect-sub">Your booking has been confirmed. Taking you there now.</p>
+          </div>
+        </div>
+      )}
       <button
         type="button"
         className="aura-chat-fab"
-        onClick={() => onOpenChange(!open)}
-        aria-label={open ? "Close consultation" : "Open AI consultation"}
+        onClick={() => {
+          const nextOpen = !open;
+          onOpenChange(nextOpen);
+          if (nextOpen) setExpanded(true);
+          else setExpanded(false);
+        }}
+        aria-label={open ? "Close MediAI consultation" : "Open MediAI consultation"}
       >
         <span className="material-symbols-outlined">smart_toy</span>
       </button>
@@ -241,52 +379,39 @@ export default function GuestChatWidget({ open, onOpenChange }: Props) {
               <span className="material-symbols-outlined">clinical_notes</span>
             </div>
             <div>
-              <h4>Aura Assistant</h4>
+              <h4>MediAI Assistant</h4>
               <span className="aura-chat-status">
                 <span className="aura-chat-status-dot" />
                 Active Now
               </span>
             </div>
           </div>
-          <button type="button" className="aura-chat-close" onClick={() => onOpenChange(false)} aria-label="Close">
-            <span className="material-symbols-outlined">close</span>
-          </button>
+          <div className="aura-chat-header-actions">
+            {hasUserMessages && (
+              <button
+                type="button"
+                className="aura-chat-close"
+                onClick={() => void startOver()}
+                disabled={loading}
+                aria-label="Start over"
+                title="Start a new conversation"
+              >
+                <span className="material-symbols-outlined">restart_alt</span>
+              </button>
+            )}
+            <button type="button" className="aura-chat-close" onClick={() => { onOpenChange(false); setExpanded(false); }} aria-label="Close">
+              <span className="material-symbols-outlined">close</span>
+            </button>
+          </div>
         </header>
 
         <div className="aura-chat-messages">
           {initError && <p className="aura-chat-error">{initError}</p>}
 
-          {showWelcome && (
-            <div className="aura-chat-msg">
-              <div className="aura-chat-avatar">
-                <span className="material-symbols-outlined">smart_toy</span>
-              </div>
-              <div className="aura-chat-bubble aura-chat-bubble--ai">
-                <p>
-                  Hello! I&apos;m Aura, your MediAI concierge. How can I assist you with your health today?
-                </p>
-              </div>
-            </div>
-          )}
-
-          {showWelcome && (
-            <div className="aura-chat-quick-actions">
-              {QUICK_ACTIONS.map((action) => (
-                <button
-                  key={action.label}
-                  type="button"
-                  disabled={loading}
-                  onClick={() => handleQuickAction(action)}
-                >
-                  {action.label}
-                </button>
-              ))}
-            </div>
-          )}
-
           {messages.map((m, i) => {
             const isUser = m.role === "user";
-            const showUi = m.role === "assistant" && m.ui && i === lastAssistantIdx;
+            const showUi =
+              m.role === "assistant" && shouldShowInteractiveBookingUi(m.ui, i, lastAssistantIdx);
             return (
               <div key={i} className={`aura-chat-msg${isUser ? " aura-chat-msg--user" : ""}`}>
                 {!isUser && (
@@ -300,10 +425,10 @@ export default function GuestChatWidget({ open, onOpenChange }: Props) {
                   {isUser && m.attachment ? (
                     <ChatFileAttachment attachment={m.attachment} variant="upload" />
                   ) : isUser ? (
-                    <p>{m.content}</p>
+                    <p>{resolveDisplayText(m.content)}</p>
                   ) : showUi ? (
                     <>
-                      {m.content.trim() && (
+                      {m.content.trim() && !shouldHideBookingCardCaption(m.ui) && (
                         <div className="aura-chat-text">{formatChatText(m.content)}</div>
                       )}
                       <ChatBookingUI ui={m.ui!} disabled={loading} onPick={onPick} />
@@ -315,6 +440,21 @@ export default function GuestChatWidget({ open, onOpenChange }: Props) {
               </div>
             );
           })}
+
+          {showQuickActions && (
+            <div className="aura-chat-quick-actions">
+              {CHAT_QUICK_ACTIONS.map((action) => (
+                <button
+                  key={action.label}
+                  type="button"
+                  disabled={loading}
+                  onClick={() => handleQuickAction(action)}
+                >
+                  {action.label}
+                </button>
+              ))}
+            </div>
+          )}
 
           {devOtpHint && (
             <p className="aura-chat-dev-otp">Dev code: <strong>{devOtpHint}</strong></p>
@@ -337,12 +477,17 @@ export default function GuestChatWidget({ open, onOpenChange }: Props) {
           <input
             ref={fileRef}
             type="file"
-            accept={REPORT_UPLOAD_ACCEPT}
+            accept={uploadKind === "symptom" ? "image/*" : REPORT_UPLOAD_ACCEPT}
             hidden
             onChange={(e) => {
               const file = e.target.files?.[0];
               e.target.value = "";
-              if (file) void uploadReport(file);
+              if (!file) return;
+              if (uploadKind === "symptom" || file.type.startsWith("image/")) {
+                void uploadSymptomImage(file);
+              } else {
+                void uploadReport(file);
+              }
             }}
           />
           <div className="aura-chat-input-wrap">
@@ -351,8 +496,8 @@ export default function GuestChatWidget({ open, onOpenChange }: Props) {
               className="aura-chat-attach"
               disabled={loading || !sessionId}
               onClick={() => fileRef.current?.click()}
-              aria-label="Upload medical report"
-              title="Upload medical report"
+              aria-label={uploadKind === "symptom" ? "Upload symptom photo" : "Upload medical report"}
+              title={uploadKind === "symptom" ? "Upload symptom photo" : "Upload medical report"}
             >
               <span className="material-symbols-outlined">attach_file</span>
             </button>
@@ -368,7 +513,7 @@ export default function GuestChatWidget({ open, onOpenChange }: Props) {
                   void sendText(t);
                 }
               }}
-              placeholder={inputPlaceholder(awaitingInput)}
+              placeholder={inputPlaceholder(awaitingInput, uploadKind)}
               disabled={loading || !sessionId}
               type={awaitingInput === "email" ? "email" : awaitingInput === "otp" ? "text" : "text"}
               inputMode={awaitingInput === "otp" ? "numeric" : undefined}

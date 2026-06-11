@@ -1,3 +1,4 @@
+import asyncio
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
@@ -14,7 +15,15 @@ settings = get_settings()
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     setup_logging()
+    from app.services.reminder_scheduler_service import reminder_worker_loop
+
+    reminder_task = asyncio.create_task(reminder_worker_loop())
     yield
+    reminder_task.cancel()
+    try:
+        await reminder_task
+    except asyncio.CancelledError:
+        pass
     await close_redis()
     await engine.dispose()
 

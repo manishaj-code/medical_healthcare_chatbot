@@ -6,6 +6,7 @@ import {
   resolveRecommendedFromHistory,
   type HistoryRecommendation,
 } from "../../utils/recommendedSpecialty";
+import DoctorAvatar from "../../components/DoctorAvatar";
 
 interface Slot {
   doctor_id: string;
@@ -23,6 +24,12 @@ interface Doctor {
   rating: number;
   slots: Slot[];
   next_available: string;
+  qualifications?: string | null;
+  profile_image_url?: string | null;
+  consultation_fee?: number | null;
+  hospital_name?: string | null;
+  clinic_address?: string | null;
+  professional_summary?: string | null;
 }
 
 interface Specialization {
@@ -37,14 +44,17 @@ const SPECIALTY_ICONS: Record<string, string> = {
   Pediatrician: "child_care",
   "General Physician": "stethoscope",
   Gastroenterologist: "gastroenterology",
+  "Orthopedic Surgeon": "orthopedics",
+  "ENT Specialist": "hearing",
+  Gynecologist: "pregnancy",
+  Psychiatrist: "psychology",
+  Ophthalmologist: "visibility",
+  Urologist: "urology",
+  Pulmonologist: "pulmonology",
+  Endocrinologist: "endocrinology",
+  Oncologist: "oncology",
   Emergency: "emergency",
 };
-
-function doctorInitials(name: string): string {
-  const parts = name.replace(/^Dr\.?\s*/i, "").trim().split(/\s+/);
-  if (parts.length >= 2) return (parts[0][0] + parts[1][0]).toUpperCase();
-  return (parts[0]?.[0] ?? "D").toUpperCase();
-}
 
 function formatSlotTime(iso: string): string {
   const [h, m] = iso.split(":").map(Number);
@@ -302,7 +312,12 @@ export default function PatientDoctors() {
       >
         <div className="fd-doctor-card-inner">
           <div className="fd-doctor-avatar-wrap">
-            <div className="fd-doctor-avatar">{doctorInitials(d.name)}</div>
+            <DoctorAvatar
+              name={d.name}
+              profileImageUrl={d.profile_image_url}
+              className="fd-doctor-avatar fd-doctor-avatar--img"
+              initialsClassName="fd-doctor-avatar"
+            />
             {badge && <span className="fd-doctor-badge">{badge}</span>}
           </div>
           <div className="fd-doctor-info">
@@ -311,8 +326,11 @@ export default function PatientDoctors() {
                 <h4>{d.name}</h4>
                 <p>
                   {d.specialty}
-                  {d.experience_years > 0 && ` · ${d.experience_years}+ Yrs Exp.`}
+                  {d.qualifications && ` · ${d.qualifications}`}
                 </p>
+                {d.professional_summary && (
+                  <p className="fd-doctor-summary">{d.professional_summary}</p>
+                )}
               </div>
               <div className="fd-rating-pill">
                 <span className="material-symbols-outlined">star</span>
@@ -324,10 +342,22 @@ export default function PatientDoctors() {
                 <span className="material-symbols-outlined">history</span>
                 {d.experience_years}+ Yrs Exp.
               </span>
+              {d.consultation_fee != null && (
+                <span>
+                  <span className="material-symbols-outlined">payments</span>
+                  ₹{d.consultation_fee.toFixed(0)}
+                </span>
+              )}
               <span>
                 <span className="material-symbols-outlined">schedule</span>
                 {d.next_available}
               </span>
+              {d.hospital_name && (
+                <span title={d.clinic_address ?? undefined}>
+                  <span className="material-symbols-outlined">local_hospital</span>
+                  {d.hospital_name}
+                </span>
+              )}
               <span className="fd-verified">
                 <span className="material-symbols-outlined">verified</span>
                 Verified

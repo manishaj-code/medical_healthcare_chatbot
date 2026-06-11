@@ -23,8 +23,10 @@ from app.utils.email import normalize_email
 from app.models.system import RefreshToken
 from app.schemas.auth import TokenResponse, UserResponse
 from app.schemas.common import ResponseEnvelope
-from app.services.guest_chat_service import process_guest_message
+from app.services.guest_chat_service import load_guest_chat_history, process_guest_message
 from app.services.guest_report_service import process_guest_report_upload
+from app.services.guest_symptom_image_service import process_guest_symptom_image
+from app.services.chat_orchestrator import load_patient_resume_context
 from app.services.guest_session_store import create_guest_session, migrate_guest_session
 from app.services.otp_service import (
     can_send_otp,
@@ -51,15 +53,32 @@ class GuestChatReply(BaseModel):
     emergency: bool = False
     agent: str = "guest"
     ui: dict | None = None
+    nav_ui: dict | None = None
     requires_signup: bool = False
     signup_reason: str | None = None
     awaiting_input: str | None = None  # email | otp | upload
+    upload_kind: str | None = None  # symptom | report
     dev_otp: str | None = None
     auth_complete: bool = False
     access_token: str | None = None
     refresh_token: str | None = None
     user: dict | None = None
     conversation_id: str | None = None
+    resume_prompt: str | None = None
+    pending_auth_action: str | None = None
+
+
+class GuestHistoryMessage(BaseModel):
+    role: str
+    content: str
+    agent: str | None = None
+    ui: dict | None = None
+    emergency: bool | None = None
+
+
+class GuestChatHistory(BaseModel):
+    messages: list[GuestHistoryMessage]
+    awaiting_input: str | None = None
 
 
 class SendOtpRequest(BaseModel):
@@ -93,6 +112,20 @@ class VerifyOtpRequest(BaseModel):
 class VerifyOtpResponse(TokenResponse):
     user: UserResponse
     conversation_id: UUID | None = None
+    resume_prompt: str | None = None
+    pending_auth_action: str | None = None
+
+
+class GuestConfigResponse(BaseModel):
+    guest_session_persist: bool
+
+
+@router.get("/config", response_model=ResponseEnvelope[GuestConfigResponse])
+async def guest_config():
+    settings = get_settings()
+    return ResponseEnvelope(
+        data=GuestConfigResponse(guest_session_persist=settings.guest_session_persist)
+    )
 
 
 @router.post("/session", response_model=ResponseEnvelope[GuestSessionResponse])
@@ -101,10 +134,19 @@ async def start_guest_session():
     return ResponseEnvelope(data=GuestSessionResponse(session_id=session_id))
 
 
+@router.get("/chat/history", response_model=ResponseEnvelope[GuestChatHistory])
+async def guest_chat_history(session_id: str):
+    try:
+        result = await load_guest_chat_history(session_id)
+    except ValueError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    return ResponseEnvelope(data=GuestChatHistory(**result))
+
+
 @router.post("/chat/messages", response_model=ResponseEnvelope[GuestChatReply])
 async def guest_chat_message(data: GuestMessageCreate, db: AsyncSession = Depends(get_db)):
     try:
-        result = await process_guest_message(data.session_id, data.message, db)
+        result = await process_guest_message(db, data.session_id, data.message)
     except ValueError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
     except HTTPException:
@@ -132,6 +174,26 @@ async def guest_report_upload(
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     except Exception:
         raise HTTPException(status_code=500, detail="Report upload failed.") from None
+    return ResponseEnvelope(data=GuestChatReply(**result))
+
+
+@router.post("/symptom-image", response_model=ResponseEnvelope[GuestChatReply])
+async def guest_symptom_image_upload(
+    session_id: str = Form(...),
+    file: UploadFile = File(...),
+):
+    try:
+        data = await file.read()
+        result = await process_guest_symptom_image(
+            session_id,
+            data,
+            file.filename or "symptom.jpg",
+            file.content_type,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except Exception:
+        raise HTTPException(status_code=500, detail="Symptom image analysis failed.") from None
     return ResponseEnvelope(data=GuestChatReply(**result))
 
 
@@ -194,8 +256,14 @@ async def verify_otp_and_register(data: VerifyOtpRequest, db: AsyncSession = Dep
     patient_row = await db.execute(select(Patient).where(Patient.user_id == user.id))
     patient = patient_row.scalar_one_or_none()
     migrated_conv = None
+    resume_prompt = None
+    pending_auth_action = None
     if patient and data.session_id:
         migrated_conv = await migrate_guest_session(db, data.session_id, patient)
+        if migrated_conv:
+            resume_ctx = await load_patient_resume_context(migrated_conv.id)
+            resume_prompt = resume_ctx.get("resume_prompt")
+            pending_auth_action = resume_ctx.get("pending_auth_action")
 
     return ResponseEnvelope(
         data=VerifyOtpResponse(
@@ -203,5 +271,7 @@ async def verify_otp_and_register(data: VerifyOtpRequest, db: AsyncSession = Dep
             refresh_token=refresh,
             user=UserResponse.model_validate(user),
             conversation_id=migrated_conv.id if migrated_conv else None,
+            resume_prompt=resume_prompt,
+            pending_auth_action=pending_auth_action,
         )
     )

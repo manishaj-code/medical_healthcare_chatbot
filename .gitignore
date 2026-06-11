@@ -1,5 +1,9 @@
 .env
 __pycache__/
+**/__pycache__/
+__pycache__/*
+*.pyo
+*.pyd
 *.pyc
 .pytest_cache/
 .venv/
@@ -15,10 +19,15 @@ miniodata/
 
 # Reports folder
 reports/
+backend/data/
 
 # Local secrets / credentials — do not push
 testcredential.txt
+mytestcase.txt
 
 # Sample uploads (may contain personal health data)
 reports/
 backend/data/
+
+# Local QA test catalog (not for commit)
+testcases.txt

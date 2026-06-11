@@ -1,5 +1,72 @@
 import type { ChatUiPayload } from "../components/ChatBookingUI";
 
+interface ReminderSyncMessage {
+  role: string;
+  content: string;
+  ui?: ChatUiPayload | null;
+}
+
+function appointmentCardKey(ui: ChatUiPayload): string | null {
+  if (ui.type !== "appointment_confirmed") return null;
+  if (ui.appointment_id) return `id:${ui.appointment_id}`;
+  if (ui.apt_id) return `apt:${ui.apt_id}`;
+  return null;
+}
+
+/** Disable actions on older copies when a newer card exists for the same appointment. */
+export function markSupersededAppointmentCards<T extends ReminderSyncMessage>(messages: T[]): T[] {
+  const latestIndexByKey = new Map<string, number>();
+  messages.forEach((msg, index) => {
+    const key = msg.ui ? appointmentCardKey(msg.ui) : null;
+    if (key) latestIndexByKey.set(key, index);
+  });
+  if (!latestIndexByKey.size) return messages;
+
+  return messages.map((msg, index) => {
+    const ui = msg.ui;
+    if (!ui || ui.type !== "appointment_confirmed") return msg;
+    const key = appointmentCardKey(ui);
+    if (!key || latestIndexByKey.get(key) === index) return msg;
+    if (ui.actions_disabled) return msg;
+    return { ...msg, ui: { ...ui, actions_disabled: true } };
+  });
+}
+
+export function finalizeChatMessages<T extends ReminderSyncMessage>(messages: T[]): T[] {
+  return markSupersededAppointmentCards(syncAppointmentReminderState(messages));
+}
+
+/** Keep all appointment cards in sync when any copy shows reminder_set. */
+export function syncAppointmentReminderState<T extends ReminderSyncMessage>(messages: T[]): T[] {
+  const reminded = new Set<string>();
+  for (const msg of messages) {
+    const ui = msg.ui;
+    if (ui?.type !== "appointment_confirmed") continue;
+    if (ui.reminder_set) {
+      if (ui.apt_id) reminded.add(`apt:${ui.apt_id}`);
+      if (ui.appointment_id) reminded.add(`id:${ui.appointment_id}`);
+    }
+    if (
+      msg.role === "assistant" &&
+      /reminder set|already have a reminder/i.test(msg.content) &&
+      ui?.appointment_id
+    ) {
+      if (ui.apt_id) reminded.add(`apt:${ui.apt_id}`);
+      reminded.add(`id:${ui.appointment_id}`);
+    }
+  }
+  if (!reminded.size) return messages;
+  return messages.map((msg) => {
+    const ui = msg.ui;
+    if (ui?.type !== "appointment_confirmed" || ui.reminder_set) return msg;
+    const matches =
+      (ui.apt_id && reminded.has(`apt:${ui.apt_id}`)) ||
+      (ui.appointment_id && reminded.has(`id:${ui.appointment_id}`));
+    if (!matches) return msg;
+    return { ...msg, ui: { ...ui, reminder_set: true } };
+  });
+}
+
 interface ApiDoctor {
   id: string;
   name: string;
@@ -73,6 +140,30 @@ function parseBookingOfferUi(content: string): ChatUiPayload | null {
   };
 }
 
+/** Booking confirmation cards stay visible in chat history (not only on the latest turn). */
+export function isPersistentBookingCard(ui?: ChatUiPayload | null): boolean {
+  return ui?.type === "appointment_confirmed" && !!ui.appointment_id;
+}
+
+/** Hide redundant prose when the structured booking card carries the details. */
+export function shouldHideBookingCardCaption(ui?: ChatUiPayload | null): boolean {
+  return (
+    ui?.type === "confirm_booking" ||
+    ui?.type === "confirm_reschedule" ||
+    ui?.type === "reschedule_slots" ||
+    ui?.type === "appointment_confirmed"
+  );
+}
+
+export function shouldShowInteractiveBookingUi(
+  ui: ChatUiPayload | undefined | null,
+  messageIndex: number,
+  lastAssistantIdx: number
+): boolean {
+  if (!ui) return false;
+  return messageIndex === lastAssistantIdx || isPersistentBookingCard(ui);
+}
+
 export async function resolveBookingUi(
   ui: ChatUiPayload | null | undefined,
   agent?: string,
@@ -80,6 +171,7 @@ export async function resolveBookingUi(
 ): Promise<ChatUiPayload | null> {
   if (ui?.type === "doctor_list" && ui.doctors?.length) return ui;
   if (ui?.type === "slot_list" && ui.slots?.length) return ui;
+  if (ui?.type === "reschedule_slots" && ui.slots?.length) return ui;
   if (ui?.type === "appointment_confirmed" && ui.appointment_id) return ui;
   if (ui?.type === "confirm_booking" && ui.options?.length) return ui;
   if (ui?.type === "confirm_reschedule" && ui.options?.length) return ui;

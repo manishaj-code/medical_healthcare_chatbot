@@ -6,22 +6,38 @@ from typing import Any
 
 from app.services.chat_ui import (
     build_duration_picker_ui,
+    build_more_symptoms_ui,
     build_severity_picker_ui,
-    build_symptom_picker_ui,
-    build_yes_no_ui,
+    build_symptom_starter_ui,
 )
+from app.healthcare_policy import build_greeting_reply, is_active_care_flow, patient_first_name
 from app.services.symptom_extraction import (
     extract_symptoms_offline,
     is_non_symptom_message,
     looks_like_health_complaint,
 )
 
-_DURATION_PATTERNS = (
-    re.compile(r"(?:last|past|for)\s+\d+\s*(?:days|day|weeks|week|hours|hour)", re.I),
-    re.compile(r"\d+\s*(?:days|day|weeks|week|hours|hour|months|month)", re.I),
-    re.compile(r"from\s+\d+\s*(?:days|day|weeks|week|hours|hour)", re.I),
-    re.compile(r"few\s+days|couple\s+of\s+days", re.I),
-    re.compile(r"since\s+yesterday|since\s+last\s+week", re.I),
+# ── Duration extraction (offline fallback when LLM unavailable) ─────────────
+_DURATION_RE = re.compile(
+    r"""
+    (?:
+        \d+[-–]\d+\s*(?:days?|weeks?|hours?)          # "2-3 days", "1-2 weeks"
+        | \d+\s*(?:days?|weeks?|hours?|months?)        # "3 days", "2 weeks"
+        | (?:a\s+)?few\s+days                          # "few days"
+        | (?:about|almost|nearly|around|over)\s+(?:a\s+)?\w+  # "about a week"
+        | (?:a\s+)?couple\s+of\s+(?:days?|weeks?)      # "couple of days"
+        | several\s+(?:days?|weeks?|months?)           # "several days"
+        | since\s+(?:yesterday|last\s+night|this\s+morning|\S+)
+        | from\s+yesterday
+        | \byesterday\b
+        | last\s+night
+        | this\s+morning
+        | just\s+started
+        | for\s+a\s+while
+        | (?:a|one)\s+week
+    )
+    """,
+    re.I | re.VERBOSE,
 )
 
 _START_TRIAGE_RE = re.compile(
@@ -29,19 +45,75 @@ _START_TRIAGE_RE = re.compile(
     re.I,
 )
 
+_SYMPTOM_KICKOFF_RE = re.compile(
+    r"^(check symptoms|check my symptoms|\[start_symptom_triage\]|"
+    r"i(?:'m| am) not feeling well.*(?:assess|check|help with).*(?:symptoms|symptom))",
+    re.I,
+)
+
+
+def is_symptom_triage_kickoff(text: str) -> bool:
+    """True when the patient tapped Check symptoms or equivalent — no concrete complaint yet."""
+    tl = text.strip().lower()
+    if tl in {
+        "[start_symptom_triage]",
+        "check symptoms",
+        "check my symptoms",
+        "i'm not feeling well and would like help assessing my symptoms.",
+    }:
+        return True
+    return bool(_SYMPTOM_KICKOFF_RE.match(tl))
+
+
+def kickoff_symptom_triage_turn(session: dict) -> dict[str, Any]:
+    """Structured first turn: ask what they're suffering from and start triage state."""
+    pname = patient_first_name(session.get("_patient_first_name"))
+    collected: dict[str, Any] = {"questions_asked": ["symptoms"]}
+    return {
+        "reply": (
+            f"I'm sorry you're not feeling well, {pname}. "
+            "What symptoms are you experiencing right now? "
+            "Describe what's bothering you — for example fever, headache, cough, or stomach pain — "
+            "and I'll ask a few short follow-up questions to understand how you're doing."
+        ),
+        "ui": build_symptom_starter_ui(),
+        "session_patch": {
+            "triage_collected": collected,
+            "care_goal": "symptom_assessment",
+            "active_specialist": "triage_agent",
+            "awaiting": "free_text_symptoms",
+        },
+    }
+
+_BUTTON_DURATIONS = {
+    "less than 1 day": "less than 1 day",
+    "1-3 days": "1-3 days",
+    "1–3 days": "1-3 days",
+    "4-7 days": "4-7 days",
+    "4–7 days": "4-7 days",
+    "over 1 week": "over 1 week",
+    "not sure": "not sure",
+}
+
 
 def extract_duration(text: str) -> str | None:
-    for pattern in _DURATION_PATTERNS:
-        match = pattern.search(text)
-        if match:
-            return match.group(0).strip()
-    return None
+    """Extract duration from free text or quick-action button labels."""
+    tl = text.strip().lower()
+    if tl in _BUTTON_DURATIONS:
+        return _BUTTON_DURATIONS[tl]
+    match = _DURATION_RE.search(text)
+    return match.group(0).strip() if match else None
 
 
 def extract_symptoms(text: str, prior: list[str] | None = None, session: dict | None = None) -> list[str]:
+    from_message = extract_symptoms_offline(text, None)
+    if from_message:
+        return from_message
+    if prior:
+        return list(prior)
     if session and session.get("detected_symptoms"):
         return list(session["detected_symptoms"])
-    return extract_symptoms_offline(text, prior)
+    return []
 
 
 def _starts_new_triage(text: str) -> bool:
@@ -53,155 +125,253 @@ def _starts_new_triage(text: str) -> bool:
     return looks_like_health_complaint(text)
 
 
-def plan_triage_turn(text: str, session: dict) -> dict[str, Any]:
-    """Decide the next triage action without LLM — collect info, then assess."""
+def _parse_severity(text: str, collected: dict, awaiting: str | None = None) -> str | None:
+    """Parse severity from button labels or free text — avoid mistaking duration digits for pain scores."""
+    t = text.strip().lower()
+    if t in {"mild", "moderate", "severe", "very severe", "not sure"}:
+        return text.strip()
+    if awaiting != "pick_severity":
+        return None
+    if re.search(r"\b([1-9]|10)\s*/\s*10\b", t) or re.search(r"\b([1-9]|10)\s+out of\s+10\b", t):
+        return text.strip()
+    if re.search(r"\b(pain|severity|scale)\b", t) and re.search(r"\b([1-9]|10)\b", t):
+        return text.strip()
+    if any(w in t for w in ("mild", "moderate", "severe", "unbearable", "intense", "worse", "better", "same")):
+        return text.strip()
+    if any(phrase in t for phrase in ("not too bad", "manageable", "terrible")):
+        return text.strip()
+    return None
+
+
+def _merge_collected_from_text(text: str, collected: dict, session: dict) -> None:
+    """Apply free-text answers to triage slots without re-asking."""
+    notes = list(collected.get("notes") or [])
+    if text.strip() and not _START_TRIAGE_RE.match(text.strip().lower()):
+        if not notes or notes[-1] != text.strip():
+            notes.append(text.strip())
+    collected["notes"] = notes[-8:]
+
+    combined = " ".join(notes)
+    if not collected.get("duration"):
+        duration = extract_duration(text) or extract_duration(combined)
+        if duration:
+            collected["duration"] = duration
+
+    severity = _parse_severity(text, collected, session.get("awaiting"))
+    if severity:
+        collected["severity"] = severity
+
+    symptoms = session.get("detected_symptoms") or extract_symptoms(
+        combined, collected.get("symptoms"), session=session
+    )
+    if symptoms:
+        collected["symptoms"] = symptoms
+
+
+def _infer_pending_slot_from_history(history: list[dict] | None) -> str | None:
+    if not history:
+        return None
+    for msg in reversed(history[-6:]):
+        if msg.get("role") not in ("assistant", "Assistant"):
+            continue
+        content = (msg.get("content") or "").lower()
+        if any(
+            phrase in content
+            for phrase in (
+                "other symptom",
+                "any other",
+                "anything else",
+                "additional symptom",
+                "noticed any other",
+            )
+        ):
+            return "more_symptoms"
+        if "how long" in content or "how many days" in content:
+            return "duration"
+        if "severe" in content or "severity" in content:
+            return "severity"
+        break
+    return None
+
+
+def conversational_triage_turn(
+    text: str,
+    session: dict,
+    history: list[dict] | None = None,
+) -> dict[str, Any]:
+    """Adaptive triage: one question at a time, free-text + optional quick buttons."""
     tl = text.strip().lower()
+    pname = patient_first_name(session.get("_patient_first_name"))
+    asked: list[str] = list((session.get("triage_collected") or {}).get("questions_asked") or [])
+
+    if is_non_symptom_message(text) and not is_active_care_flow(session):
+        return {
+            "reply": build_greeting_reply(pname),
+            "session_patch": {
+                "care_goal": None,
+                "awaiting": None,
+                "triage_collected": None,
+                "detected_symptoms": None,
+            },
+        }
 
     if session.get("assessment_shown") and _starts_new_triage(text):
         session.pop("assessment_shown", None)
         session.pop("triage_assessed", None)
         session.pop("booking_declined", None)
         session.pop("awaiting", None)
-        collected: dict[str, Any] = {}
-        notes: list[str] = []
+        collected: dict[str, Any] = {"questions_asked": []}
+        asked = []
     else:
         collected = dict(session.get("triage_collected") or {})
-        notes = list(collected.get("notes") or [])
+        asked = list(collected.get("questions_asked") or [])
 
-    if _START_TRIAGE_RE.match(tl) and not notes and not session.get("triage_assessed"):
-        pname = session.get("_patient_first_name", "there")
-        return {
-            "reply": (
-                f"Hello! How are you feeling today, {pname}? "
-                "Tell me what's bothering you, or tap a symptom below."
-            ),
-            "ui": build_symptom_picker_ui(),
-            "session_patch": {"triage_collected": collected, "care_goal": "symptom_assessment"},
-        }
+    _merge_collected_from_text(text, collected, session)
+    collected["questions_asked"] = asked
 
-    if text.strip() and not _START_TRIAGE_RE.match(tl):
-        notes.append(text.strip())
-    collected["notes"] = notes[-6:]
+    pending_slot = _infer_pending_slot_from_history(history) or session.get("awaiting")
+    if tl in {"no", "nope", "none", "nah"} and pending_slot in {"more_symptoms", "pick_severity"}:
+        if pending_slot == "more_symptoms":
+            collected["more_symptoms_answered"] = True
+            collected["ready_to_assess"] = True
+            collected["more_symptoms_asked"] = True
+        elif pending_slot == "pick_severity" and not collected.get("severity"):
+            collected["severity"] = "none reported"
 
-    duration = collected.get("duration") or extract_duration(" ".join(notes))
-    duration_phrases = {
-        "less than 1 day": "less than 1 day",
-        "1-3 days": "1-3 days",
-        "4-7 days": "4-7 days",
-        "over 1 week": "over 1 week",
-    }
-    if not duration:
-        for phrase, value in duration_phrases.items():
-            if phrase in tl:
-                duration = value
-                break
-    if duration:
-        collected["duration"] = duration
+    if tl in {"skip", "not sure"} and session.get("awaiting") == "pick_duration" and not collected.get("duration"):
+        collected["duration"] = "not sure"
 
-    if tl == "no other symptoms":
+    if tl in {"no other symptoms", "not sure about other symptoms", "no", "none"}:
+        collected["more_symptoms_answered"] = True
         collected["ready_to_assess"] = True
-        symptoms = session.get("detected_symptoms") or collected.get("symptoms") or extract_symptoms(
-            " ".join(notes), session=session
-        )
-        if symptoms and collected.get("duration"):
-            return {
-                "tool": "assess_symptoms",
-                "tool_args": {
-                    "symptoms": symptoms,
-                    "duration": collected["duration"],
-                    "collected": collected,
-                    "summary": " ".join(notes),
-                },
-                "session_patch": {"triage_collected": collected},
-            }
 
-    pname = session.get("_patient_first_name", "there")
+    if tl == "not sure" and session.get("awaiting") == "pick_severity" and not collected.get("severity"):
+        collected["severity"] = "not sure"
 
-    if "more symptoms" in tl:
+    if tl == "skip":
+        awaiting = session.get("awaiting")
+        if awaiting == "pick_duration" and not collected.get("duration"):
+            collected["duration"] = "unspecified"
+        elif awaiting == "pick_severity" and not collected.get("severity"):
+            collected["severity"] = "unspecified"
+        elif awaiting == "more_symptoms":
+            collected["more_symptoms_answered"] = True
+            collected["ready_to_assess"] = True
+
+    symptoms = collected.get("symptoms") or session.get("detected_symptoms") or []
+
+    if "yes, i have more" in tl or (tl == "yes" and session.get("awaiting") == "more_symptoms"):
         return {
-            "reply": f"What other symptoms are you experiencing, {pname}? Tap below:",
-            "ui": build_symptom_picker_ui(),
-            "session_patch": {"triage_collected": collected, "care_goal": "symptom_assessment"},
+            "reply": f"What other symptoms are you experiencing, {pname}? You can type freely below.",
+            "session_patch": {
+                "triage_collected": collected,
+                "care_goal": "symptom_assessment",
+                "awaiting": "more_symptoms",
+            },
         }
-
-    symptoms = session.get("detected_symptoms") or extract_symptoms(
-        " ".join(notes), collected.get("symptoms"), session=session
-    )
-    collected["symptoms"] = symptoms
 
     if not symptoms:
-        return {
-            "reply": f"I'm here to help, {pname}. What symptoms are you experiencing? Tap one below:",
-            "ui": build_symptom_picker_ui(),
-            "session_patch": {"triage_collected": collected, "care_goal": "symptom_assessment"},
-        }
+        if is_symptom_triage_kickoff(text) or "symptoms" not in asked:
+            kickoff = kickoff_symptom_triage_turn(session)
+            kickoff["session_patch"]["triage_collected"] = collected
+            if "symptoms" not in asked:
+                asked.append("symptoms")
+                kickoff["session_patch"]["triage_collected"]["questions_asked"] = asked
+            return kickoff
+        return kickoff_symptom_triage_turn(session)
 
     if not collected.get("duration"):
+        if "duration" not in asked:
+            asked.append("duration")
+            collected["questions_asked"] = asked
         symptom_label = ", ".join(symptoms[:3])
         return {
             "reply": (
-                f"I understand you're dealing with {symptom_label}. "
-                "How long have you had these symptoms? Choose an option:"
+                f"I understand you're dealing with **{symptom_label}**. "
+                "How long have you been experiencing this? "
+                "You can answer naturally — e.g. **since yesterday**, **about 3 days**, or **for a week**."
             ),
             "ui": build_duration_picker_ui(),
-            "session_patch": {"triage_collected": collected, "care_goal": "symptom_assessment"},
+            "session_patch": {
+                "triage_collected": collected,
+                "care_goal": "symptom_assessment",
+                "awaiting": "pick_duration",
+            },
         }
 
-    if not collected.get("severity_asked"):
-        collected["severity_asked"] = True
+    if not collected.get("severity"):
+        if "severity" not in asked:
+            asked.append("severity")
+            collected["questions_asked"] = asked
         return {
             "reply": (
-                f"Thanks — {collected['duration']} is helpful. "
-                "How severe are your symptoms? Tap the closest option:"
+                "How would you describe the severity of your symptoms? "
+                "You can pick an option or type in your own words."
             ),
             "ui": build_severity_picker_ui(),
-            "session_patch": {"triage_collected": collected, "care_goal": "symptom_assessment"},
-        }
-
-    severity = _parse_severity(text, collected)
-    if severity:
-        collected["severity"] = severity
-
-    if collected.get("ready_to_assess") or collected.get("severity") or len(notes) >= 3:
-        if session.get("assessment_shown"):
-            return {
-                "session_patch": {"triage_collected": collected, "care_goal": "symptom_assessment"},
-            }
-        return {
-            "tool": "assess_symptoms",
-            "tool_args": {
-                "symptoms": symptoms,
-                "duration": collected["duration"],
-                "collected": collected,
-                "summary": " ".join(notes),
+            "session_patch": {
+                "triage_collected": collected,
+                "care_goal": "symptom_assessment",
+                "awaiting": "pick_severity",
             },
-            "session_patch": {"triage_collected": collected},
         }
 
-    collected["ready_to_assess"] = True
+    if not collected.get("more_symptoms_asked"):
+        collected["more_symptoms_asked"] = True
+        if "more_symptoms" not in asked:
+            asked.append("more_symptoms")
+            collected["questions_asked"] = asked
+        return {
+            "reply": "Are you experiencing any other symptoms?",
+            "ui": build_more_symptoms_ui(),
+            "session_patch": {
+                "triage_collected": collected,
+                "care_goal": "symptom_assessment",
+                "awaiting": "more_symptoms",
+            },
+        }
+
+    if collected.get("more_symptoms_asked") and not collected.get("ready_to_assess"):
+        if session.get("awaiting") == "more_symptoms" and tl not in {
+            "no",
+            "no other symptoms",
+            "not sure about other symptoms",
+            "none",
+        }:
+            collected["ready_to_assess"] = True
+        else:
+            return {
+                "reply": "Any other symptoms, or should I summarize what you've shared so far?",
+                "ui": build_more_symptoms_ui(),
+                "session_patch": {
+                    "triage_collected": collected,
+                    "care_goal": "symptom_assessment",
+                    "awaiting": "more_symptoms",
+                },
+            }
+
+    if session.get("assessment_shown"):
+        return {"session_patch": {"triage_collected": collected, "care_goal": "symptom_assessment"}}
+
     return {
-        "reply": (
-            "Any other symptoms — such as difficulty breathing, chest pain, or a very high fever?"
-        ),
-        "ui": build_yes_no_ui(
-            yes_label="Yes, more symptoms",
-            yes_message="Yes, I have more symptoms",
-            no_label="No other symptoms",
-            no_message="No other symptoms",
-        ),
-        "session_patch": {"triage_collected": collected, "care_goal": "symptom_assessment"},
+        "tool": "assess_symptoms",
+        "tool_args": {
+            "symptoms": symptoms,
+            "duration": collected["duration"],
+            "collected": collected,
+            "summary": " ".join(collected.get("notes") or []),
+        },
+        "session_patch": {"triage_collected": collected},
     }
 
 
-def _parse_severity(text: str, collected: dict) -> str | None:
-    t = text.strip().lower()
-    if re.search(r"\b([1-9]|10)\b", t):
-        return t
-    if any(w in t for w in ("mild", "moderate", "severe", "worse", "better", "same")):
-        return t
-    if any(w in t for w in ("no", "none", "not really", "just fever", "only")):
-        return "unspecified"
-    return None
+def plan_triage_turn(
+    text: str,
+    session: dict,
+    history: list[dict] | None = None,
+) -> dict[str, Any]:
+    """Legacy alias — prefer conversational_triage_turn."""
+    return conversational_triage_turn(text, session, history)
 
 
 def offline_education_reply(text: str) -> str | None:

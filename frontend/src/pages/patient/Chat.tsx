@@ -17,7 +17,17 @@ import {
   fetchConversations,
   formatChatDateLabel,
 } from "../../utils/chatConversations";
-import { resolveBookingUi } from "../../utils/chatUiHelpers";
+import {
+  resolveBookingUi,
+  shouldHideBookingCardCaption,
+  shouldShowInteractiveBookingUi,
+  finalizeChatMessages,
+} from "../../utils/chatUiHelpers";
+import {
+  CHAT_QUICK_ACTIONS,
+  INTERNAL_TOKEN_LABELS,
+  resolveDisplayText,
+} from "../../utils/chatTokens";
 import {
   inferSpecialtyFromSymptoms,
   parseSpecialtyFromText,
@@ -64,7 +74,9 @@ function latestAssistantEmergency(messages: Message[]): boolean {
 }
 
 function displayUserContent(content: string): string {
-  const lines = content
+  // First resolve any internal token to its friendly label
+  const resolved = resolveDisplayText(content);
+  const lines = resolved
     .split(/\n+/)
     .map((line) => line.trim())
     .filter(Boolean);
@@ -75,7 +87,7 @@ function displayUserContent(content: string): string {
       deduped.push(line);
     }
   }
-  if (deduped.length <= 1) return deduped[0] ?? content.trim();
+  if (deduped.length <= 1) return deduped[0] ?? resolved.trim();
   return deduped.join("\n");
 }
 
@@ -112,14 +124,10 @@ function normalizeMessages(messages: Message[]): Message[] {
 }
 
 const SYMPTOM_START_OPTIONS = [
-  { label: "Headache", message: "Headache" },
-  { label: "Fever", message: "Fever" },
-  { label: "Cough", message: "Cough" },
-  { label: "Body pain", message: "Body pain" },
-  { label: "Nausea", message: "Nausea" },
-  { label: "Sore throat", message: "Sore throat" },
-  { label: "Fatigue", message: "Fatigue" },
-  { label: "Book appointment", message: "I'd like to book an appointment with a doctor." },
+  { label: "Headache", message: "I have a headache" },
+  { label: "Fever", message: "I have a fever" },
+  { label: "Cough", message: "I have a cough" },
+  { label: "Stomach pain", message: "I have stomach pain" },
 ];
 
 function normalizeRole(role: string): string {
@@ -258,6 +266,9 @@ export default function PatientChat() {
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const fileRef = useRef<HTMLInputElement>(null);
   const pendingPromptRef = useRef<string | null>(null);
+  const sendTextRef = useRef<
+    (text: string, reportId?: string, attachment?: ChatAttachment, options?: { fromUpload?: boolean; fromReportAction?: boolean; displayText?: string }) => Promise<void>
+  >(() => Promise.resolve());
   const lastSendRef = useRef<{ signature: string; at: number } | null>(null);
   const patientName = localStorage.getItem("user_name") || "Patient";
 
@@ -273,6 +284,18 @@ export default function PatientChat() {
     }
   }, []);
 
+  const fetchResumeContext = useCallback(async (convId: string) => {
+    try {
+      return await api<{
+        resume_prompt?: string | null;
+        pending_auth_action?: string | null;
+        resume_after_auth?: boolean;
+      }>(`/api/v1/chat/conversations/${convId}/resume`);
+    } catch {
+      return null;
+    }
+  }, []);
+
   const hydrateMessages = async (history: ApiMessage[]) => {
     const enriched = await Promise.all(
       history.map(async (m) => {
@@ -283,7 +306,7 @@ export default function PatientChat() {
         };
       })
     );
-    return normalizeMessages(enriched);
+    return finalizeChatMessages(normalizeMessages(enriched));
   };
 
   const refreshMessages = async (convId: string) => {
@@ -314,19 +337,30 @@ export default function PatientChat() {
       setInitializing(true);
       const navState = location.state as {
         conversationId?: string;
-        promptMessage?: string;
         fromGuestBooking?: boolean;
       } | null;
-      if (navState?.promptMessage) {
-        pendingPromptRef.current = navState.promptMessage;
-        navigate(location.pathname, { replace: true, state: navState.conversationId ? { conversationId: navState.conversationId } : {} });
-      }
       const resumeId =
         navState?.conversationId ?? sessionStorage.getItem("post_signup_conversation_id") ?? undefined;
       if (resumeId) sessionStorage.removeItem("post_signup_conversation_id");
+      const fromGuestBooking =
+        navState?.fromGuestBooking ||
+        sessionStorage.getItem("post_signup_pending_action") === "book";
+      if (fromGuestBooking) {
+        sessionStorage.removeItem("post_signup_pending_action");
+      }
       try {
         await loadConversations(resumeId);
-        if (navState?.fromGuestBooking && resumeId) {
+        if (resumeId) {
+          const resumeCtx = await fetchResumeContext(resumeId);
+          if (fromGuestBooking && resumeCtx?.resume_after_auth) {
+            try {
+              await api(`/api/v1/chat/conversations/${resumeId}/resume/complete`, {
+                method: "POST",
+              });
+            } catch {
+              /* already completed or no pending slot */
+            }
+          }
           await refreshMessages(resumeId);
         }
       } catch (err: unknown) {
@@ -344,14 +378,7 @@ export default function PatientChat() {
     return () => {
       active = false;
     };
-  }, [loadConversations, location.state, location.pathname, navigate]);
-
-  useEffect(() => {
-    const prompt = pendingPromptRef.current;
-    if (!prompt || initializing || loading || !conversationId) return;
-    pendingPromptRef.current = null;
-    void sendText(prompt);
-  }, [initializing, loading, conversationId]);
+  }, [loadConversations, location.state, location.pathname, navigate, fetchResumeContext]);
 
   useEffect(() => {
     bottom.current?.scrollIntoView({ behavior: "smooth" });
@@ -441,6 +468,15 @@ export default function PatientChat() {
     }
     setLoading(false);
   };
+
+  sendTextRef.current = sendText;
+
+  useEffect(() => {
+    const prompt = pendingPromptRef.current;
+    if (!prompt || initializing || loading || !conversationId) return;
+    pendingPromptRef.current = null;
+    void sendTextRef.current(prompt);
+  }, [initializing, loading, conversationId]);
 
   const send = async () => {
     if (!input.trim()) return;
@@ -592,7 +628,7 @@ export default function PatientChat() {
                     <div className="consult-bubble consult-bubble--ai">
                       <p>
                         Hello {patientName.split(" ")[0]}, I&apos;m your MediAI Assistant. How are you feeling today?
-                        Tap a symptom below to get started — no typing needed.
+                        Describe your concern in your own words, or tap a common symptom below.
                       </p>
                       <ConsultActionChips
                         actions={SYMPTOM_START_OPTIONS}
@@ -609,7 +645,8 @@ export default function PatientChat() {
             {messages.map((m, i) => {
               const isUser = m.role === "user";
               const prev = messages[i - 1];
-              const showInteractiveUi = m.role === "assistant" && m.ui && i === lastAssistantIdx;
+              const showInteractiveUi =
+                m.role === "assistant" && shouldShowInteractiveBookingUi(m.ui, i, lastAssistantIdx);
               const showReportFollowUp = shouldShowReportFollowUp(i);
               const userCaption = isUser ? userMessageCaption(m.content, !!m.attachment) : null;
               const userText = isUser ? (m.attachment ? userCaption : displayUserContent(m.content)) : null;
@@ -644,7 +681,7 @@ export default function PatientChat() {
                       )}
                       {showInteractiveUi && (
                         <div className="consult-booking-wrap">
-                          {m.content.trim() && (
+                          {m.content.trim() && !shouldHideBookingCardCaption(m.ui) && (
                             <div className="consult-msg-text consult-msg-text--compact">{formatChatText(m.content)}</div>
                           )}
                           <ChatBookingUI ui={m.ui!} disabled={loading} onPick={sendText} />

@@ -63,3 +63,10 @@ class ChatReply(BaseModel):
     message_id: UUID | None = None
     ui: dict[str, Any] | None = None
     detected_symptoms: list[str] = Field(default_factory=list)
+
+
+class GuestResumeContext(BaseModel):
+    resume_prompt: str | None = None
+    pending_auth_action: str | None = None
+    resume_after_auth: bool = False
+    awaiting: str | None = None

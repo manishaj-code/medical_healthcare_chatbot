@@ -51,5 +51,11 @@ class Doctor(Base):
     bio: Mapped[str | None] = mapped_column(Text, nullable=True)
     rating: Mapped[float] = mapped_column(Numeric(3, 2), default=4.5)
     is_verified: Mapped[bool] = mapped_column(Boolean, default=True)
+    qualifications: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    profile_image_url: Mapped[str | None] = mapped_column(String(512), nullable=True)
+    consultation_fee: Mapped[float | None] = mapped_column(Numeric(10, 2), nullable=True)
+    hospital_name: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    clinic_address: Mapped[str | None] = mapped_column(Text, nullable=True)
+    professional_summary: Mapped[str | None] = mapped_column(Text, nullable=True)
 
     user: Mapped["User"] = relationship(back_populates="doctor")

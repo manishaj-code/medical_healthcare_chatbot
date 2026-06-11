@@ -2,6 +2,7 @@ from app.models.chat import Conversation, ConversationMemory, Message, SymptomAs
 from app.models.clinical import Allergy, MedicalHistory, Medication, RefillRequest
 from app.models.doctor_ops import (
     Appointment,
+    AppointmentReminder,
     DoctorAvailability,
     DoctorSpecialization,
     Specialization,
@@ -30,6 +31,7 @@ __all__ = [
     "DoctorSpecialization",
     "DoctorAvailability",
     "Appointment",
+    "AppointmentReminder",
     "Conversation",
     "Message",
     "SymptomAssessment",

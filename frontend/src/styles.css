@@ -96,6 +96,22 @@ body {
   z-index: 1;
 }
 
+.auth-brand-home-link {
+  display: inline-block;
+  text-decoration: none;
+  color: inherit;
+  cursor: pointer;
+}
+
+.auth-brand-home-link:hover .auth-shield-logo {
+  transform: translateY(-1px);
+  box-shadow: 0 10px 28px rgba(0, 104, 128, 0.32);
+}
+
+.auth-brand-home-link .auth-shield-logo {
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+
 .auth-shield-logo {
   width: 56px;
   height: 56px;
@@ -975,7 +991,7 @@ body {
 .msg-bot { align-self: flex-start; background: #e9ecef; max-width: 75%; }
 
 .msg-bot.msg-booking {
-  max-width: min(560px, 98%);
+  max-width: min(760px, 98%);
   width: 100%;
   background: transparent;
   padding: 0;
@@ -1285,6 +1301,58 @@ body {
   text-align: center;
 }
 
+.chat-choice-panel--followup {
+  margin-top: 0.75rem;
+  padding-top: 0.75rem;
+  border-top: 1px solid rgba(0, 104, 128, 0.14);
+}
+
+.chat-choice-panel--followup .chat-choice-grid {
+  margin-top: 0;
+  gap: 0.55rem;
+}
+
+.chat-choice-chip--primary {
+  background: linear-gradient(135deg, #1a6b7a 0%, #1a5f6a 100%);
+  color: #ffffff;
+  border: none;
+  box-shadow: 0 2px 10px rgba(26, 95, 106, 0.22);
+  padding: 0.72rem 1rem;
+  font-size: 0.88rem;
+  font-weight: 600;
+}
+
+.chat-choice-chip--primary:hover:not(:disabled) {
+  background: linear-gradient(135deg, #1f7a8a 0%, #1d6b75 100%);
+  border-color: transparent;
+  box-shadow: 0 4px 14px rgba(26, 95, 106, 0.28);
+  transform: translateY(-1px);
+}
+
+.chat-choice-chip--secondary {
+  background: #ffffff;
+  color: #1a5f6a;
+  border: 1.5px solid #b6dce8;
+  padding: 0.68rem 1rem;
+  font-size: 0.86rem;
+  font-weight: 600;
+  box-shadow: none;
+}
+
+.chat-choice-chip--secondary:hover:not(:disabled) {
+  background: #e8f6fa;
+  border-color: #1a5f6a;
+  box-shadow: none;
+  transform: none;
+}
+
+.chat-choice-chip--primary:disabled,
+.chat-choice-chip--secondary:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+  transform: none;
+}
+
 .chat-confirm-panel .chat-confirm-details {
   font-size: 0.9rem;
   line-height: 1.55;
@@ -1293,6 +1361,428 @@ body {
 
 .chat-confirm-panel .chat-confirm-details p {
   margin: 0.25rem 0;
+}
+
+/* ── Redesigned confirm booking card ── */
+.confirm-booking-card {
+  background: #ffffff;
+  border: 1.5px solid #b6dce8;
+  border-radius: 16px;
+  overflow: hidden;
+  font-family: "Inter", "Segoe UI", system-ui, sans-serif;
+  box-shadow: 0 2px 12px rgba(0, 80, 110, 0.08);
+  width: 100%;
+}
+
+.confirm-booking-header {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.85rem 1.1rem;
+  background: linear-gradient(135deg, #1a6b7a 0%, #1a5f6a 100%);
+  color: #ffffff;
+}
+
+.confirm-booking-icon {
+  font-size: 1rem;
+  line-height: 1;
+}
+
+.confirm-booking-title {
+  font-size: 0.92rem;
+  font-weight: 700;
+  letter-spacing: 0.01em;
+}
+
+.confirm-booking-details {
+  padding: 0.75rem 1.1rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  background: #f5fbfd;
+}
+
+.confirm-booking-row {
+  display: flex;
+  align-items: baseline;
+  gap: 0.6rem;
+  padding: 0.55rem 0;
+  border-bottom: 1px solid #daedf5;
+  font-size: 0.875rem;
+}
+
+.confirm-booking-row:last-child {
+  border-bottom: none;
+}
+
+.confirm-booking-label {
+  font-weight: 600;
+  color: #1a5f6a;
+  min-width: 110px;
+  flex-shrink: 0;
+  font-size: 0.82rem;
+}
+
+.confirm-booking-value {
+  color: #0d2d3d;
+  font-weight: 500;
+}
+
+.confirm-booking-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  padding: 0.65rem 0.75rem 0.75rem;
+  background: #ffffff;
+  border-top: 1px solid #daedf5;
+}
+
+.confirm-booking-btn {
+  width: 100%;
+  padding: 0.7rem 1rem;
+  border-radius: 10px;
+  border: none;
+  font-size: 0.88rem;
+  font-weight: 600;
+  font-family: inherit;
+  cursor: pointer;
+  transition: background 0.15s, transform 0.1s;
+  margin-bottom: 0.4rem;
+}
+
+.confirm-booking-btn:last-child {
+  margin-bottom: 0;
+}
+
+.confirm-booking-btn--yes {
+  background: #1a5f6a;
+  color: #ffffff;
+}
+
+.confirm-booking-btn--yes:hover:not(:disabled) {
+  background: #164f58;
+  transform: translateY(-1px);
+}
+
+.confirm-booking-btn--no {
+  background: transparent;
+  color: #1a5f6a;
+  border: 1.5px solid #b6dce8;
+}
+
+.confirm-booking-btn--no:hover:not(:disabled) {
+  background: #e8f6fa;
+}
+
+.confirm-booking-btn:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+  transform: none;
+}
+
+/* ── Reschedule slot picker card ── */
+.reschedule-card {
+  background: #ffffff;
+  border: 1.5px solid #b6dce8;
+  border-radius: 16px;
+  overflow: hidden;
+  font-family: "Inter", "Segoe UI", system-ui, sans-serif;
+  box-shadow: 0 4px 18px rgba(0, 80, 110, 0.1);
+  width: 100%;
+}
+
+.reschedule-card-header {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+  padding: 0.9rem 1.1rem;
+  background: linear-gradient(135deg, #1a6b7a 0%, #1a5f6a 100%);
+  color: #ffffff;
+}
+
+.reschedule-card-header-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 2rem;
+  height: 2rem;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.16);
+  flex-shrink: 0;
+}
+
+.reschedule-card-header-icon .material-symbols-outlined {
+  font-size: 1.15rem;
+  line-height: 1;
+}
+
+.reschedule-card-header-text {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  min-width: 0;
+}
+
+.reschedule-card-title {
+  font-size: 0.94rem;
+  font-weight: 700;
+  letter-spacing: 0.01em;
+}
+
+.reschedule-card-apt-id {
+  font-size: 0.75rem;
+  font-weight: 600;
+  opacity: 0.88;
+  letter-spacing: 0.04em;
+}
+
+.reschedule-card-body {
+  padding: 0;
+  background: #f5fbfd;
+}
+
+.reschedule-card-meta {
+  padding: 0.75rem 1.1rem;
+  border-bottom: 1px solid #daedf5;
+}
+
+.reschedule-card-row {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding: 0.45rem 0;
+  font-size: 0.875rem;
+}
+
+.reschedule-card-row--current {
+  margin-top: 0.15rem;
+  padding: 0.55rem 0.65rem;
+  border-radius: 10px;
+  background: rgba(26, 95, 106, 0.08);
+  border: 1px solid rgba(26, 95, 106, 0.14);
+}
+
+.reschedule-card-label {
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: #1a5f6a;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  flex-shrink: 0;
+}
+
+.reschedule-card-value {
+  color: #0d2d3d;
+  font-weight: 600;
+  text-align: right;
+}
+
+.reschedule-card-slots {
+  padding: 0.85rem 1.1rem 1rem;
+  background: #ffffff;
+}
+
+.reschedule-card-slots-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  margin-bottom: 0.7rem;
+}
+
+.reschedule-card-slots-title {
+  font-size: 0.88rem;
+  font-weight: 700;
+  color: #0d2d3d;
+}
+
+.reschedule-card-slots-badge {
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: #1a5f6a;
+  background: #e8f6fa;
+  border: 1px solid #b6dce8;
+  border-radius: 999px;
+  padding: 0.2rem 0.55rem;
+  white-space: nowrap;
+}
+
+.reschedule-card .chat-slot-groups {
+  padding: 0;
+}
+
+.reschedule-card .chat-slot-day-label {
+  font-size: 0.7rem;
+  color: #5a7a82;
+  margin-bottom: 0.15rem;
+}
+
+.reschedule-card .chat-slot-grid {
+  grid-template-columns: repeat(auto-fill, minmax(84px, 1fr));
+  gap: 0.45rem;
+}
+
+.reschedule-slot-chip {
+  background: #f8fcfd;
+  border: 1.5px solid #c5e3ec;
+  color: #0d2d3d;
+  border-radius: 10px;
+  padding: 0.55rem 0.45rem;
+  font-size: 0.8rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s, color 0.15s, transform 0.1s, box-shadow 0.15s;
+  text-align: center;
+  font-family: inherit;
+}
+
+.reschedule-slot-chip:hover:not(:disabled) {
+  background: #1a5f6a;
+  border-color: #1a5f6a;
+  color: #ffffff;
+  transform: translateY(-1px);
+  box-shadow: 0 3px 10px rgba(26, 95, 106, 0.22);
+}
+
+.reschedule-slot-chip:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+  transform: none;
+  box-shadow: none;
+}
+
+.reschedule-card-footnote {
+  margin: 0;
+  padding: 0.65rem 1.1rem 0.85rem;
+  font-size: 0.74rem;
+  color: #5a7a82;
+  background: #f5fbfd;
+  border-top: 1px solid #daedf5;
+  line-height: 1.45;
+}
+
+/* ── Reschedule confirm card ── */
+.reschedule-confirm-card {
+  background: #ffffff;
+  border: 1.5px solid #b6dce8;
+  border-radius: 16px;
+  overflow: hidden;
+  font-family: "Inter", "Segoe UI", system-ui, sans-serif;
+  box-shadow: 0 2px 12px rgba(0, 80, 110, 0.08);
+  width: 100%;
+}
+
+.reschedule-confirm-header {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.85rem 1.1rem;
+  background: linear-gradient(135deg, #1a6b7a 0%, #1a5f6a 100%);
+  color: #ffffff;
+}
+
+.reschedule-confirm-header-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.85rem;
+  height: 1.85rem;
+  border-radius: 9px;
+  background: rgba(255, 255, 255, 0.16);
+}
+
+.reschedule-confirm-header-icon .material-symbols-outlined {
+  font-size: 1.05rem;
+}
+
+.reschedule-confirm-title {
+  font-size: 0.92rem;
+  font-weight: 700;
+}
+
+.reschedule-confirm-details {
+  padding: 0.75rem 1.1rem;
+  background: #f5fbfd;
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+}
+
+.reschedule-confirm-row {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.75rem;
+  font-size: 0.875rem;
+}
+
+.reschedule-confirm-row--new {
+  padding: 0.55rem 0.65rem;
+  border-radius: 10px;
+  background: rgba(26, 95, 106, 0.08);
+  border: 1px solid rgba(26, 95, 106, 0.14);
+}
+
+.reschedule-confirm-label {
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: #1a5f6a;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.reschedule-confirm-value {
+  font-weight: 600;
+  color: #0d2d3d;
+  text-align: right;
+}
+
+.reschedule-confirm-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  padding: 0.65rem 0.75rem 0.75rem;
+  background: #ffffff;
+  border-top: 1px solid #daedf5;
+}
+
+.reschedule-confirm-btn {
+  width: 100%;
+  padding: 0.7rem 1rem;
+  border-radius: 10px;
+  border: none;
+  font-size: 0.88rem;
+  font-weight: 600;
+  font-family: inherit;
+  cursor: pointer;
+  transition: background 0.15s, transform 0.1s;
+}
+
+.reschedule-confirm-btn--yes {
+  background: #1a5f6a;
+  color: #ffffff;
+}
+
+.reschedule-confirm-btn--yes:hover:not(:disabled) {
+  background: #164f58;
+  transform: translateY(-1px);
+}
+
+.reschedule-confirm-btn--no {
+  background: transparent;
+  color: #1a5f6a;
+  border: 1.5px solid #b6dce8;
+}
+
+.reschedule-confirm-btn--no:hover:not(:disabled) {
+  background: #e8f6fa;
+}
+
+.reschedule-confirm-btn:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+  transform: none;
 }
 
 .chat-choice-panel {
@@ -1311,6 +1801,17 @@ body {
 .consult-bubble--booking .chat-confirm-panel,
 .consult-bubble--booking .chat-choice-panel {
   margin-top: 0.5rem;
+}
+
+.consult-bubble--booking .chat-choice-panel--followup {
+  margin-top: 0.85rem;
+  padding-top: 0.85rem;
+  border-top: 1px solid rgba(0, 104, 128, 0.12);
+}
+
+.consult-booking-wrap .consult-msg-text--compact {
+  margin-bottom: 0;
+  padding-bottom: 0;
 }
 
 .chat-booking-hint {
@@ -1395,6 +1896,1013 @@ body {
   .chat-appt-actions--inline {
     justify-content: flex-start;
   }
+}
+
+/* ── New Appointment Confirmed Card ── */
+.appt-confirmed-card {
+  background: #ffffff;
+  border: 1.5px solid #b6dce8;
+  border-radius: 18px;
+  overflow: hidden;
+  font-family: "Inter", "Segoe UI", system-ui, sans-serif;
+  box-shadow: 0 4px 20px rgba(0, 80, 110, 0.1);
+  width: 100%;
+}
+
+/* Green success header */
+.appt-confirmed-header {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 0.9rem 1.1rem;
+  background: linear-gradient(135deg, #1a7a5e 0%, #15664f 100%);
+  color: #ffffff;
+}
+
+.appt-confirmed-check {
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.25);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.85rem;
+  font-weight: 700;
+  flex-shrink: 0;
+}
+
+.appt-confirmed-header-title {
+  font-size: 0.97rem;
+  font-weight: 700;
+  flex: 1;
+  letter-spacing: 0.01em;
+}
+
+.appt-confirmed-apt-id {
+  font-size: 0.72rem;
+  font-weight: 700;
+  background: rgba(255, 255, 255, 0.18);
+  border-radius: 6px;
+  padding: 0.18rem 0.55rem;
+  letter-spacing: 0.04em;
+  flex-shrink: 0;
+}
+
+.appt-confirmed-header-text {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+  flex: 1;
+  min-width: 0;
+}
+
+.appt-status-badge {
+  display: inline-block;
+  width: fit-content;
+  font-size: 0.68rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  padding: 0.12rem 0.45rem;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.2);
+}
+
+.appt-status-badge--confirmed { background: rgba(255, 255, 255, 0.22); }
+.appt-status-badge--rescheduled { background: rgba(255, 214, 102, 0.35); }
+.appt-status-badge--cancelled { background: rgba(255, 120, 120, 0.35); }
+
+.appt-confirmed-check--rescheduled { background: rgba(255, 214, 102, 0.35); }
+.appt-confirmed-check--cancelled { background: rgba(255, 120, 120, 0.35); }
+
+.appt-confirmed-card--cancelled {
+  border-color: #e8b4b4;
+}
+
+.appt-confirmed-card--cancelled .appt-confirmed-header {
+  background: linear-gradient(135deg, #8b3a3a 0%, #6d2e2e 100%);
+}
+
+.appt-confirmed-card--superseded {
+  border-color: #d4e8ee;
+  box-shadow: 0 2px 10px rgba(0, 80, 110, 0.06);
+}
+
+.appt-confirmed-card--superseded .appt-confirmed-header {
+  background: linear-gradient(135deg, #5f8f82 0%, #4f7a6f 100%);
+}
+
+.appt-confirmed-card--superseded .appt-confirmed-note {
+  color: #5a7a82;
+  font-style: italic;
+}
+
+/* Info rows */
+.appt-confirmed-info {
+  padding: 0.65rem 1.1rem;
+  background: #f5fbfd;
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+}
+
+.appt-confirmed-row {
+  display: flex;
+  align-items: baseline;
+  gap: 0.65rem;
+  padding: 0.5rem 0;
+  border-bottom: 1px solid #daedf5;
+  font-size: 0.875rem;
+}
+
+.appt-confirmed-row:last-child {
+  border-bottom: none;
+}
+
+.appt-confirmed-row-label {
+  min-width: 90px;
+  flex-shrink: 0;
+  font-weight: 600;
+  color: #1a5f6a;
+  font-size: 0.8rem;
+}
+
+.appt-confirmed-row-value {
+  color: #0d2d3d;
+  font-weight: 500;
+}
+
+.appt-confirmed-id-val {
+  font-family: "Courier New", monospace;
+  font-size: 0.82rem;
+  font-weight: 700;
+  color: #1a6b7a;
+  background: #e4f5f9;
+  padding: 0.1rem 0.45rem;
+  border-radius: 5px;
+}
+
+/* Action buttons row */
+.appt-confirmed-actions {
+  display: flex;
+  gap: 0.5rem;
+  padding: 0.8rem 1rem;
+  background: #ffffff;
+  border-top: 1px solid #daedf5;
+  flex-wrap: wrap;
+}
+
+.appt-confirmed-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.55rem 0.9rem;
+  border-radius: 10px;
+  border: 1.5px solid transparent;
+  font-size: 0.82rem;
+  font-weight: 600;
+  font-family: inherit;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s, border-color 0.15s, transform 0.1s;
+  white-space: nowrap;
+}
+
+.appt-confirmed-btn-icon {
+  font-size: 0.88rem;
+  line-height: 1;
+}
+
+/* Reminder — teal outline, turns solid when set */
+.appt-confirmed-btn--reminder {
+  border-color: #1a8fa0;
+  color: #1a6b7a;
+  background: #f0fafe;
+}
+
+.appt-confirmed-btn--reminder:hover:not(:disabled) {
+  background: #d8f1f8;
+  transform: translateY(-1px);
+}
+
+.appt-confirmed-btn--reminder-set {
+  background: #1a5f6a;
+  border-color: #1a5f6a;
+  color: #ffffff;
+  cursor: default;
+}
+
+.appt-confirmed-btn--reminder-set:hover {
+  transform: none;
+  background: #1a5f6a;
+}
+
+/* Reschedule — blue outline */
+.appt-confirmed-btn--reschedule {
+  border-color: #2563a8;
+  color: #2563a8;
+  background: #eff5ff;
+}
+
+.appt-confirmed-btn--reschedule:hover:not(:disabled) {
+  background: #dbeafe;
+  transform: translateY(-1px);
+}
+
+/* Cancel — red solid */
+.appt-confirmed-btn--cancel {
+  border-color: #c0392b;
+  color: #ffffff;
+  background: #e74c3c;
+  margin-left: auto;
+}
+
+.appt-confirmed-btn--cancel:hover:not(:disabled) {
+  background: #c0392b;
+  border-color: #c0392b;
+  transform: translateY(-1px);
+}
+
+.appt-confirmed-btn:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+  transform: none;
+}
+
+.appt-confirmed-note {
+  font-size: 0.72rem;
+  color: #4a7a8f;
+  text-align: center;
+  padding: 0 1rem 0.65rem;
+  margin: 0;
+  background: #ffffff;
+}
+
+@media (max-width: 480px) {
+  .appt-confirmed-actions {
+    flex-direction: column;
+  }
+  .appt-confirmed-btn--cancel {
+    margin-left: 0;
+  }
+}
+
+/* ══════════════════════════════════════════════
+   MediAI Doctor Booking Panel — pixel-matched
+   to reference design image
+   ══════════════════════════════════════════════ */
+
+/* Outer wrapper — light ice-blue background, no border, subtle shadow */
+.medai-booking-panel {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0;
+  background: #e8f4fb;
+  border-radius: 18px;
+  padding: 1.5rem;
+  box-shadow: 0 2px 12px rgba(0, 80, 110, 0.08);
+  font-family: "Inter", "Segoe UI", system-ui, sans-serif;
+  border: none;
+}
+
+@media (max-width: 680px) {
+  .medai-booking-panel {
+    grid-template-columns: 1fr;
+    gap: 1.25rem;
+  }
+}
+
+/* ── Left column: doctor cards ── */
+.medai-doctor-col {
+  display: flex;
+  flex-direction: column;
+  gap: 0.85rem;
+  padding-right: 1.25rem;
+}
+
+.medai-section-label {
+  font-size: 0.72rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: #4a7a8f;
+  margin-bottom: 0.15rem;
+}
+
+/* Doctor card */
+.medai-doc-card {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.85rem;
+  width: 100%;
+  text-align: left;
+  background: #ffffff;
+  border: 1.5px solid #d4e9f5;
+  border-radius: 14px;
+  padding: 0.9rem 0.9rem 0.9rem 1rem;
+  cursor: pointer;
+  font-family: inherit;
+  transition: border-color 0.18s, box-shadow 0.18s;
+  position: relative;
+}
+
+.medai-doc-card::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 12px;
+  bottom: 12px;
+  width: 3px;
+  background: transparent;
+  border-radius: 0 3px 3px 0;
+  transition: background 0.18s;
+}
+
+.medai-doc-card:hover:not(:disabled) {
+  border-color: #7dc8e0;
+  box-shadow: 0 3px 12px rgba(0, 100, 130, 0.1);
+}
+
+/* Selected / active card — teal left accent + blue border */
+.medai-doc-card--active {
+  border-color: #7dc8e0;
+  box-shadow: 0 3px 14px rgba(0, 100, 130, 0.13);
+}
+
+.medai-doc-card--active::before {
+  background: #1a6b7a;
+}
+
+.medai-doc-card:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+/* Avatar */
+.medai-doc-avatar-wrap {
+  position: relative;
+  flex-shrink: 0;
+  margin-top: 2px;
+  width: 62px;
+  height: 62px;
+}
+
+.medai-doc-avatar--photo {
+  object-fit: cover;
+  width: 62px;
+  height: 62px;
+  border-radius: 10px;
+  display: block;
+  background: #eef6f5;
+  flex-shrink: 0;
+}
+
+.medai-doc-summary {
+  display: block;
+  font-size: 0.72rem;
+  line-height: 1.35;
+  color: var(--text-muted, #64748b);
+  margin-top: 0.15rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+}
+
+.medai-doc-avatar {
+  width: 62px;
+  height: 62px;
+  border-radius: 10px;
+  background: linear-gradient(160deg, #c8dde6 0%, #9bbfcc 100%);
+  color: #2a5566;
+  font-size: 1.2rem;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  letter-spacing: 0.02em;
+}
+
+/* PRO / NEW pill — bottom-left of avatar */
+.medai-doc-badge {
+  position: absolute;
+  bottom: -7px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: #1e3040;
+  color: #ffffff;
+  font-size: 0.55rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  padding: 0.15rem 0.5rem;
+  border-radius: 999px;
+  white-space: nowrap;
+  border: 1.5px solid #fff;
+}
+
+/* Doctor text info */
+.medai-doc-info {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.12rem;
+  padding-top: 1px;
+}
+
+.medai-doc-name {
+  font-size: 0.97rem;
+  font-weight: 700;
+  color: #0d2d3d;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  line-height: 1.3;
+}
+
+.medai-doc-meta {
+  font-size: 0.78rem;
+  color: #4a7a8f;
+  line-height: 1.3;
+}
+
+.medai-doc-stats {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  margin-top: 0.45rem;
+}
+
+.medai-doc-stat {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  font-size: 0.72rem;
+  color: #4a7a8f;
+  font-weight: 500;
+}
+
+.medai-stat-icon {
+  font-size: 0.75rem;
+  opacity: 0.75;
+}
+
+/* Star rating — purple pill, top-right corner of card */
+.medai-doc-rating {
+  font-size: 0.75rem;
+  font-weight: 700;
+  color: #5b3a8c;
+  background: #ede9f6;
+  border-radius: 8px;
+  padding: 0.22rem 0.55rem;
+  flex-shrink: 0;
+  align-self: flex-start;
+  white-space: nowrap;
+  margin-top: 2px;
+}
+
+/* ── Right column: calendar + slots ── */
+.medai-picker-col {
+  display: flex;
+  flex-direction: column;
+  padding-left: 1.25rem;
+  border-left: 1px solid #cce4f0;
+}
+
+/* Appointment picker container */
+.appt-picker {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+/* "Select Appointment" heading */
+.appt-picker-title {
+  font-size: 1.1rem;
+  font-weight: 700;
+  color: #0d2d3d;
+  margin: 0 0 0.1rem;
+  letter-spacing: -0.01em;
+}
+
+/* ── Calendar ── */
+.appt-cal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 0.1rem;
+}
+
+/* "October 2024" — teal/green color matching image */
+.appt-cal-month {
+  font-size: 0.88rem;
+  font-weight: 600;
+  color: #4aaa7a;
+}
+
+.appt-cal-nav {
+  display: flex;
+  gap: 0.3rem;
+}
+
+/* ‹ › nav buttons — small rounded squares with border */
+.appt-cal-nav-btn {
+  width: 26px;
+  height: 26px;
+  border: 1px solid #b8d8e8;
+  border-radius: 7px;
+  background: #ffffff;
+  color: #4a7a8f;
+  font-size: 0.95rem;
+  line-height: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: background 0.12s;
+  padding: 0;
+}
+
+.appt-cal-nav-btn:hover:not(:disabled) {
+  background: #ddf0f9;
+}
+
+.appt-cal-nav-btn:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+/* 7-column calendar grid */
+.appt-cal-grid {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  row-gap: 0.1rem;
+  column-gap: 0;
+}
+
+/* M T W T F S S headers */
+.appt-cal-weekday {
+  font-size: 0.7rem;
+  font-weight: 600;
+  color: #6a9cb0;
+  text-align: center;
+  padding: 0.25rem 0 0.35rem;
+}
+
+/* Day number cells */
+.appt-cal-day {
+  aspect-ratio: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  border: none;
+  background: transparent;
+  font-size: 0.83rem;
+  font-weight: 400;
+  color: #2a4a58;
+  cursor: pointer;
+  transition: background 0.12s, color 0.12s;
+  padding: 0;
+  width: 100%;
+}
+
+.appt-cal-day:hover:not(:disabled):not(.appt-cal-day--selected) {
+  background: #cce9f5;
+  color: #0d2d3d;
+}
+
+/* Selected day — dark teal filled circle, white number */
+.appt-cal-day--selected {
+  background: #1a5f6a;
+  color: #ffffff;
+  font-weight: 700;
+}
+
+/* Today — teal text, no fill */
+.appt-cal-day--today {
+  color: #1a9dbf;
+  font-weight: 600;
+}
+
+/* No-slots day — greyed out */
+.appt-cal-day--disabled {
+  color: #b0cdd8;
+  cursor: default;
+}
+
+/* ── Time slot chips ── */
+.appt-slots-section {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+/* "Available Slots" label — teal, small caps */
+.appt-slots-label {
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: #4aaa7a;
+  letter-spacing: 0.01em;
+}
+
+/* 3-column grid of time chips */
+.appt-slots-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 0.5rem;
+}
+
+.appt-slots-empty {
+  font-size: 0.8rem;
+  color: #4a7a8f;
+  margin: 0;
+  grid-column: 1 / -1;
+}
+
+/* Normal available slot chip — white bg, grey border */
+.appt-slot-chip {
+  padding: 0.6rem 0.3rem;
+  border: 1.5px solid #ccdde6;
+  border-radius: 10px;
+  background: #ffffff;
+  color: #1a3040;
+  font-size: 0.78rem;
+  font-weight: 500;
+  font-family: inherit;
+  cursor: pointer;
+  text-align: center;
+  transition: border-color 0.14s, background 0.14s, color 0.14s;
+}
+
+.appt-slot-chip:hover:not(:disabled):not(.appt-slot-chip--past) {
+  border-color: #1a6b7a;
+  background: #dff4fb;
+  color: #1a3040;
+}
+
+/* Past slot — light blue-grey bg, strikethrough, not clickable (matches image) */
+.appt-slot-chip--past {
+  background: #d8edf6;
+  border-color: #b8d5e4;
+  color: #7aaabb;
+  text-decoration: line-through;
+  cursor: not-allowed;
+}
+
+/* Selected slot chip — teal filled */
+.appt-slot-chip--selected {
+  background: #1a5f6a;
+  border-color: #1a5f6a;
+  color: #ffffff;
+  font-weight: 600;
+}
+
+.appt-slot-chip--selected:hover:not(:disabled) {
+  background: #164f58;
+  border-color: #164f58;
+  color: #ffffff;
+}
+
+/* Selected slot summary bar above Book button */
+.appt-selected-slot-summary {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.55rem 0.85rem;
+  background: rgba(26, 95, 106, 0.08);
+  border: 1px solid rgba(26, 95, 106, 0.22);
+  border-radius: 10px;
+  font-size: 0.78rem;
+  color: #1a5f6a;
+  font-weight: 500;
+}
+
+.appt-selected-slot-icon {
+  font-size: 0.85rem;
+  flex-shrink: 0;
+}
+
+.appt-selected-slot-text {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* ── Redirect loading overlay ── */
+.aura-redirect-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+  background: rgba(0, 30, 40, 0.55);
+  backdrop-filter: blur(6px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  animation: aura-fade-in 0.3s ease;
+}
+
+@keyframes aura-fade-in {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
+.aura-redirect-card {
+  background: #ffffff;
+  border-radius: 24px;
+  padding: 2.5rem 2rem 2rem;
+  width: min(380px, calc(100vw - 2rem));
+  text-align: center;
+  box-shadow: 0 32px 64px rgba(0, 50, 60, 0.22);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1rem;
+  animation: aura-slide-up 0.35s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+@keyframes aura-slide-up {
+  from { transform: translateY(24px); opacity: 0; }
+  to   { transform: translateY(0);    opacity: 1; }
+}
+
+.aura-redirect-spinner {
+  position: relative;
+  width: 72px;
+  height: 72px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 0.25rem;
+}
+
+.aura-redirect-spinner-ring {
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  border: 4px solid #d0eef2;
+  border-top-color: #1a6b7a;
+  animation: aura-spin 0.9s linear infinite;
+}
+
+@keyframes aura-spin {
+  to { transform: rotate(360deg); }
+}
+
+.aura-redirect-spinner-icon {
+  font-size: 1.75rem;
+  line-height: 1;
+}
+
+.aura-redirect-title {
+  font-size: 1.05rem;
+  font-weight: 700;
+  color: #0d2d3d;
+  margin: 0;
+  line-height: 1.35;
+}
+
+.aura-redirect-msg {
+  font-size: 0.88rem;
+  color: #36647c;
+  margin: 0;
+  line-height: 1.5;
+}
+
+.aura-redirect-progress {
+  width: 100%;
+  height: 5px;
+  background: #d0eef2;
+  border-radius: 999px;
+  overflow: hidden;
+}
+
+.aura-redirect-progress-bar {
+  height: 100%;
+  background: linear-gradient(90deg, #1a8fa0, #1a5f6a);
+  border-radius: 999px;
+  animation: aura-progress 2.2s cubic-bezier(0.4, 0, 0.2, 1) forwards;
+}
+
+@keyframes aura-progress {
+  from { width: 0%; }
+  to   { width: 100%; }
+}
+
+.aura-redirect-sub {
+  font-size: 0.75rem;
+  color: #8ab3c5;
+  margin: 0;
+}
+
+/* ── Confirm Appointment button ── */
+.appt-confirm-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.55rem;
+  width: 100%;
+  padding: 1rem 1.25rem;
+  border-radius: 14px;
+  border: none;
+  background: #1a5f6a;
+  color: #ffffff;
+  font-size: 1rem;
+  font-weight: 700;
+  font-family: inherit;
+  cursor: pointer;
+  letter-spacing: 0.01em;
+  transition: background 0.18s, transform 0.1s;
+  margin-top: 0.15rem;
+}
+
+.appt-confirm-btn:hover:not(:disabled) {
+  background: #164f58;
+  transform: translateY(-1px);
+}
+
+.appt-confirm-btn:active:not(:disabled) {
+  transform: translateY(0);
+}
+
+.appt-confirm-btn:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+  transform: none;
+}
+
+.appt-confirm-icon {
+  font-size: 1rem;
+  opacity: 0.9;
+}
+
+/* "No payment required" note */
+.appt-confirm-note {
+  text-align: center;
+  font-size: 0.72rem;
+  color: #4a7a8f;
+  margin: 0;
+}
+
+/* ── Selected doctor header in the picker ── */
+.appt-doctor-header {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.75rem 0.9rem;
+  background: rgba(26, 95, 106, 0.07);
+  border-radius: 12px;
+  margin-bottom: 0.25rem;
+}
+
+.appt-doctor-avatar {
+  width: 40px;
+  height: 40px;
+  border-radius: 9px;
+  background: linear-gradient(135deg, #1a8fa0 0%, #1a5f6a 100%);
+  color: #fff;
+  font-size: 0.9rem;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.appt-doctor-avatar--photo {
+  object-fit: cover;
+  display: block;
+  background: #eef6f5;
+}
+
+.appt-doctor-header-info {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.1rem;
+}
+
+.appt-doctor-header-name {
+  font-size: 0.92rem;
+  font-weight: 700;
+  color: #0d2d3d;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.appt-doctor-header-meta {
+  font-size: 0.73rem;
+  color: #4a7a8f;
+}
+
+.appt-doctor-header-rating {
+  font-size: 0.75rem;
+  font-weight: 700;
+  color: #5b3a8c;
+  background: #ede9f6;
+  border-radius: 8px;
+  padding: 0.2rem 0.5rem;
+  flex-shrink: 0;
+  white-space: nowrap;
+}
+
+/* ── Calendar day state variants ── */
+/* Past dates — greyed, not clickable */
+.appt-cal-day--past {
+  color: #c0d5de;
+  cursor: default;
+}
+
+/* Future date with available slots — teal dot indicator */
+.appt-cal-day--has-slots {
+  color: #0d2d3d;
+  font-weight: 600;
+  position: relative;
+}
+
+.appt-cal-day--has-slots::after {
+  content: "";
+  position: absolute;
+  bottom: 2px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 4px;
+  height: 4px;
+  border-radius: 50%;
+  background: #1a9dbf;
+}
+
+/* Future date with no slots — normal but lighter */
+.appt-cal-day--no-slots {
+  color: #7aa8b8;
+  cursor: pointer;
+}
+
+/* Outside-month empty cell */
+.appt-cal-day--outside {
+  background: transparent;
+  border: none;
+  cursor: default;
+}
+
+/* No slots in this month hint */
+.appt-cal-no-slots-hint {
+  font-size: 0.75rem;
+  color: #4a7a8f;
+  text-align: center;
+  padding: 0.35rem 0 0;
+  margin: 0;
+  font-style: italic;
+}
+
+/* Slot date label next to "Available Slots" */
+.appt-slots-date-label {
+  font-weight: 400;
+  color: #4a7a8f;
+  text-transform: none;
+  letter-spacing: 0;
+  font-size: 0.72rem;
+}
+
+/* ── No-slots doctor section ── */
+.medai-no-slots-divider {
+  font-size: 0.68rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: #9bbfcc;
+  padding: 0.35rem 0 0.1rem;
+  border-top: 1px dashed #ccdde6;
+  margin-top: 0.25rem;
+}
+
+.medai-doc-card--no-slots {
+  opacity: 0.5;
+  cursor: default;
+  pointer-events: none;
+}
+
+.medai-doc-avatar--grey {
+  background: linear-gradient(135deg, #b0c8d4 0%, #8aacba 100%);
+  color: #fff;
+}
+
+.medai-no-slots-tag {
+  font-size: 0.68rem;
+  color: #9bbfcc;
+  font-style: italic;
+  margin-top: 0.25rem;
+}
+
+.medai-doc-rating--grey {
+  color: #8aacba !important;
+  background: #e8f0f4 !important;
+}
+  color: #4a7a8f;
+  margin: 0;
 }
 
 .emergency-banner {
@@ -3025,7 +4533,7 @@ th { font-weight: 600; background: #f8f9fa; }
   border: none;
   padding: 0;
   width: 100%;
-  max-width: min(560px, 100%);
+  max-width: min(820px, 100%);
 }
 
 .consult-bubble p { margin: 0; }
@@ -3356,7 +4864,10 @@ th { font-weight: 600; background: #f8f9fa; }
   font-size: 0.9rem;
 }
 
-.consult-booking-wrap { width: 100%; }
+.consult-booking-wrap {
+  width: 100%;
+  max-width: min(800px, 100%);
+}
 
 .consult-action-chips {
   display: flex;
@@ -4021,6 +5532,8 @@ th { font-weight: 600; background: #f8f9fa; }
 .fd-doctor-avatar-wrap {
   position: relative;
   flex-shrink: 0;
+  width: 72px;
+  height: 72px;
 }
 
 .fd-doctor-avatar {
@@ -4034,6 +5547,26 @@ th { font-weight: 600; background: #f8f9fa; }
   justify-content: center;
   font-weight: 800;
   font-size: 1.25rem;
+}
+
+.fd-doctor-avatar--img {
+  object-fit: cover;
+  width: 72px;
+  height: 72px;
+  border-radius: 14px;
+  display: block;
+  background: #eef6f5;
+}
+
+.fd-doctor-summary {
+  margin: 0.35rem 0 0;
+  font-size: 0.8rem;
+  line-height: 1.4;
+  color: #4a5c59;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
 }
 
 .fd-doctor-badge {
@@ -4891,7 +6424,7 @@ th { font-weight: 600; background: #f8f9fa; }
   font-size: 0.88rem;
 }
 
-/* Aura consultation widget (landing) */
+/* MediAI consultation widget (landing) */
 .aura-chat-widget {
   position: fixed;
   bottom: 2rem;
@@ -4900,9 +6433,10 @@ th { font-weight: 600; background: #f8f9fa; }
   width: min(380px, calc(100vw - 2rem));
   height: 64px;
   pointer-events: none;
-  transition: width 0.35s ease;
+  transition: width 0.4s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
+/* Expanded state — doubles width when user clicks inside */
 .aura-chat-widget--expanded {
   width: min(760px, calc(100vw - 2rem));
 }
@@ -4952,11 +6486,17 @@ th { font-weight: 600; background: #f8f9fa; }
   visibility: hidden;
   pointer-events: none;
   transform-origin: bottom right;
-  transition: transform 0.35s ease, opacity 0.35s ease, visibility 0.35s, height 0.35s ease;
+  transition:
+    transform 0.4s cubic-bezier(0.4, 0, 0.2, 1),
+    opacity 0.4s cubic-bezier(0.4, 0, 0.2, 1),
+    visibility 0.4s,
+    height 0.4s cubic-bezier(0.4, 0, 0.2, 1),
+    width 0.4s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
+/* Expanded = double height, fills most of viewport */
 .aura-chat-window--expanded {
-  height: min(1040px, calc(100vh - 6rem));
+  height: min(960px, calc(100vh - 6rem));
 }
 
 .aura-chat-window--open {
@@ -5014,6 +6554,12 @@ th { font-weight: 600; background: #f8f9fa; }
   height: 6px;
   border-radius: 50%;
   background: #4ade80;
+}
+
+.aura-chat-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
 }
 
 .aura-chat-close {
@@ -5081,6 +6627,21 @@ th { font-weight: 600; background: #f8f9fa; }
   border-radius: 1rem;
   font-size: 0.875rem;
   line-height: 1.5;
+  font-family: "Inter", "Segoe UI", system-ui, sans-serif;
+}
+
+/* When the bubble contains the full booking panel, let it expand */
+.aura-chat-bubble:has(.medai-booking-panel) {
+  max-width: min(820px, 95vw);
+  width: 100%;
+  padding: 0.75rem;
+}
+
+/* Fallback for browsers without :has() support */
+.aura-chat-bubble--booking-expanded {
+  max-width: min(820px, 95vw);
+  width: 100%;
+  padding: 0.75rem;
 }
 
 .aura-chat-bubble--ai {
@@ -5128,32 +6689,143 @@ th { font-weight: 600; background: #f8f9fa; }
 .aura-chat-quick-actions {
   display: flex;
   flex-direction: column;
-  gap: 0.5rem;
+  gap: 0.55rem;
   padding-left: 2.75rem;
   margin-top: -0.25rem;
 }
 
 .aura-chat-quick-actions button {
-  text-align: left;
-  padding: 0.5rem 1rem;
-  border-radius: 999px;
-  border: 1px solid rgba(0, 104, 95, 0.2);
+  text-align: center;
+  padding: 0.65rem 1rem;
+  border-radius: 12px;
+  border: 1.5px solid rgba(0, 104, 95, 0.22);
   background: #fff;
   color: #00685f;
-  font-size: 0.75rem;
+  font-size: 0.8rem;
   font-weight: 600;
   cursor: pointer;
   font-family: inherit;
-  transition: background 0.2s, color 0.2s, border-color 0.2s;
+  transition: background 0.2s, color 0.2s, border-color 0.2s, box-shadow 0.2s;
 }
 
 .aura-chat-quick-actions button:hover:not(:disabled) {
   background: #00685f;
   color: #fff;
   border-color: #00685f;
+  box-shadow: 0 2px 8px rgba(0, 104, 95, 0.18);
 }
 
 .aura-chat-quick-actions button:disabled { opacity: 0.55; cursor: not-allowed; }
+
+.aura-chat-nav-menu {
+  margin-top: 0.75rem;
+  padding-top: 0.5rem;
+  border-top: 1px dashed rgba(0, 104, 95, 0.15);
+}
+
+.aura-chat-nav-menu .chat-choice-grid--stack .chat-choice-chip {
+  font-size: 0.72rem;
+  padding: 0.45rem 0.85rem;
+}
+
+.aura-chat-composer-nav {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  margin-bottom: 0.5rem;
+}
+
+.aura-chat-nav-chip {
+  padding: 0.35rem 0.75rem;
+  border-radius: 999px;
+  border: 1px solid rgba(0, 104, 95, 0.25);
+  background: #f4faf9;
+  color: #00685f;
+  font-size: 0.7rem;
+  font-weight: 600;
+  cursor: pointer;
+  font-family: inherit;
+}
+
+.aura-chat-nav-chip:hover:not(:disabled) {
+  background: #00685f;
+  color: #fff;
+}
+
+.video-consult-page {
+  padding: 1.5rem;
+  max-width: 1100px;
+  margin: 0 auto;
+}
+
+.video-consult-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-bottom: 1rem;
+}
+
+.video-consult-frame {
+  width: 100%;
+  height: min(72vh, 720px);
+  border: none;
+  border-radius: 12px;
+  background: #0f172a;
+}
+
+.video-consult-card {
+  margin-top: 0.75rem;
+  padding: 1rem;
+  border-radius: 12px;
+  background: #f0fdfa;
+  border: 1px solid rgba(0, 104, 95, 0.2);
+}
+
+.video-consult-card-header {
+  display: flex;
+  gap: 0.75rem;
+  align-items: flex-start;
+  margin-bottom: 0.75rem;
+}
+
+.video-consult-card-header p {
+  margin: 0.15rem 0 0;
+  font-size: 0.8rem;
+  color: #475569;
+}
+
+.video-consult-apt {
+  font-weight: 600;
+  color: #00685f;
+}
+
+.video-consult-join-btn {
+  display: inline-block;
+  padding: 0.55rem 1rem;
+  border-radius: 999px;
+  background: #00685f;
+  color: #fff;
+  font-weight: 600;
+  font-size: 0.8rem;
+  text-decoration: none;
+  margin-bottom: 0.5rem;
+}
+
+.pd-appt-btn--video {
+  background: #00685f;
+  color: #fff;
+  border-color: #00685f;
+}
+
+.pd-appt-btn--video.pd-appt-btn--disabled,
+.pd-appt-btn--video:disabled {
+  background: #c5d4d2;
+  color: #6b7c79;
+  border-color: #c5d4d2;
+  cursor: not-allowed;
+  opacity: 0.85;
+}
 
 .aura-chat-composer {
   flex-shrink: 0;
@@ -5336,6 +7008,28 @@ th { font-weight: 600; background: #f8f9fa; }
   color: #fff;
 }
 
+.aura-chat-bubble .reschedule-card {
+  margin-top: 0;
+  border-color: rgba(0, 104, 95, 0.22);
+  box-shadow: 0 4px 16px rgba(0, 104, 95, 0.1);
+}
+
+.aura-chat-bubble .reschedule-confirm-card {
+  margin-top: 0;
+  border-color: rgba(0, 104, 95, 0.22);
+}
+
+.aura-chat-bubble .reschedule-slot-chip {
+  border-color: rgba(0, 104, 95, 0.2);
+  background: rgba(255, 255, 255, 0.9);
+}
+
+.aura-chat-bubble .reschedule-slot-chip:hover:not(:disabled) {
+  background: #00685f;
+  border-color: #00685f;
+  color: #fff;
+}
+
 .aura-chat-bubble .chat-booking-hint {
   background: rgba(0, 104, 95, 0.04);
   border-top-color: rgba(0, 104, 95, 0.12);
@@ -5344,6 +7038,38 @@ th { font-weight: 600; background: #f8f9fa; }
 .aura-chat-bubble .chat-choice-grid {
   margin-top: 0.65rem;
   gap: 0.5rem;
+}
+
+.aura-chat-bubble .chat-choice-panel--followup {
+  margin-top: 0.85rem;
+  padding-top: 0.85rem;
+  border-top: 1px solid rgba(0, 104, 95, 0.14);
+}
+
+.aura-chat-bubble .chat-choice-panel--followup .chat-choice-grid {
+  margin-top: 0;
+}
+
+.aura-chat-bubble .chat-choice-chip--primary {
+  background: linear-gradient(135deg, #00796d 0%, #00685f 100%);
+  color: #fff;
+  border: none;
+  box-shadow: 0 2px 10px rgba(0, 104, 95, 0.22);
+}
+
+.aura-chat-bubble .chat-choice-chip--primary:hover:not(:disabled) {
+  background: linear-gradient(135deg, #00897b 0%, #00796d 100%);
+  border-color: transparent;
+}
+
+.aura-chat-bubble .chat-choice-chip--secondary {
+  border: 1.5px solid rgba(0, 104, 95, 0.25);
+  color: #00685f;
+}
+
+.aura-chat-bubble .chat-choice-chip--secondary:hover:not(:disabled) {
+  background: rgba(0, 104, 95, 0.08);
+  border-color: #00685f;
 }
 
 .aura-chat-bubble .chat-choice-chip {
@@ -5373,11 +7099,11 @@ th { font-weight: 600; background: #f8f9fa; }
   }
 
   .aura-chat-window {
-    height: min(520px, calc(100vh - 5rem));
+    height: min(480px, calc(100vh - 5rem));
   }
 
   .aura-chat-window--expanded {
-    height: min(1040px, calc(100vh - 4rem));
+    height: min(880px, calc(100vh - 4rem));
   }
 }
 

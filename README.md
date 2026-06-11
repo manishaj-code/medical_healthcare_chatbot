@@ -62,6 +62,12 @@ GEMINI_API_KEY=your_gemini_api_key_here
 ```powershell
 .\start.ps1
 ```
+**Restart from scratch:**
+```powershell
+docker compose down
+docker compose build api --no-cache
+.\start.ps1
+```
 
 **Mac / Linux:**
 

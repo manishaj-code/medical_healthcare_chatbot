@@ -4,19 +4,14 @@ import ChatReportViewModal from "./ChatReportViewModal";
 
 export const REPORT_FOLLOWUP_ACTIONS = [
   {
-    label: "Summarize Report",
+    label: "Explain in simple language",
     message: "Please summarize this medical report in simple terms.",
-    display: "Summarize this report in simple terms",
+    display: "Explain this report in simple language",
   },
   {
-    label: "Explain Abnormal Results",
-    message: "Explain any abnormal or out-of-range values in this report.",
-    display: "Explain abnormal results in this report",
-  },
-  {
-    label: "Risk Assessment",
-    message: "Based on this report, what is my health risk assessment?",
-    display: "What is my health risk assessment?",
+    label: "Book appointment",
+    message: "I'd like to book an appointment based on this report.",
+    display: "Book appointment",
   },
 ] as const;
 

@@ -7,7 +7,7 @@ import re
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.agents import detect_prescription_request
-from app.healthcare_policy import OFF_TOPIC_REPLY
+from app.healthcare_policy import OFF_TOPIC_REPLY, build_greeting_reply, patient_ctx_for_llm, patient_first_name, should_reset_to_greeting
 from app.models import Conversation, Patient
 from app.services.flow_state import clear_flow, get_flow, set_flow
 from app.services.patient_context import load_patient_context
@@ -29,10 +29,10 @@ ROUTER_PROMPT = """You are the Supervisor of a multi-agent healthcare assistant 
 
 Specialists:
 - education_agent: general health questions, disease info, wellness (NOT personal symptom triage)
-- triage_agent: patient's own symptoms, feeling unwell, pain, illness assessment
-- scheduling_agent: book, cancel, reschedule appointments, find doctors/slots
+- triage_agent: patient's own symptoms, feeling unwell, pain, illness — always starts with conversation and self-care advice before any booking suggestion
+- scheduling_agent: ONLY when patient explicitly asks to book, cancel, or reschedule an appointment
 - report_agent: lab reports, medical documents, test results
-- followup_agent: recovery after visit, check-in after appointment
+- followup_agent: recovery check-ins after visit, post-appointment wellbeing
 - refill_agent: prescription refills
 - safety_agent: emergencies (usually automatic)
 
@@ -45,10 +45,13 @@ Return ONLY JSON:
   "reason": "one line"
 }
 
-Keep active specialist if patient is mid-flow unless intent clearly changed.
-If patient uploaded report or asks about lab results → report_agent.
-If personal symptoms → triage_agent.
-If appointment action → scheduling_agent.
+Critical routing rules:
+- NEVER route to scheduling_agent just because patient described symptoms — route to triage_agent first
+- Only route to scheduling_agent when patient EXPLICITLY says "book appointment", "see a doctor", "find a doctor", "cancel", or "reschedule"
+- Keep active specialist if patient is mid-flow unless intent clearly changed
+- If patient uploaded report or asks about lab results → report_agent
+- If personal symptoms → triage_agent (even if patient might eventually want a booking)
+- If appointment action explicitly requested → scheduling_agent
 """
 
 
@@ -57,18 +60,37 @@ class MultiAgentSupervisor:
         self,
         db: AsyncSession,
         conversation: Conversation,
-        patient: Patient,
+        patient: Patient | None,
         user_message: str,
         history: list[dict],
         report_id: str | None = None,
+        *,
+        is_guest: bool = False,
+        guest_session_id: str | None = None,
+        patient_ctx: dict | None = None,
     ) -> tuple[str, str, bool, dict | None]:
         text = user_message.strip()
         conv_id = conversation.id
-        patient_ctx = await load_patient_context(db, patient)
+        if patient_ctx is None:
+            if patient is None:
+                raise ValueError("patient or patient_ctx required")
+            patient_ctx = await load_patient_context(db, patient)
         flow = await get_flow(conv_id)
         session: dict = dict(flow.get("session") or {})
 
         self._migrate_legacy_flow(flow, session, history)
+
+        if should_reset_to_greeting(text, session):
+            self._reset_stale_flow_on_greeting(session)
+            await set_flow(conv_id, {"session": session})
+            pname = patient_first_name(patient_ctx.get("name"))
+            conversation.active_agent = "health_education"
+            return build_greeting_reply(pname), "health_education", False, None
+
+        if session.get("detected_symptoms") and not session.get("care_goal"):
+            session["care_goal"] = "symptom_assessment"
+            session.setdefault("active_specialist", "triage_agent")
+
         await update_session_symptoms(session, text)
         await set_flow(conv_id, {"session": session})
 
@@ -77,15 +99,6 @@ class MultiAgentSupervisor:
                 "I cannot prescribe medications or recommend dosages. "
                 "I can help request a refill for your existing prescriptions — would you like that?",
                 "safety_guardrail",
-                False,
-                None,
-            )
-
-        if not llm.available:
-            name = patient_ctx.get("name", "there").split()[0]
-            return (
-                f"Hi {name}, please configure GEMINI_API_KEY or GROQ_API_KEY for the multi-agent assistant.",
-                "conversation",
                 False,
                 None,
             )
@@ -100,14 +113,18 @@ class MultiAgentSupervisor:
             patient_ctx=patient_ctx,
             session=session,
             report_id=report_id,
+            is_guest=is_guest,
+            guest_session_id=guest_session_id,
         )
 
         in_refill_flow = (
-            session.get("care_goal") == "refill"
-            or session.get("awaiting") in ("confirm_refill", "pick_refill_med")
-            or session.get("active_specialist") == "refill_agent"
+            session.get("awaiting") in ("confirm_refill", "pick_refill_med")
+            or (
+                session.get("care_goal") == "refill"
+                and session.get("active_specialist") == "refill_agent"
+            )
         )
-        if not in_refill_flow and _booking_intent(text, history):
+        if not in_refill_flow and _booking_intent(text, history) and not session.get("resume_after_auth"):
             session.setdefault("recommended_specialty", infer_recommended_specialty(session, history))
             session["care_goal"] = "appointment"
 
@@ -170,7 +187,7 @@ class MultiAgentSupervisor:
             return {"specialist": "report_agent", "care_goal": "analyze_report"}
         hist = "\n".join(f"{h['role']}: {h['content']}" for h in ctx.history[-8:])
         payload = json.dumps(
-            {"patient": ctx.patient_ctx, "session": ctx.session, "history": hist[-500:]},
+            {"patient": patient_ctx_for_llm(ctx.patient_ctx), "session": ctx.session, "history": hist[-500:]},
             default=str,
         )
         prompt = f"{ROUTER_PROMPT}\n\nCONTEXT:\n{payload}\n\nMESSAGE: {ctx.text}\n\nJSON:"
@@ -184,27 +201,40 @@ class MultiAgentSupervisor:
     async def _should_switch(self, ctx: AgentContext) -> str | None:
         t = ctx.text.lower()
         active = ctx.session.get("active_specialist")
-        if active == "triage_agent" and (
-            _booking_intent(ctx.text, ctx.history)
-            or (
-                ctx.session.get("awaiting") == "offer_booking"
-                and (self._affirmative(t) or _affirmative_booking(ctx.text) or any(w in t for w in ("book", "appointment", "doctor")))
+
+        # From triage → scheduling: only when patient explicitly wants to book
+        # (not just after triage assessment — self-care advice must come first)
+        if active == "triage_agent":
+            explicit_booking = any(w in t for w in (
+                "book", "appointment", "see a doctor", "find a doctor",
+                "show doctors", "available doctors", "schedule",
+            ))
+            offered_booking = ctx.session.get("awaiting") == "offer_booking"
+            affirmative_after_offer = (
+                offered_booking and (
+                    self._affirmative(t) or _affirmative_booking(ctx.text) or
+                    any(w in t for w in ("book", "appointment", "doctor"))
+                )
             )
-        ):
-            ctx.session.setdefault(
-                "recommended_specialty", infer_recommended_specialty(ctx.session, ctx.history)
-            )
-            return "scheduling_agent"
+            if explicit_booking or affirmative_after_offer:
+                ctx.session.setdefault(
+                    "recommended_specialty", infer_recommended_specialty(ctx.session, ctx.history)
+                )
+                return "scheduling_agent"
+
         if active in ("education_agent", "followup_agent") and _booking_intent(ctx.text, ctx.history):
             return "scheduling_agent"
+
         if active == "education_agent":
             if any(w in t for w in ("hurt", "pain", "fever", "symptom", "sick", "cough", "feel unwell", "not feeling")):
                 return "triage_agent"
             if self._affirmative(t) and self._assessment_offered(ctx.history):
                 return "triage_agent"
+
         if active == "scheduling_agent" and any(w in t for w in ("symptom", "pain", "fever", "hurt", "feel")):
             if not ctx.session.get("awaiting"):
                 return "triage_agent"
+
         if any(w in t for w in ("report", "lab result", "blood test", "cbc")):
             return "report_agent"
         if any(w in t for w in ("refill", "prescription refill")):
@@ -256,7 +286,7 @@ class MultiAgentSupervisor:
 
     def _route_fallback(self, text: str) -> dict:
         t = text.lower()
-        if any(w in t for w in ("book", "appointment", "cancel", "reschedule", "doctor")):
+        if any(w in t for w in ("book", "appointment", "cancel", "reschedule", "reminder", "doctor")):
             return {"specialist": "scheduling_agent", "care_goal": "appointment"}
         if any(w in t for w in ("report", "lab", "cbc", "blood test")):
             return {"specialist": "report_agent", "care_goal": "report"}
@@ -267,6 +297,22 @@ class MultiAgentSupervisor:
         if any(w in t for w in ("hurt", "pain", "fever", "symptom", "sick", "cough", "feel")):
             return {"specialist": "triage_agent", "care_goal": "symptom_assessment"}
         return {"specialist": "education_agent", "care_goal": "health_question"}
+
+    @staticmethod
+    def _reset_stale_flow_on_greeting(session: dict) -> None:
+        """Clear stuck refill/triage state so greetings get a friendly reply."""
+        for key in (
+            "active_specialist",
+            "care_goal",
+            "awaiting",
+            "refill_medication",
+            "detected_symptoms",
+            "triage_collected",
+            "assessment_shown",
+            "triage_assessed",
+            "booking_declined",
+        ):
+            session.pop(key, None)
 
     def _migrate_legacy_flow(self, flow: dict, session: dict, history: list[dict]) -> None:
         if flow.get("task") == "triage" and flow.get("step") == "offer":
@@ -320,9 +366,10 @@ class MultiAgentSupervisor:
                     session.pop(key, None)
                 else:
                     session[key] = value
+        patch = response.session_patch or {}
         if response.agent == "scheduling_agent":
             session["active_specialist"] = "scheduling_agent"
-        if response.agent == "refill_agent":
+        elif response.agent == "refill_agent" and patch.get("care_goal") is not None:
             session["active_specialist"] = "refill_agent"
         await set_flow(conv_id, {"session": session})
 

@@ -6,7 +6,6 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy import delete, select, text, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.multi_agent.supervisor import multi_agent_supervisor
 from app.database import get_patient_profile
 from app.database import get_db
 from app.services.flow_state import get_flow
@@ -17,6 +16,7 @@ from app.schemas.chat import (
     ChatReply,
     ConversationCreate,
     ConversationResponse,
+    GuestResumeContext,
     MessageCreate,
     MessageResponse,
     ReportUploadCreate,
@@ -230,6 +230,8 @@ async def ensure_today_conversation(
 async def get_messages(
     conversation_id: UUID, patient: Patient = Depends(get_patient_profile), db: AsyncSession = Depends(get_db)
 ):
+    from app.services.appointment_card_service import enrich_stored_appointment_ui
+
     conv = await db.get(Conversation, conversation_id)
     if not conv or conv.patient_id != patient.id:
         raise HTTPException(status_code=404, detail="Conversation not found")
@@ -238,7 +240,82 @@ async def get_messages(
         .where(Message.conversation_id == conversation_id)
         .order_by(Message.created_at, Message.id)
     )
-    return ResponseEnvelope(data=[_message_to_response(m) for m in result.scalars().all()])
+    responses: list[MessageResponse] = []
+    for message in result.scalars().all():
+        item = _message_to_response(message)
+        if item.ui:
+            enriched_ui = await enrich_stored_appointment_ui(db, item.ui, patient.user_id)
+            if enriched_ui is not item.ui:
+                item = item.model_copy(update={"ui": enriched_ui})
+        responses.append(item)
+    return ResponseEnvelope(data=responses)
+
+
+@router.post(
+    "/conversations/{conversation_id}/resume/complete",
+    response_model=ResponseEnvelope[ChatReply],
+)
+async def complete_guest_resume(
+    conversation_id: UUID,
+    patient: Patient = Depends(get_patient_profile),
+    db: AsyncSession = Depends(get_db),
+):
+    """Finish a pending guest booking after portal login — shows confirmation card only."""
+    conv = await db.get(Conversation, conversation_id)
+    if not conv or conv.patient_id != patient.id:
+        raise HTTPException(status_code=404, detail="Conversation not found")
+
+    from app.services.appointment_card_service import complete_guest_resume_booking
+    from app.services.flow_state import get_flow, set_flow
+
+    flow = await get_flow(conversation_id)
+    session = dict(flow.get("session") or {})
+    completed = await complete_guest_resume_booking(db, patient, conversation_id, session)
+    if not completed:
+        raise HTTPException(status_code=400, detail="No pending booking to complete.")
+
+    await set_flow(conversation_id, {"session": session})
+
+    tool_calls_json: dict | None = {"ui": completed["ui"]} if completed.get("ui") else None
+    asst_msg = Message(
+        conversation_id=conversation_id,
+        role=MessageRole.assistant,
+        content=completed["reply"],
+        agent_name=completed["agent"],
+        tool_calls_json=tool_calls_json,
+        created_at=await _next_message_timestamp(db, conversation_id),
+    )
+    db.add(asst_msg)
+    await db.flush()
+
+    return ResponseEnvelope(
+        data=ChatReply(
+            reply=completed["reply"],
+            agent=completed["agent"],
+            emergency=False,
+            message_id=asst_msg.id,
+            ui=completed.get("ui"),
+            detected_symptoms=list(session.get("detected_symptoms") or []),
+        )
+    )
+
+
+@router.get(
+    "/conversations/{conversation_id}/resume",
+    response_model=ResponseEnvelope[GuestResumeContext],
+)
+async def get_guest_resume_context(
+    conversation_id: UUID,
+    patient: Patient = Depends(get_patient_profile),
+    db: AsyncSession = Depends(get_db),
+):
+    conv = await db.get(Conversation, conversation_id)
+    if not conv or conv.patient_id != patient.id:
+        raise HTTPException(status_code=404, detail="Conversation not found")
+    from app.services.chat_orchestrator import load_patient_resume_context
+
+    ctx = await load_patient_resume_context(conversation_id)
+    return ResponseEnvelope(data=GuestResumeContext(**ctx))
 
 
 @router.get(
@@ -359,7 +436,9 @@ async def send_message(
 
     report_id = str(data.report_id) if data.report_id else None
     try:
-        reply, agent, emergency, ui = await multi_agent_supervisor.process(
+        from app.services.chat_orchestrator import process_patient_message
+
+        reply, agent, emergency, ui, detected_symptoms = await process_patient_message(
             db, conv, patient, data.message, history=history, report_id=report_id
         )
     except Exception:
@@ -384,13 +463,6 @@ async def send_message(
     )
     db.add(asst_msg)
     await db.flush()
-
-    flow = await get_flow(conversation_id)
-    session = flow.get("session") or {}
-    detected_symptoms = await resolve_detected_symptoms(
-        session,
-        history + [{"role": "user", "content": data.message}],
-    )
 
     return ResponseEnvelope(
         data=ChatReply(

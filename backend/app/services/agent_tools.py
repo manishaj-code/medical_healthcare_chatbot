@@ -185,7 +185,7 @@ def match_slot_from_text(
 
 async def tool_search_doctors(db: AsyncSession, specialty: str | None = None) -> dict:
     """Load all doctors from PostgreSQL with live availability slots."""
-    doctors = await list_doctors_with_availability(db, specialty=specialty, slots_per_doctor=6)
+    doctors = await list_doctors_with_availability(db, specialty=specialty, slots_per_doctor=30)
     all_slots = [s for d in doctors for s in d.get("slots", [])]
     return {
         "doctors": doctors,
@@ -371,6 +371,29 @@ async def tool_analyze_report(
     }
 
 
+def _merge_symptom_assessment(rule_result: dict, llm_result: dict) -> dict:
+    """Trust LLM assessment; keyword rules may only escalate to emergency."""
+    from app.models.enums import RiskLevel
+
+    risk_map = {
+        "low": RiskLevel.low,
+        "medium": RiskLevel.medium,
+        "high": RiskLevel.high,
+        "emergency": RiskLevel.emergency,
+    }
+    llm_risk = risk_map.get(str(llm_result.get("risk_level", "low")).lower(), RiskLevel.low)
+    risk = llm_risk
+    if rule_result["risk_level"] == RiskLevel.emergency:
+        risk = RiskLevel.emergency
+    return {
+        "risk_level": risk.value if hasattr(risk, "value") else str(risk),
+        "recommended_specialty": llm_result.get("recommended_specialty")
+        or rule_result["recommended_specialty"],
+        "recommendation": llm_result.get("recommendation")
+        or rule_result.get("recommendation_text", "Please consult a clinician if symptoms persist."),
+    }
+
+
 async def tool_assess_symptoms_llm(
     symptoms: list[str],
     duration: str | None,
@@ -414,21 +437,11 @@ async def tool_assess_symptoms(
     rule_result = assess_symptoms(symptoms, duration, conditions)
     llm_result = await tool_assess_symptoms_llm(symptoms, duration, conditions, collected)
     if llm_result:
-        from app.models.enums import RiskLevel
-
-        risk_map = {"low": RiskLevel.low, "medium": RiskLevel.medium, "high": RiskLevel.high, "emergency": RiskLevel.emergency}
-        llm_risk = risk_map.get(str(llm_result.get("risk_level", "low")).lower(), RiskLevel.low)
-        risk = llm_risk
-        if llm_risk == RiskLevel.emergency and rule_result["risk_level"] != RiskLevel.emergency:
-            risk = rule_result["risk_level"]
+        merged = _merge_symptom_assessment(rule_result, llm_result)
         await save_assessment(
             db, patient_id, symptoms, duration, conditions, conversation_id=conversation_id
         )
-        return {
-            "risk_level": risk.value if hasattr(risk, "value") else str(risk),
-            "recommended_specialty": llm_result["recommended_specialty"],
-            "recommendation": llm_result["recommendation"],
-        }
+        return merged
     result = assess_symptoms(symptoms, duration, conditions)
     await save_assessment(
         db, patient_id, symptoms, duration, conditions, conversation_id=conversation_id
@@ -441,8 +454,13 @@ async def tool_assess_symptoms(
 
 
 async def tool_schedule_reminder(db: AsyncSession, user_id: UUID, appointment_id: UUID, minutes: int = 30) -> dict:
-    await schedule_reminder(db, user_id, appointment_id, minutes)
-    return {"success": True, "minutes": minutes}
+    result = await schedule_reminder(db, user_id, appointment_id, minutes)
+    return {
+        "success": result.get("success", True),
+        "minutes": minutes,
+        "message": result.get("message"),
+        "already_scheduled": result.get("already_scheduled"),
+    }
 
 
 async def tool_list_reports(db: AsyncSession, patient_id: UUID) -> dict:
@@ -497,9 +515,30 @@ async def tool_save_memory(
     return {"success": True, "fact": fact}
 
 
+async def _assess_symptoms_without_patient(
+    args: dict,
+    patient_ctx: dict,
+) -> dict:
+    """Symptom assessment for guests — no DB persistence until after sign-in."""
+    symptoms = args.get("symptoms", [])
+    duration = args.get("duration")
+    conditions = patient_ctx.get("conditions", [])
+    collected = args.get("collected") or args.get("summary")
+    rule_result = assess_symptoms(symptoms, duration, conditions)
+    llm_result = await tool_assess_symptoms_llm(symptoms, duration, conditions, collected)
+    if llm_result:
+        return _merge_symptom_assessment(rule_result, llm_result)
+    result = assess_symptoms(symptoms, duration, conditions)
+    return {
+        "risk_level": result["risk_level"].value if hasattr(result["risk_level"], "value") else str(result["risk_level"]),
+        "recommended_specialty": result["recommended_specialty"],
+        "recommendation": result["recommendation_text"],
+    }
+
+
 async def execute_agent_tool(
     db: AsyncSession,
-    patient: Patient,
+    patient: Patient | None,
     tool: str,
     args: dict,
     conversation_id: UUID,
@@ -511,6 +550,14 @@ async def execute_agent_tool(
         return await tool_search_doctors(db, args.get("specialty"))
     if tool == "get_doctor_slots":
         return await tool_get_doctor_slots(db, UUID(args["doctor_id"]))
+    if patient is None:
+        if tool == "assess_symptoms":
+            return await _assess_symptoms_without_patient(args, patient_ctx)
+        if tool in {"search_doctors", "get_doctor_slots"}:
+            pass
+        else:
+            return {"success": False, "message": "Please verify your email to continue this action."}
+
     if tool == "list_appointments":
         return await tool_list_appointments(db, patient.id)
     if tool == "get_medications":

@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { useLocation, useNavigate } from "react-router-dom";
+import { Link, useLocation, useNavigate } from "react-router-dom";
 import { api, clearTokens, setTokens } from "../api/client";
 import EmailExistsNotice from "../components/EmailExistsNotice";
 import { isEmailAlreadyExistsError, normalizeEmail } from "../utils/authErrors";
@@ -315,10 +315,12 @@ export default function Login() {
       <div className="auth-shell auth-login-page">
         <div className="auth-login-bg" aria-hidden />
         <div className="auth-login-brand">
-          <div className="auth-shield-logo">
-            <span className="material-symbols-outlined">health_and_safety</span>
-          </div>
-          <h1>MediAI</h1>
+          <Link to="/" className="auth-brand-home-link" aria-label="Back to MediAI home">
+            <div className="auth-shield-logo">
+              <span className="material-symbols-outlined">health_and_safety</span>
+            </div>
+            <h1>MediAI</h1>
+          </Link>
           <p>AI-assisted health guidance and patient care workflows.</p>
         </div>
 
@@ -470,15 +472,17 @@ export default function Login() {
       <div className="auth-shell auth-login-page">
         <div className="auth-login-bg" aria-hidden />
         <div className="auth-login-brand">
-          <div className="auth-shield-logo">
-            <span className="material-symbols-outlined">health_and_safety</span>
-          </div>
-          <h1>MediAI</h1>
+          <Link to="/" className="auth-brand-home-link" aria-label="Back to MediAI home">
+            <div className="auth-shield-logo">
+              <span className="material-symbols-outlined">health_and_safety</span>
+            </div>
+            <h1>MediAI</h1>
+          </Link>
           <p>AI-assisted health guidance and patient care workflows.</p>
         </div>
 
         <div className="auth-login-card">
-          <h2>Patient Login</h2>
+          <h2>Login</h2>
           <p className="auth-login-sub">Welcome back. Sign in with your account email and password.</p>
 
           <form onSubmit={handleLoginSubmit} className="auth-form">
@@ -575,10 +579,10 @@ export default function Login() {
     <div className="auth-shell auth-register-page">
       <header className="auth-register-header">
         <div className="auth-register-header-inner">
-          <div className="auth-brand-row">
+          <Link to="/" className="auth-brand-row auth-brand-home-link" aria-label="Back to MediAI home">
             <span className="material-symbols-outlined">medical_services</span>
             <span>MediAI</span>
-          </div>
+          </Link>
           <div className="auth-header-links">
             <button type="button" className="auth-header-link">Help</button>
             <button type="button" className="auth-header-link">Support</button>

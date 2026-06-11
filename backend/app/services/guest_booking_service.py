@@ -14,6 +14,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.constants.auth_messages import EMAIL_ALREADY_EXISTS
+from app.healthcare_policy import patient_display_name
 from app.database import create_access_token, create_refresh_token, get_settings, hash_password
 from app.models import Doctor, Patient, User
 from app.models.enums import UserRole
@@ -436,8 +437,8 @@ async def process_guest_booking(
             session["awaiting"] = "guest_email"
             reply = (
                 f"Almost done! To confirm **{pending.get('doctor_name', 'your doctor')}** "
-                f"on **{pending.get('label', 'your selected time')}**, enter your **email address**.\n\n"
-                "We'll send a one-time code to verify and complete your booking."
+                f"on **{pending.get('label', 'your selected time')}**, please provide your **email address**.\n\n"
+                "We'll send a secure one-time verification code to confirm your identity and complete your booking."
             )
             return await _append_and_save(
                 session_id, data, session, history, text, reply, extra={"awaiting_input": "email"}
@@ -449,7 +450,7 @@ async def process_guest_booking(
             history,
             text,
             "Please reply **Yes** to confirm this appointment or **No** to cancel.",
-            ui=build_confirm_booking_ui("Guest", session.get("pending_slot", {}).get("doctor_name", ""), session.get("pending_slot", {}).get("label", "")),
+            ui=build_confirm_booking_ui(patient_display_name(None), session.get("pending_slot", {}).get("doctor_name", ""), session.get("pending_slot", {}).get("label", "")),
         )
 
     search = session.get("last_doctor_search") or {}
@@ -468,7 +469,7 @@ async def process_guest_booking(
             f"**Time:** {stored.get('label')}\n\n"
             f"Reply **Yes** to continue."
         )
-        ui = build_confirm_booking_ui("Guest", doc_name, stored.get("label", ""))
+        ui = build_confirm_booking_ui(patient_display_name(None), doc_name, stored.get("label", ""))
         return await _append_and_save(session_id, data, session, history, text, reply, ui=ui)
 
     if awaiting in ("pick_doctor", "pick_slot"):

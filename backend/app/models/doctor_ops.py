@@ -1,7 +1,7 @@
 import uuid
 from datetime import date, datetime, time
 
-from sqlalchemy import Date, ForeignKey, Integer, String, Text, Time, UniqueConstraint, func
+from sqlalchemy import Date, DateTime, ForeignKey, Integer, String, Text, Time, UniqueConstraint, func
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -49,4 +49,19 @@ class Appointment(Base):
     rescheduled_from_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), nullable=True)
     cancellation_reason: Mapped[str | None] = mapped_column(Text, nullable=True)
     completed_at: Mapped[datetime | None] = mapped_column(nullable=True)
+    consultation_mode: Mapped[str] = mapped_column(String(20), default="in_person")
+    video_room_id: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    video_enabled_at: Mapped[datetime | None] = mapped_column(nullable=True)
     created_at: Mapped[datetime] = mapped_column(server_default=func.now())
+
+
+class AppointmentReminder(Base):
+    __tablename__ = "appointment_reminders"
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    appointment_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("appointments.id"), index=True)
+    user_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("users.id"), index=True)
+    remind_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), index=True)
+    minutes_before: Mapped[int] = mapped_column(Integer, default=30)
+    sent: Mapped[bool] = mapped_column(default=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())

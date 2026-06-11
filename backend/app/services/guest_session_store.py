@@ -7,7 +7,13 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.models import Conversation, Message, Patient
 from app.models.enums import MessageRole
 from app.services.cache import get_redis
-from app.services.flow_state import set_flow
+from app.services.flow_state import clear_flow, get_flow, set_flow
+from app.services.guest_flow import guest_flow_conversation_id
+from app.services.guest_resume_service import (
+    merge_guest_flow_sessions,
+    migration_title,
+    prepare_resume_session,
+)
 from app.services.symptom_extraction import resolve_detected_symptoms
 
 GUEST_PREFIX = "guest:session:"
@@ -50,7 +56,17 @@ async def migrate_guest_session(
     if not data or not data.get("messages"):
         return None
 
-    conv = Conversation(patient_id=patient.id, title=title or "Health Chat", language="en")
+    guest_session = data.get("session") or {}
+    guest_flow_id = guest_flow_conversation_id(session_id)
+    guest_flow = await get_flow(guest_flow_id)
+    flow_session = merge_guest_flow_sessions(guest_session, guest_flow.get("session") or {})
+
+    conv = Conversation(
+        patient_id=patient.id,
+        title=title or migration_title(flow_session),
+        language="en",
+        active_agent=flow_session.get("active_specialist") or "conversation",
+    )
     db.add(conv)
     await db.flush()
 
@@ -69,22 +85,24 @@ async def migrate_guest_session(
         )
     await db.flush()
 
-    guest_session = data.get("session") or {}
     symptoms = await resolve_detected_symptoms(
-        guest_session,
+        flow_session,
         [{"role": m.get("role"), "content": m.get("content", "")} for m in data["messages"]],
     )
     if symptoms:
-        await set_flow(
-            conv.id,
-            {
-                "session": {
-                    "detected_symptoms": symptoms,
-                    "triage_collected": {"symptoms": symptoms},
-                }
-            },
-        )
+        flow_session["detected_symptoms"] = symptoms
+        triage = dict(flow_session.get("triage_collected") or {})
+        triage["symptoms"] = symptoms
+        flow_session["triage_collected"] = triage
+
+    pending_action = flow_session.get("pending_auth_action")
+    if pending_action:
+        flow_session = prepare_resume_session(flow_session, pending_action)
+
+    if flow_session:
+        await set_flow(conv.id, {"session": flow_session})
 
     redis = await get_redis()
     await redis.delete(_guest_key(session_id))
+    await clear_flow(guest_flow_id)
     return conv

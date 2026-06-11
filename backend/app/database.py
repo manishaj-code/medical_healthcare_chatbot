@@ -11,7 +11,7 @@ from uuid import UUID
 from fastapi import Depends, HTTPException, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from jose import JWTError, jwt
-from passlib.context import CryptContext
+import bcrypt
 from pydantic import field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 from sqlalchemy import select
@@ -28,6 +28,7 @@ class Settings(BaseSettings):
     app_name: str = "AI Healthcare Assistant"
     log_level: str = "INFO"
     debug: bool = True
+    sql_echo: bool = False
 
     database_url: str = "postgresql+asyncpg://healthcare:healthcare@localhost:5433/healthcare"
     database_pool_size: int = 10
@@ -59,6 +60,7 @@ class Settings(BaseSettings):
     smtp_from: str = "noreply@mediai.com"
 
     cors_origins: str = "http://localhost:5173,http://localhost:3000"
+    guest_session_persist: bool = True
     rate_limit_chat_per_minute: int = 60
     rate_limit_auth_per_minute: int = 10
     secure_headers_enabled: bool = False
@@ -112,7 +114,7 @@ settings = get_settings()
 engine = create_async_engine(
     settings.database_url,
     pool_size=settings.database_pool_size,
-    echo=settings.debug,
+    echo=settings.sql_echo,
 )
 
 AsyncSessionLocal = async_sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
@@ -128,15 +130,15 @@ async def get_db() -> AsyncGenerator[AsyncSession, None]:
             raise
 
 
-pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
-
-
 def hash_password(password: str) -> str:
-    return pwd_context.hash(password)
+    return bcrypt.hashpw(password.encode("utf-8"), bcrypt.gensalt()).decode("utf-8")
 
 
 def verify_password(plain: str, hashed: str) -> bool:
-    return pwd_context.verify(plain, hashed)
+    try:
+        return bcrypt.checkpw(plain.encode("utf-8"), hashed.encode("utf-8"))
+    except (ValueError, TypeError):
+        return False
 
 
 def create_access_token(user_id: UUID, role: str) -> str:

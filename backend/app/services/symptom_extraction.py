@@ -5,9 +5,13 @@ import json
 import logging
 import re
 
-from app.multi_agent.llm import llm
-
 logger = logging.getLogger(__name__)
+
+
+def _llm_client():
+    from app.multi_agent.llm import llm
+
+    return llm
 
 _EMAIL_RE = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$", re.I)
 _OTP_RE = re.compile(r"^\d{6}$")
@@ -50,8 +54,15 @@ _SKIP_EXACT = frozenset(
         "i'd like to book an appointment with a doctor.",
         "i want to book appointment",
         "check my symptoms",
+        "check symptoms",
         "find a specialist doctor",
         "explain my medical report",
+        "i'm not feeling well and would like help assessing my symptoms.",
+        "i'd like to find a specialist doctor and book an appointment.",
+        "[start_find_doctor]",
+        "yes, i have more symptoms",
+        "no other symptoms",
+        "not sure about other symptoms",
     }
 )
 
@@ -182,6 +193,17 @@ def looks_like_health_complaint(text: str) -> bool:
     return len(symptoms) > 0
 
 
+def _split_complaint_phrases(phrase: str) -> list[str]:
+    """Split compound complaints like 'fever and cold' into separate symptoms."""
+    parts = re.split(r"\s+and\s+", phrase.strip(), flags=re.I)
+    labels: list[str] = []
+    for part in parts:
+        cleaned = _clean_symptom_phrase(part)
+        if cleaned and not is_non_symptom_message(cleaned):
+            labels.append(cleaned)
+    return labels
+
+
 def extract_symptoms_offline(text: str, prior: list[str] | None = None) -> list[str]:
     """Minimal fallback when the LLM is unavailable — no symptom keyword catalog."""
     if is_non_symptom_message(text):
@@ -189,9 +211,9 @@ def extract_symptoms_offline(text: str, prior: list[str] | None = None) -> list[
 
     match = _HAVE_COMPLAINT_RE.search(text)
     if match:
-        phrase = _clean_symptom_phrase(match.group(1))
-        if phrase and not is_non_symptom_message(phrase):
-            return merge_symptom_lists(prior, [phrase])
+        labels = _split_complaint_phrases(match.group(1))
+        if labels:
+            return merge_symptom_lists(prior, labels)
 
     words = text.strip().split()
     if 1 <= len(words) <= 4 and not re.search(r"\d", text):
@@ -203,6 +225,7 @@ def extract_symptoms_offline(text: str, prior: list[str] | None = None) -> list[
 
 
 async def _llm_extract_symptoms(text: str, prior: list[str] | None = None) -> list[str] | None:
+    llm = _llm_client()
     if not llm.available:
         return None
     prior_json = json.dumps(prior or [])
@@ -219,6 +242,7 @@ async def _llm_extract_symptoms(text: str, prior: list[str] | None = None) -> li
 
 
 async def _llm_extract_symptoms_from_history(user_messages: list[str]) -> list[str] | None:
+    llm = _llm_client()
     if not llm.available or not user_messages:
         return None
     block = "\n".join(f"- {msg}" for msg in user_messages[-12:])
@@ -267,10 +291,45 @@ async def extract_symptoms_from_history(messages: list[dict]) -> list[str]:
     return symptoms
 
 
+_MID_TRIAGE_AWAITING = frozenset({
+    "pick_symptom",
+    "pick_duration",
+    "pick_severity",
+    "more_symptoms",
+    "free_text_symptoms",
+    "symptom_image",
+})
+
+
 async def update_session_symptoms(session: dict, text: str) -> list[str]:
     """Merge newly detected symptoms into session state."""
-    prior = list(session.get("detected_symptoms") or [])
+    if is_non_symptom_message(text):
+        return list(session.get("detected_symptoms") or [])
+
     triage = session.get("triage_collected")
+    awaiting = session.get("awaiting")
+    mid_triage = awaiting in _MID_TRIAGE_AWAITING
+
+    if looks_like_health_complaint(text) and not mid_triage:
+        merged = await extract_symptoms_from_message(text, None)
+        session["detected_symptoms"] = merged
+        prior_triage = dict(triage) if isinstance(triage, dict) else {}
+        notes = list(prior_triage.get("notes") or [])
+        if text.strip() and (not notes or notes[-1] != text.strip()):
+            notes.append(text.strip())
+        session["triage_collected"] = {
+            **prior_triage,
+            "notes": notes[-8:],
+            "symptoms": merged,
+        }
+        session.pop("assessment_shown", None)
+        session.pop("triage_assessed", None)
+        session.pop("booking_declined", None)
+        session["care_goal"] = "symptom_assessment"
+        session["active_specialist"] = "triage_agent"
+        return merged
+
+    prior = list(session.get("detected_symptoms") or [])
     if isinstance(triage, dict) and triage.get("symptoms"):
         prior = merge_symptom_lists(prior, list(triage["symptoms"]))
 
@@ -278,6 +337,11 @@ async def update_session_symptoms(session: dict, text: str) -> list[str]:
     session["detected_symptoms"] = merged
     if isinstance(triage, dict):
         triage["symptoms"] = merged
+        notes = list(triage.get("notes") or [])
+        if text.strip() and not is_non_symptom_message(text):
+            if not notes or notes[-1] != text.strip():
+                notes.append(text.strip())
+            triage["notes"] = notes[-8:]
         session["triage_collected"] = triage
     return merged
 

@@ -137,7 +137,7 @@ export default function Landing() {
                 </div>
                 <div className="landing-chat-demo-body">
                   <div className="landing-chat-demo-bubble landing-chat-demo-bubble--ai">
-                    Hello! I&apos;m your MediAI assistant. How are you feeling today?
+                    Hello! I&apos;m your MediAI Assistant. How are you feeling today?
                   </div>
                   <div className="landing-chat-demo-bubble landing-chat-demo-bubble--user">
                     I&apos;ve had a persistent headache for two days and I&apos;m feeling a bit dizzy.

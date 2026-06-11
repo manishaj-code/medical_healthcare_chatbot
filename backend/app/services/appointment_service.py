@@ -150,15 +150,10 @@ async def reschedule_appointment(
     return appt
 
 
-async def schedule_reminder(db: AsyncSession, user_id: UUID, appointment_id: UUID, minutes: int = 30) -> None:
-    db.add(
-        Notification(
-            user_id=user_id,
-            type=NotificationType.reminder,
-            message=f"Reminder scheduled {minutes} minutes before appointment {format_apt_id(appointment_id)}",
-        )
-    )
-    await db.flush()
+async def schedule_reminder(db: AsyncSession, user_id: UUID, appointment_id: UUID, minutes: int = 30) -> dict:
+    from app.services.reminder_scheduler_service import schedule_appointment_reminder
+
+    return await schedule_appointment_reminder(db, user_id, appointment_id, minutes)
 
 
 async def cancel_appointment(db: AsyncSession, appointment_id: UUID, patient_id: UUID, reason: str | None) -> Appointment:

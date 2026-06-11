@@ -27,8 +27,7 @@ from app.models import (
     User,
 )
 from app.models.enums import UserRole
-from app.services.doctor_service import create_default_availability, get_or_create_specialization
-from seed import DOCTORS, SPECIALTIES
+from app.services.doctor_seed_service import seed_doctor_catalog
 
 OPERATIONAL_TRUNCATE_SQL = """
 TRUNCATE TABLE
@@ -56,35 +55,7 @@ async def _truncate_operational_tables(db: AsyncSession) -> None:
 
 
 async def _ensure_seed_doctors(db: AsyncSession) -> int:
-    spec_map = {}
-    for name in SPECIALTIES:
-        spec_map[name] = await get_or_create_specialization(db, name)
-    await db.flush()
-
-    added = 0
-    for name, email, specialty, exp, rating in DOCTORS:
-        existing = await db.execute(select(User).where(User.email == email))
-        if existing.scalar_one_or_none():
-            continue
-        user = User(
-            name=name,
-            email=email,
-            password_hash=hash_password("Doctor@12345"),
-            role=UserRole.doctor.value,
-        )
-        db.add(user)
-        await db.flush()
-        doc = Doctor(
-            user_id=user.id,
-            experience_years=exp,
-            rating=rating,
-            bio=f"Experienced {specialty}",
-        )
-        db.add(doc)
-        await db.flush()
-        db.add(DoctorSpecialization(doctor_id=doc.id, specialization_id=spec_map[specialty].id))
-        await create_default_availability(db, doc.id)
-        added += 1
+    added, _updated = await seed_doctor_catalog(db)
     return added
 
 

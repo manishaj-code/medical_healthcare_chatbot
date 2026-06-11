@@ -13,6 +13,8 @@ JOHN_DEMO_MEDICATIONS = (
     ("Atorvastatin", "10mg", "once at night"),
 )
 
+EXTRA_EVENING_SLOTS = [time(17, 30), time(18, 0), time(18, 30)]
+
 
 async def ensure_john_medications(db, patient: Patient) -> int:
     rows = await db.execute(select(Medication).where(Medication.patient_id == patient.id))
@@ -44,27 +46,50 @@ async def ensure_demo_data() -> None:
         med_added = await ensure_john_medications(db, patient)
 
         doctors = (await db.execute(select(Doctor))).scalars().all()
-        extra_slots = [time(17, 30), time(18, 0), time(18, 30)]
+        if not doctors:
+            if med_added:
+                await db.commit()
+                print(f"Demo data: added {med_added} medication(s) for john@test.com.")
+            return
+
+        doctor_ids = [doc.id for doc in doctors]
         today = date.today()
+        end = today + timedelta(days=6)
+        existing_rows = await db.execute(
+            select(
+                DoctorAvailability.doctor_id,
+                DoctorAvailability.slot_date,
+                DoctorAvailability.slot_time,
+            ).where(
+                DoctorAvailability.doctor_id.in_(doctor_ids),
+                DoctorAvailability.slot_date >= today,
+                DoctorAvailability.slot_date <= end,
+                DoctorAvailability.slot_time.in_(EXTRA_EVENING_SLOTS),
+            )
+        )
+        existing = {
+            (row.doctor_id, row.slot_date, row.slot_time) for row in existing_rows.all()
+        }
+
         added = 0
         for doc in doctors:
             for day_offset in range(7):
                 d = today + timedelta(days=day_offset)
-                for slot in extra_slots:
-                    exists = await db.execute(
-                        select(DoctorAvailability).where(
-                            DoctorAvailability.doctor_id == doc.id,
-                            DoctorAvailability.slot_date == d,
-                            DoctorAvailability.slot_time == slot,
+                for slot in EXTRA_EVENING_SLOTS:
+                    key = (doc.id, d, slot)
+                    if key in existing:
+                        continue
+                    db.add(
+                        DoctorAvailability(
+                            doctor_id=doc.id,
+                            slot_date=d,
+                            slot_time=slot,
+                            status="available",
                         )
                     )
-                    if not exists.scalar_one_or_none():
-                        db.add(
-                            DoctorAvailability(
-                                doctor_id=doc.id, slot_date=d, slot_time=slot, status="available"
-                            )
-                        )
-                        added += 1
+                    existing.add(key)
+                    added += 1
+
         if added or med_added:
             await db.commit()
             if med_added:
