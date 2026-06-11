@@ -1,10 +1,14 @@
-"""Extract triage data from chat history for doctor summaries."""
+"""Extract triage data from chat history and flow state for doctor summaries."""
 import re
 from uuid import UUID
 
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.agents import DURATION_PATTERN, _parse_condition, _pending_duration_number
+from app.models import Conversation, Message, SymptomAssessment
+from app.services.flow_state import get_flow
+from app.services.symptom_extraction import resolve_detected_symptoms
 from app.services.symptom_service import save_assessment
 
 SYMPTOM_KEYWORDS = ("fever", "cough", "pain", "headache", "nausea", "fatigue", "cold")
@@ -53,13 +57,110 @@ def extract_triage_from_history(history: list[dict] | None) -> dict:
     return {"symptoms": symptoms, "duration": duration, "conditions": conditions}
 
 
+def _add_symptom(symptoms: list[str], seen: set[str], raw: str) -> None:
+    label = raw.strip()
+    key = label.lower()
+    if not label or key in seen:
+        return
+    seen.add(key)
+    symptoms.append(label)
+
+
+async def collect_triage_data(session: dict, history: list[dict] | None) -> dict:
+    """Merge triage from flow session (triage_collected, detected_symptoms) and chat history."""
+    hist_data = extract_triage_from_history(history)
+    triage = session.get("triage_collected") or {}
+
+    symptoms: list[str] = []
+    seen: set[str] = set()
+
+    for raw in triage.get("symptoms") or []:
+        _add_symptom(symptoms, seen, str(raw))
+    for raw in session.get("detected_symptoms") or []:
+        _add_symptom(symptoms, seen, str(raw))
+    for raw in await resolve_detected_symptoms(session, history or []):
+        _add_symptom(symptoms, seen, raw)
+    for raw in hist_data["symptoms"]:
+        _add_symptom(symptoms, seen, raw)
+
+    duration = triage.get("duration") or hist_data["duration"]
+    if isinstance(duration, str):
+        duration = duration.strip() or None
+
+    conditions = list(hist_data["conditions"])
+    for raw in triage.get("conditions") or []:
+        cond = str(raw).strip()
+        if cond and cond not in conditions:
+            conditions.append(cond)
+
+    return {
+        "symptoms": symptoms,
+        "duration": duration,
+        "conditions": conditions,
+    }
+
+
+async def _history_for_conversation(db: AsyncSession, conversation_id: UUID) -> list[dict]:
+    msg_rows = await db.execute(
+        select(Message)
+        .where(Message.conversation_id == conversation_id)
+        .order_by(Message.created_at, Message.id)
+    )
+    return [
+        {
+            "role": m.role.value if hasattr(m.role, "value") else str(m.role),
+            "content": m.content,
+        }
+        for m in msg_rows.scalars().all()
+    ]
+
+
+async def persist_triage_for_patient(
+    db: AsyncSession,
+    patient_id: UUID,
+    conversation_id: UUID | None = None,
+) -> SymptomAssessment | None:
+    """Save SymptomAssessment from latest (or given) chat + flow state before doctor summary."""
+    conv_id = conversation_id
+    if not conv_id:
+        row = await db.execute(
+            select(Conversation)
+            .where(Conversation.patient_id == patient_id)
+            .order_by(Conversation.created_at.desc())
+            .limit(1)
+        )
+        conv = row.scalar_one_or_none()
+        if not conv:
+            return None
+        conv_id = conv.id
+
+    history = await _history_for_conversation(db, conv_id)
+    flow = await get_flow(conv_id)
+    session = flow.get("session") or {}
+    data = await collect_triage_data(session, history)
+
+    if not data["symptoms"] and not data["conditions"]:
+        return None
+
+    return await save_assessment(
+        db,
+        patient_id,
+        data["symptoms"] or ["general symptoms"],
+        duration=data["duration"],
+        conditions=data["conditions"] or None,
+        conversation_id=conv_id,
+    )
+
+
 async def persist_triage_from_chat(
     db: AsyncSession,
     patient_id: UUID,
     conversation_id: UUID,
     history: list[dict] | None,
 ) -> None:
-    data = extract_triage_from_history(history)
+    flow = await get_flow(conversation_id)
+    session = flow.get("session") or {}
+    data = await collect_triage_data(session, history)
     if not data["symptoms"] and not data["conditions"]:
         return
     await save_assessment(

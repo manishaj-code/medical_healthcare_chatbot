@@ -2386,6 +2386,15 @@ body {
   letter-spacing: -0.01em;
 }
 
+/* Calendar card — white surface on ice-blue booking panel */
+.appt-calendar-panel {
+  background: #ffffff;
+  border: 1px solid #c5dce8;
+  border-radius: 12px;
+  padding: 1rem 1.1rem 1.15rem;
+  box-shadow: 0 1px 4px rgba(0, 55, 76, 0.05);
+}
+
 /* ── Calendar ── */
 .appt-cal-header {
   display: flex;
@@ -5366,12 +5375,12 @@ th { font-weight: 600; background: #f8f9fa; }
 }
 
 .consult-risk-card {
-  overflow: hidden;
-  min-height: 200px;
+  overflow: visible;
 }
 
 .consult-risk-card h3,
 .consult-risk-row,
+.consult-risk-meta,
 .consult-risk-quote {
   position: relative;
   z-index: 1;
@@ -5390,23 +5399,40 @@ th { font-weight: 600; background: #f8f9fa; }
 
 .consult-risk-row {
   display: flex;
-  align-items: center;
-  gap: 1rem;
-  margin-bottom: 1rem;
+  align-items: flex-start;
+  gap: 0.85rem;
+  margin-bottom: 0.85rem;
+}
+
+.consult-risk-copy {
+  flex: 1;
+  min-width: 0;
 }
 
 .consult-risk-ring {
-  width: 48px;
-  height: 48px;
+  width: 72px;
+  height: 72px;
   border-radius: 50%;
   border: 4px solid #d0ecff;
   display: flex;
   align-items: center;
   justify-content: center;
   flex-shrink: 0;
-  font-size: 0.72rem;
+  font-size: 0.62rem;
   font-weight: 800;
   color: var(--pd-primary);
+  line-height: 1.15;
+  text-align: center;
+  letter-spacing: 0.01em;
+  padding: 6px;
+  box-sizing: border-box;
+}
+
+.consult-risk-ring span {
+  display: block;
+  max-width: 56px;
+  word-break: normal;
+  hyphens: auto;
 }
 
 .consult-risk-ring.urgent {
@@ -5426,18 +5452,77 @@ th { font-weight: 600; background: #f8f9fa; }
   color: var(--pd-on-surface-variant);
 }
 
+.consult-risk-meta {
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+  margin-bottom: 0.85rem;
+  padding: 0.65rem 0.75rem;
+  border-radius: 10px;
+  background: rgba(208, 236, 255, 0.35);
+  border: 1px solid rgba(138, 184, 211, 0.35);
+}
+
 .consult-risk-quote {
   padding: 0.85rem 1rem;
   border-radius: 12px;
   background: rgba(240, 171, 253, 0.25);
+  border: 1px solid rgba(240, 171, 253, 0.35);
 }
 
-.consult-risk-quote p {
+.consult-risk-quote-label {
+  margin: 0 0 0.45rem;
+  font-size: 0.68rem;
+  font-weight: 800;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--pd-primary);
+}
+
+.consult-risk-quote-text {
   margin: 0;
-  font-size: 0.82rem;
-  font-style: italic;
+  font-size: 0.8rem;
   color: #5e256d;
-  line-height: 1.45;
+  line-height: 1.5;
+  word-break: break-word;
+}
+
+.consult-suggested-specialty,
+.consult-assessment-duration {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.35rem;
+  flex-wrap: wrap;
+  margin: 0;
+  font-size: 0.76rem;
+  line-height: 1.4;
+  color: var(--pd-on-surface-variant);
+}
+
+.consult-suggested-specialty .material-symbols-outlined {
+  font-size: 16px;
+  color: var(--pd-primary);
+}
+
+.consult-suggested-specialty strong,
+.consult-assessment-duration strong {
+  color: var(--pd-on-surface);
+  font-weight: 700;
+}
+
+.consult-risk-ring--moderate {
+  border-color: #f5c26b;
+  color: #b54708;
+}
+
+.consult-risk-ring--high {
+  border-color: var(--pd-rose);
+  color: var(--pd-error);
+}
+
+.consult-risk-ring--low {
+  border-color: #86d4b0;
+  color: #027a48;
 }
 
 .consult-quick-grid {
@@ -5877,7 +5962,13 @@ th { font-weight: 600; background: #f8f9fa; }
   color: var(--pd-on-surface-variant);
 }
 
-.fd-calendar-block { margin-bottom: 1.1rem; }
+.fd-calendar-block {
+  margin-bottom: 1.1rem;
+  background: #ffffff;
+  border: 1px solid var(--pd-outline);
+  border-radius: 12px;
+  padding: 1rem;
+}
 
 .fd-calendar-head {
   display: flex;

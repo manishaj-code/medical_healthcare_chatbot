@@ -1,5 +1,5 @@
 import logging
-from datetime import date, time
+from datetime import date, datetime, time
 from uuid import UUID
 
 from fastapi import HTTPException
@@ -26,6 +26,9 @@ async def book_appointment(
     slot_time: time,
     user_id: UUID,
 ) -> Appointment:
+    if datetime.combine(slot_date, slot_time) < datetime.now():
+        raise HTTPException(status_code=400, detail="Cannot book a past time slot")
+
     lock_key = f"lock:appt:{doctor_id}:{slot_date}:{slot_time}"
     try:
         redis = await get_redis()

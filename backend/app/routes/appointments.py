@@ -11,7 +11,7 @@ from app.database import get_db
 from app.models import Appointment, Doctor, Patient, User
 from app.schemas.common import ResponseEnvelope
 from app.services.appointment_service import book_appointment, cancel_appointment, format_apt_id
-from app.services.summary_service import generate_summary
+from app.services.summary_service import prepare_appointment_summary
 from app.services.video_consultation_service import enable_video_consultation, video_room_id_for_appointment
 
 router = APIRouter(prefix="/appointments", tags=["appointments"])
@@ -36,7 +36,7 @@ async def book(
 ):
     appt = await book_appointment(db, patient.id, data.doctor_id, data.slot_date, data.slot_time, user.id)
     try:
-        await generate_summary(db, appt.id)
+        await prepare_appointment_summary(db, appt.id)
     except Exception:
         pass
     return ResponseEnvelope(data={"id": str(appt.id), "status": appt.status.value})

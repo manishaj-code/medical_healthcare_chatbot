@@ -10,8 +10,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.models import DoctorAvailability, Patient
 from app.services.appointment_service import book_appointment
 from app.services.doctor_service import list_doctors
-from app.services.summary_service import generate_summary
-from app.services.triage_chat_service import persist_triage_from_chat
+from app.services.summary_service import prepare_appointment_summary
 
 
 def _last_assistant_text(history: list[dict] | None) -> str:
@@ -271,12 +270,7 @@ async def try_book_from_chat(
             user_id,
         )
         try:
-            if history and conversation_id:
-                await persist_triage_from_chat(db, patient.id, conversation_id, history)
-        except Exception:
-            pass
-        try:
-            await generate_summary(db, appt.id)
+            await prepare_appointment_summary(db, appt.id, conversation_id)
         except Exception:
             pass
         return (
