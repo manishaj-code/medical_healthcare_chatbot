@@ -6,8 +6,17 @@ import re
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.agents import detect_prescription_request
-from app.healthcare_policy import OFF_TOPIC_REPLY, build_greeting_reply, patient_ctx_for_llm, patient_first_name, should_reset_to_greeting
+from app.agents import detect_prescription_request, get_contextual_reply
+from app.healthcare_policy import (
+    OFF_TOPIC_REPLY,
+    build_greeting_reply,
+    build_thanks_reply,
+    is_active_care_flow,
+    is_thanks_message,
+    patient_ctx_for_llm,
+    patient_first_name,
+    should_reset_to_greeting,
+)
 from app.models import Conversation, Patient
 from app.services.flow_state import clear_flow, get_flow, set_flow
 from app.services.patient_context import load_patient_context
@@ -86,6 +95,22 @@ class MultiAgentSupervisor:
             pname = patient_first_name(patient_ctx.get("name"))
             conversation.active_agent = "health_education"
             return build_greeting_reply(pname), "health_education", False, None
+
+        contextual = get_contextual_reply(text, history)
+        if contextual:
+            self._reset_stale_flow_on_greeting(session)
+            await set_flow(conv_id, {"session": session})
+            conversation.active_agent = "health_education"
+            return contextual, "health_education", False, None
+
+        if is_thanks_message(text) and (
+            not is_active_care_flow(session) or session.get("triage_assessed")
+        ):
+            self._reset_stale_flow_on_greeting(session)
+            await set_flow(conv_id, {"session": session})
+            pname = patient_first_name(patient_ctx.get("name"))
+            conversation.active_agent = "health_education"
+            return build_thanks_reply(pname), "health_education", False, None
 
         if session.get("detected_symptoms") and not session.get("care_goal"):
             session["care_goal"] = "symptom_assessment"

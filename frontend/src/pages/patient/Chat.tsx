@@ -425,6 +425,17 @@ export default function PatientChat() {
     if (last && last.signature === signature && Date.now() - last.at < 2500) return;
     lastSendRef.current = { signature, at: Date.now() };
 
+    const userContent = options?.displayText ?? trimmed;
+    setMessages((m) => [
+      ...m,
+      {
+        role: "user",
+        content: userContent,
+        attachment: attachment ?? null,
+        created_at: new Date().toISOString(),
+        id: `optimistic-${Date.now()}`,
+      },
+    ]);
     setLoading(true);
     try {
       const body: {

@@ -1,4 +1,4 @@
-"""MediAI doctor catalog — 5+ profiles per major specialty with full metadata."""
+"""MediAI doctor catalog — 2 profiles per major specialty with full metadata."""
 from __future__ import annotations
 
 from dataclasses import dataclass
@@ -61,13 +61,19 @@ _PARTNER_APOLLO = "Apollo MediAI Partner Centre"
 _PARTNER_MAX = "Max Healthcare — MediAI Wing"
 
 
+DOCTORS_PER_SPECIALTY = 2
+
+# Default password for all seeded doctor accounts (see testcredential.text).
+DOCTOR_DEFAULT_PASSWORD = "Doctor@12345"
+
+
 def _specialty_block(
     specialty: str,
     rows: list[tuple],
     legacy_emails: list[str] | None = None,
 ) -> list[DoctorSeed]:
     out: list[DoctorSeed] = []
-    for i, row in enumerate(rows):
+    for i, row in enumerate(rows[:DOCTORS_PER_SPECIALTY]):
         first, last, qual, exp, rating, fee, hospital, address, summary = row
         email = legacy_emails[i] if legacy_emails and i < len(legacy_emails) else None
         out.append(_doc(first, last, specialty, qual, exp, rating, fee, hospital, address, summary, email=email))

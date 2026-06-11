@@ -23,6 +23,7 @@ backend/data/
 
 # Local secrets / credentials — do not push
 testcredential.txt
+testcredential.text
 mytestcase.txt
 
 # Sample uploads (may contain personal health data)

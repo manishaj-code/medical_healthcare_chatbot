@@ -7,11 +7,28 @@ OFF_TOPIC_REPLY = (
     "questions. Please ask a healthcare-related query."
 )
 
-_ANONYMOUS_PATIENT_NAMES = frozenset({"guest", "anonymous", "visitor"})
+_ANONYMOUS_PATIENT_NAMES = frozenset({"guest", "anonymous", "visitor", "patient"})
+
+
+def _is_anonymous_name(name: str | None) -> bool:
+    raw = (name or "").strip()
+    if not raw:
+        return True
+    return raw.split()[0].lower() in _ANONYMOUS_PATIENT_NAMES
+
+
+PLAIN_LANGUAGE_RULES = """
+LANGUAGE — keep replies easy to read:
+- Use short, simple sentences and common everyday words
+- Write so someone who is not fluent in English can follow
+- Avoid medical jargon; if you must use a term, explain it in plain words
+- Use the patient's first name from context when available — never call them "Patient" or "Guest"
+- If no real name is known, skip the name (do not use "there" as a name)
+"""
 
 
 def patient_first_name(name: str | None, *, default: str = "there") -> str:
-    """First name for conversational replies — never 'Guest' or other placeholders."""
+    """First name for conversational replies — never 'Guest', 'Patient', or other placeholders."""
     raw = (name or "").strip()
     if not raw:
         return default
@@ -34,15 +51,64 @@ def patient_display_name(name: str | None, *, anonymous_label: str = "You") -> s
 def patient_ctx_for_llm(patient_ctx: dict) -> dict:
     """Patient context for LLM prompts — omit placeholder guest names."""
     ctx = dict(patient_ctx)
-    name = (ctx.get("name") or "").strip()
-    if not name or name.split()[0].lower() in _ANONYMOUS_PATIENT_NAMES:
+    if _is_anonymous_name(ctx.get("name")):
         ctx.pop("name", None)
     return ctx
+
+
+def build_booking_offer_intro(
+    pname: str,
+    specialty: str,
+    *,
+    basis: str = "assessment",
+) -> str:
+    """Friendly doctor-booking opener — uses real first name, never 'Patient'."""
+    first = patient_first_name(pname)
+    reason = "what you shared" if basis == "symptoms" else "your check-in"
+    if first != "there":
+        return f"Of course, {first}! Based on {reason}, I recommend a **{specialty}**."
+    return f"Based on {reason}, I recommend a **{specialty}**."
+
+
+def build_specialty_picker_intro(pname: str) -> str:
+    first = patient_first_name(pname)
+    tail = (
+        "Which type of doctor would you like to see? "
+        "Pick one below, or type a specialty in the chat."
+    )
+    if first != "there":
+        return f"Of course, {first}! {tail}"
+    return tail
+
+
+def build_assessment_reply(
+    pname: str,
+    recommendation: str,
+    specialty: str,
+    risk: str,
+) -> str:
+    """Post-triage reply in plain language — no awkward 'Thanks, there.'"""
+    first = patient_first_name(pname)
+    rec = (recommendation or "").strip()
+    opener = f"Thanks, {first}. " if first != "there" else ""
+    if risk in ("high", "emergency"):
+        closing = (
+            f"\n\nThis may need quick care. Please see a **{specialty}** soon. "
+            "I can help you find a doctor when you are ready."
+        )
+    else:
+        closing = (
+            f"\n\nIf you still feel unwell, a **{specialty}** can help. "
+            "I can share more tips or help you book a visit."
+        )
+    return f"{opener}{rec}{closing}"
+
 
 HEALTH_QA_PROMPT = """You are MedAssist AI — a safe, production-grade healthcare assistant.
 
 SCOPE: Answer ONLY healthcare, medical, wellness, and clinic-service questions.
 Use the patient context and conversation history for personalized, context-aware replies.
+""" + PLAIN_LANGUAGE_RULES + """
 
 STRICT SAFETY RULES:
 - Never diagnose a specific condition for this patient
@@ -50,7 +116,7 @@ STRICT SAFETY RULES:
 - Never invent lab results, doctors, appointments, or clinic policies
 - Provide general medical education in clear, empathetic language
 - If information is insufficient, ask ONE clarifying follow-up question
-- Never address the patient as "Guest" — if no name is in context, omit it or use neutral phrasing
+- Never address the patient as "Guest" or "Patient" — use their first name from context, or omit the name
 - If uncertain, state your limitation and recommend consulting a licensed clinician
 - For emergencies, tell the patient to seek immediate emergency care
 
@@ -82,9 +148,11 @@ _HEALTH_TOPIC_PATTERNS = (
 )
 
 _GREETING_ONLY = re.compile(
-    r"^(hi|hello|hey|good\s+(morning|afternoon|evening)|thanks|thank\s+you)[!.?\s]*$",
+    r"^(hi|hello|hey|good\s+(morning|afternoon|evening))[!.?\s]*$",
     re.I,
 )
+
+_THANKS_RE = re.compile(r"\b(thank(?:s|you)?|thx|ty)\b", re.I)
 
 _ACTIVE_CARE_AWAITING = frozenset({
     "pick_symptom",
@@ -122,8 +190,44 @@ _ACTIVE_CARE_GOALS = frozenset({
 
 
 def is_greeting_only(text: str) -> bool:
-    """True only for hi/hello/thanks — not yes/no/ok (those are triage flow answers)."""
+    """True only for hi/hello — not yes/no/ok (those are triage flow answers)."""
     return bool(_GREETING_ONLY.match(text.strip()))
+
+
+def is_thanks_message(text: str) -> bool:
+    """Polite closure: thanks, thank you, ok thank you, om thank you!!, etc."""
+    t = text.strip().lower()
+    if not t:
+        return False
+    if t in {
+        "thanks",
+        "thank you",
+        "thankyou",
+        "thx",
+        "ty",
+        "ok thanks",
+        "ok thank you",
+        "okay thanks",
+        "okay thank you",
+        "got it thanks",
+        "thanks!",
+        "thank you!",
+    }:
+        return True
+    return bool(_THANKS_RE.search(t))
+
+
+def build_thanks_reply(patient_name: str = "there") -> str:
+    first = patient_first_name(patient_name)
+    if first != "there":
+        return (
+            f"You're welcome, {first}! I'm glad I could help. "
+            "Take care, and message me anytime if you need health guidance or want to book an appointment."
+        )
+    return (
+        "You're welcome! I'm glad I could help. "
+        "Take care, and message me anytime if you need health guidance or want to book an appointment."
+    )
 
 
 def is_active_care_flow(session: dict) -> bool:
@@ -151,8 +255,9 @@ def should_reset_to_greeting(text: str, session: dict) -> bool:
 
 def build_greeting_reply(patient_name: str = "there") -> str:
     first = patient_first_name(patient_name)
+    hello = f"Hello {first}!" if first != "there" else "Hello!"
     return (
-        f"Hello {first}! I'm your AI Healthcare Assistant. "
+        f"{hello} I'm your AI Healthcare Assistant. "
         "I can help you understand symptoms, answer health questions, book appointments, "
         "and review medical reports. How can I help you today?"
     )

@@ -1,10 +1,11 @@
-from datetime import date, datetime, time, timedelta
+from datetime import date, time, timedelta
 from uuid import UUID
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models import Doctor, DoctorAvailability, DoctorSpecialization, Specialization, User
+from app.utils.clinic_time import clinic_today, is_slot_past
 from app.utils.doctor_avatar import resolve_doctor_profile_image_url
 
 DEFAULT_SLOT_TIMES = [time(9, 0), time(11, 0), time(14, 0), time(16, 0), time(17, 30), time(18, 0), time(18, 30)]
@@ -35,7 +36,7 @@ def _format_time(t: time) -> str:
 
 
 def _day_label(d: date) -> str:
-    today = date.today()
+    today = clinic_today()
     if d == today:
         return "Today"
     if d == today + timedelta(days=1):
@@ -43,12 +44,8 @@ def _day_label(d: date) -> str:
     return str(d)
 
 
-def _is_slot_past(slot_date: date, slot_time: time) -> bool:
-    return datetime.combine(slot_date, slot_time) < datetime.now()
-
-
 def _filter_bookable_slots(slot_date: date, slot_time: time) -> bool:
-    return not _is_slot_past(slot_date, slot_time)
+    return not is_slot_past(slot_date, slot_time)
 
 
 async def get_or_create_specialization(db: AsyncSession, name: str) -> Specialization:
@@ -67,7 +64,7 @@ async def create_default_availability(
 ) -> int:
     """Create default open slots for a new doctor (idempotent per slot)."""
     slot_times = slot_times or DEFAULT_SLOT_TIMES
-    today = date.today()
+    today = clinic_today()
     end = today + timedelta(days=max(days - 1, 0))
     existing_rows = await db.execute(
         select(DoctorAvailability.slot_date, DoctorAvailability.slot_time).where(
@@ -93,7 +90,7 @@ async def create_default_availability(
 
 
 async def doctor_has_future_slots(db: AsyncSession, doctor_id: UUID) -> bool:
-    today = date.today()
+    today = clinic_today()
     row = await db.execute(
         select(DoctorAvailability.id)
         .where(DoctorAvailability.doctor_id == doctor_id, DoctorAvailability.slot_date >= today)
@@ -123,7 +120,7 @@ async def list_doctors(db: AsyncSession) -> list[dict]:
 async def _fetch_doctor_slots(
     db: AsyncSession, doctor_id: UUID, doctor_name: str, limit: int = 30
 ) -> list[dict]:
-    today = date.today()
+    today = clinic_today()
     rows = await db.execute(
         select(DoctorAvailability)
         .where(
@@ -132,7 +129,7 @@ async def _fetch_doctor_slots(
             DoctorAvailability.status == "available",
         )
         .order_by(DoctorAvailability.slot_date, DoctorAvailability.slot_time)
-        .limit(limit)
+        .limit(max(limit * 4, 40))
     )
     slots = []
     for s in rows.scalars().all():
@@ -145,6 +142,8 @@ async def _fetch_doctor_slots(
             "slot_time": s.slot_time.isoformat(),
             "label": f"{_day_label(s.slot_date)}: {_format_time(s.slot_time)}",
         })
+        if len(slots) >= limit:
+            break
     return slots
 
 
@@ -208,7 +207,7 @@ async def get_recommended_doctors(db: AsyncSession, specialty: str) -> list[dict
 
 
 async def get_availability(db: AsyncSession, doctor_id: UUID, from_date: date | None = None) -> list[dict]:
-    from_date = from_date or date.today()
+    from_date = from_date or clinic_today()
     result = await db.execute(
         select(DoctorAvailability)
         .where(

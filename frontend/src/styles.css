@@ -1058,19 +1058,19 @@ body {
 }
 
 .chat-doctor-list {
-  max-height: 340px;
+  max-height: 300px;
   overflow-y: auto;
-  padding: 0.5rem;
+  padding: 0.4rem;
   display: flex;
   flex-direction: column;
-  gap: 0.4rem;
+  gap: 0.3rem;
 }
 
 .chat-doctor-card {
   border: 1px solid #dee2e6;
   border-radius: 8px;
   background: #f8f9fa;
-  padding: 0.65rem 0.75rem;
+  padding: 0.5rem 0.6rem;
   transition: border-color 0.15s, background 0.15s;
 }
 
@@ -1165,9 +1165,9 @@ body {
 .chat-doctor-actions {
   display: flex;
   align-items: center;
-  gap: 0.5rem;
-  margin-top: 0.55rem;
-  padding-top: 0.5rem;
+  gap: 0.4rem;
+  margin-top: 0.4rem;
+  padding-top: 0.38rem;
   border-top: 1px solid rgba(0, 0, 0, 0.06);
 }
 
@@ -1207,10 +1207,10 @@ body {
 }
 
 .chat-slot-groups {
-  padding: 0.75rem 1rem;
+  padding: 0.5rem 0.65rem;
   display: flex;
   flex-direction: column;
-  gap: 0.65rem;
+  gap: 0.45rem;
 }
 
 .chat-slot-groups--compact {
@@ -1264,8 +1264,8 @@ body {
 .chat-choice-grid {
   display: flex;
   flex-wrap: wrap;
-  gap: 0.5rem;
-  margin-top: 0.75rem;
+  gap: 0.4rem;
+  margin-top: 0.5rem;
 }
 
 .chat-choice-grid--stack {
@@ -1297,19 +1297,19 @@ body {
 
 .chat-choice-grid--stack .chat-choice-chip {
   width: 100%;
-  border-radius: 12px;
+  border-radius: 8px;
   text-align: center;
 }
 
 .chat-choice-panel--followup {
-  margin-top: 0.75rem;
-  padding-top: 0.75rem;
+  margin-top: 0.5rem;
+  padding-top: 0.5rem;
   border-top: 1px solid rgba(0, 104, 128, 0.14);
 }
 
 .chat-choice-panel--followup .chat-choice-grid {
   margin-top: 0;
-  gap: 0.55rem;
+  gap: 0.35rem;
 }
 
 .chat-choice-chip--primary {
@@ -1333,10 +1333,11 @@ body {
   background: #ffffff;
   color: #1a5f6a;
   border: 1.5px solid #b6dce8;
-  padding: 0.68rem 1rem;
-  font-size: 0.86rem;
+  padding: 0.5rem 0.85rem;
+  font-size: 0.84rem;
   font-weight: 600;
   box-shadow: none;
+  line-height: 1.3;
 }
 
 .chat-choice-chip--secondary:hover:not(:disabled) {
@@ -1367,35 +1368,37 @@ body {
 .confirm-booking-card {
   background: #ffffff;
   border: 1.5px solid #b6dce8;
-  border-radius: 16px;
+  border-radius: 12px;
   overflow: hidden;
   font-family: "Inter", "Segoe UI", system-ui, sans-serif;
-  box-shadow: 0 2px 12px rgba(0, 80, 110, 0.08);
+  box-shadow: 0 2px 10px rgba(0, 80, 110, 0.07);
   width: 100%;
 }
 
 .confirm-booking-header {
   display: flex;
   align-items: center;
-  gap: 0.5rem;
-  padding: 0.85rem 1.1rem;
+  gap: 0.4rem;
+  padding: 0.55rem 0.85rem;
   background: linear-gradient(135deg, #1a6b7a 0%, #1a5f6a 100%);
   color: #ffffff;
 }
 
 .confirm-booking-icon {
-  font-size: 1rem;
+  font-size: 0.92rem;
   line-height: 1;
+  flex-shrink: 0;
 }
 
 .confirm-booking-title {
-  font-size: 0.92rem;
+  font-size: 0.86rem;
   font-weight: 700;
   letter-spacing: 0.01em;
+  line-height: 1.3;
 }
 
 .confirm-booking-details {
-  padding: 0.75rem 1.1rem;
+  padding: 0.45rem 0.85rem;
   display: flex;
   flex-direction: column;
   gap: 0;
@@ -1404,11 +1407,13 @@ body {
 
 .confirm-booking-row {
   display: flex;
-  align-items: baseline;
-  gap: 0.6rem;
-  padding: 0.55rem 0;
+  align-items: flex-start;
+  flex-wrap: wrap;
+  gap: 0.2rem 0.55rem;
+  padding: 0.38rem 0;
   border-bottom: 1px solid #daedf5;
-  font-size: 0.875rem;
+  font-size: 0.84rem;
+  line-height: 1.35;
 }
 
 .confirm-booking-row:last-child {
@@ -1418,40 +1423,39 @@ body {
 .confirm-booking-label {
   font-weight: 600;
   color: #1a5f6a;
-  min-width: 110px;
+  min-width: 7.5rem;
   flex-shrink: 0;
-  font-size: 0.82rem;
+  font-size: 0.8rem;
 }
 
 .confirm-booking-value {
   color: #0d2d3d;
   font-weight: 500;
+  flex: 1;
+  min-width: 0;
+  word-break: break-word;
 }
 
 .confirm-booking-actions {
   display: flex;
   flex-direction: column;
-  gap: 0;
-  padding: 0.65rem 0.75rem 0.75rem;
+  gap: 0.35rem;
+  padding: 0.5rem 0.65rem 0.6rem;
   background: #ffffff;
   border-top: 1px solid #daedf5;
 }
 
 .confirm-booking-btn {
   width: 100%;
-  padding: 0.7rem 1rem;
-  border-radius: 10px;
+  padding: 0.52rem 0.85rem;
+  border-radius: 8px;
   border: none;
-  font-size: 0.88rem;
+  font-size: 0.84rem;
   font-weight: 600;
   font-family: inherit;
   cursor: pointer;
   transition: background 0.15s, transform 0.1s;
-  margin-bottom: 0.4rem;
-}
-
-.confirm-booking-btn:last-child {
-  margin-bottom: 0;
+  line-height: 1.3;
 }
 
 .confirm-booking-btn--yes {
@@ -1483,19 +1487,19 @@ body {
 /* ── Reschedule slot picker card ── */
 .reschedule-card {
   background: #ffffff;
-  border: 1.5px solid #b6dce8;
-  border-radius: 16px;
+  border: 1px solid #b6dce8;
+  border-radius: 10px;
   overflow: hidden;
   font-family: "Inter", "Segoe UI", system-ui, sans-serif;
-  box-shadow: 0 4px 18px rgba(0, 80, 110, 0.1);
+  box-shadow: 0 1px 6px rgba(0, 80, 110, 0.06);
   width: 100%;
 }
 
 .reschedule-card-header {
   display: flex;
   align-items: center;
-  gap: 0.65rem;
-  padding: 0.9rem 1.1rem;
+  gap: 0.4rem;
+  padding: 0.4rem 0.65rem;
   background: linear-gradient(135deg, #1a6b7a 0%, #1a5f6a 100%);
   color: #ffffff;
 }
@@ -1504,82 +1508,94 @@ body {
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 2rem;
-  height: 2rem;
-  border-radius: 10px;
+  width: 1.4rem;
+  height: 1.4rem;
+  border-radius: 6px;
   background: rgba(255, 255, 255, 0.16);
   flex-shrink: 0;
 }
 
 .reschedule-card-header-icon .material-symbols-outlined {
-  font-size: 1.15rem;
+  font-size: 1rem;
   line-height: 1;
 }
 
 .reschedule-card-header-text {
   display: flex;
-  flex-direction: column;
-  gap: 0.15rem;
+  align-items: baseline;
+  gap: 0.45rem;
   min-width: 0;
+  flex-wrap: wrap;
 }
 
 .reschedule-card-title {
-  font-size: 0.94rem;
+  font-size: 0.84rem;
   font-weight: 700;
   letter-spacing: 0.01em;
 }
 
 .reschedule-card-apt-id {
-  font-size: 0.75rem;
+  font-size: 0.68rem;
   font-weight: 600;
-  opacity: 0.88;
-  letter-spacing: 0.04em;
+  opacity: 0.85;
+  letter-spacing: 0.03em;
 }
 
 .reschedule-card-body {
   padding: 0;
-  background: #f5fbfd;
+  background: #fafdfe;
 }
 
-.reschedule-card-meta {
-  padding: 0.75rem 1.1rem;
-  border-bottom: 1px solid #daedf5;
+.reschedule-card-facts {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 0.35rem 0.5rem;
+  margin: 0;
+  padding: 0.4rem 0.65rem;
+  border-bottom: 1px solid #e3f2f7;
 }
 
-.reschedule-card-row {
-  display: flex;
+.reschedule-card-fact {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 0.35rem 0.45rem;
   align-items: baseline;
-  justify-content: space-between;
-  gap: 0.75rem;
-  padding: 0.45rem 0;
-  font-size: 0.875rem;
+  min-width: 0;
 }
 
-.reschedule-card-row--current {
-  margin-top: 0.15rem;
-  padding: 0.55rem 0.65rem;
-  border-radius: 10px;
-  background: rgba(26, 95, 106, 0.08);
-  border: 1px solid rgba(26, 95, 106, 0.14);
-}
-
-.reschedule-card-label {
-  font-size: 0.78rem;
-  font-weight: 600;
+.reschedule-card-fact dt {
+  margin: 0;
+  font-size: 0.65rem;
+  font-weight: 700;
   color: #1a5f6a;
   text-transform: uppercase;
   letter-spacing: 0.04em;
-  flex-shrink: 0;
+  white-space: nowrap;
 }
 
-.reschedule-card-value {
-  color: #0d2d3d;
+.reschedule-card-fact dd {
+  margin: 0;
+  font-size: 0.78rem;
   font-weight: 600;
-  text-align: right;
+  color: #0d2d3d;
+  line-height: 1.25;
+  word-break: break-word;
+}
+
+.reschedule-card-fact--current {
+  grid-column: 1 / -1;
+  padding: 0.28rem 0.45rem;
+  border-radius: 6px;
+  background: rgba(26, 95, 106, 0.07);
+  border: 1px solid rgba(26, 95, 106, 0.12);
+}
+
+.reschedule-card-fact--current dd {
+  font-size: 0.8rem;
 }
 
 .reschedule-card-slots {
-  padding: 0.85rem 1.1rem 1rem;
+  padding: 0.4rem 0.65rem 0.45rem;
   background: #ffffff;
 }
 
@@ -1587,97 +1603,96 @@ body {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 0.5rem;
-  margin-bottom: 0.7rem;
+  gap: 0.35rem;
+  margin-bottom: 0.3rem;
 }
 
 .reschedule-card-slots-title {
-  font-size: 0.88rem;
+  font-size: 0.78rem;
   font-weight: 700;
   color: #0d2d3d;
 }
 
 .reschedule-card-slots-badge {
-  font-size: 0.72rem;
+  font-size: 0.65rem;
   font-weight: 700;
   color: #1a5f6a;
   background: #e8f6fa;
   border: 1px solid #b6dce8;
   border-radius: 999px;
-  padding: 0.2rem 0.55rem;
+  padding: 0.12rem 0.45rem;
   white-space: nowrap;
+}
+
+.reschedule-card-empty {
+  margin: 0;
+  font-size: 0.72rem;
+  color: #5a7a82;
+  line-height: 1.35;
 }
 
 .reschedule-card .chat-slot-groups {
   padding: 0;
+  gap: 0.3rem;
+}
+
+.reschedule-card .chat-slot-day-group {
+  gap: 0.2rem;
 }
 
 .reschedule-card .chat-slot-day-label {
-  font-size: 0.7rem;
+  font-size: 0.64rem;
   color: #5a7a82;
-  margin-bottom: 0.15rem;
+  margin-bottom: 0;
 }
 
 .reschedule-card .chat-slot-grid {
-  grid-template-columns: repeat(auto-fill, minmax(84px, 1fr));
-  gap: 0.45rem;
+  grid-template-columns: repeat(auto-fill, minmax(68px, 1fr));
+  gap: 0.3rem;
 }
 
 .reschedule-slot-chip {
   background: #f8fcfd;
-  border: 1.5px solid #c5e3ec;
+  border: 1px solid #c5e3ec;
   color: #0d2d3d;
-  border-radius: 10px;
-  padding: 0.55rem 0.45rem;
-  font-size: 0.8rem;
+  border-radius: 8px;
+  padding: 0.32rem 0.3rem;
+  font-size: 0.74rem;
   font-weight: 600;
   cursor: pointer;
-  transition: background 0.15s, border-color 0.15s, color 0.15s, transform 0.1s, box-shadow 0.15s;
+  transition: background 0.15s, border-color 0.15s, color 0.15s;
   text-align: center;
   font-family: inherit;
+  line-height: 1.2;
 }
 
 .reschedule-slot-chip:hover:not(:disabled) {
   background: #1a5f6a;
   border-color: #1a5f6a;
   color: #ffffff;
-  transform: translateY(-1px);
-  box-shadow: 0 3px 10px rgba(26, 95, 106, 0.22);
 }
 
 .reschedule-slot-chip:disabled {
   opacity: 0.55;
   cursor: not-allowed;
-  transform: none;
-  box-shadow: none;
-}
-
-.reschedule-card-footnote {
-  margin: 0;
-  padding: 0.65rem 1.1rem 0.85rem;
-  font-size: 0.74rem;
-  color: #5a7a82;
-  background: #f5fbfd;
-  border-top: 1px solid #daedf5;
-  line-height: 1.45;
 }
 
 /* ── Reschedule confirm card ── */
 .reschedule-confirm-card {
   background: #ffffff;
   border: 1.5px solid #b6dce8;
-  border-radius: 16px;
+  border-radius: 12px;
   overflow: hidden;
   font-family: "Inter", "Segoe UI", system-ui, sans-serif;
-  box-shadow: 0 2px 12px rgba(0, 80, 110, 0.08);
+  box-shadow: 0 2px 10px rgba(0, 80, 110, 0.07);
   width: 100%;
 }
 
 .reschedule-confirm-header {
   display: flex;
   align-items: center;
-  gap: 0.5rem;
-  padding: 0.85rem 1.1rem;
+  gap: 0.4rem;
+  padding: 0.55rem 0.85rem;
   background: linear-gradient(135deg, #1a6b7a 0%, #1a5f6a 100%);
   color: #ffffff;
 }
@@ -1686,9 +1701,9 @@ body {
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 1.85rem;
-  height: 1.85rem;
-  border-radius: 9px;
+  width: 1.55rem;
+  height: 1.55rem;
+  border-radius: 8px;
   background: rgba(255, 255, 255, 0.16);
 }
 
@@ -1702,24 +1717,25 @@ body {
 }
 
 .reschedule-confirm-details {
-  padding: 0.75rem 1.1rem;
+  padding: 0.45rem 0.85rem;
   background: #f5fbfd;
   display: flex;
   flex-direction: column;
-  gap: 0.45rem;
+  gap: 0.3rem;
 }
 
 .reschedule-confirm-row {
   display: flex;
-  align-items: baseline;
-  justify-content: space-between;
-  gap: 0.75rem;
-  font-size: 0.875rem;
+  align-items: flex-start;
+  flex-wrap: wrap;
+  gap: 0.2rem 0.55rem;
+  font-size: 0.84rem;
+  line-height: 1.35;
 }
 
 .reschedule-confirm-row--new {
-  padding: 0.55rem 0.65rem;
-  border-radius: 10px;
+  padding: 0.42rem 0.55rem;
+  border-radius: 8px;
   background: rgba(26, 95, 106, 0.08);
   border: 1px solid rgba(26, 95, 106, 0.14);
 }
@@ -1730,27 +1746,31 @@ body {
   color: #1a5f6a;
   text-transform: uppercase;
   letter-spacing: 0.04em;
+  min-width: 5.5rem;
+  flex-shrink: 0;
 }
 
 .reschedule-confirm-value {
   font-weight: 600;
   color: #0d2d3d;
-  text-align: right;
+  flex: 1;
+  min-width: 0;
+  word-break: break-word;
 }
 
 .reschedule-confirm-actions {
   display: flex;
   flex-direction: column;
-  gap: 0.4rem;
-  padding: 0.65rem 0.75rem 0.75rem;
+  gap: 0.35rem;
+  padding: 0.5rem 0.65rem 0.6rem;
   background: #ffffff;
   border-top: 1px solid #daedf5;
 }
 
 .reschedule-confirm-btn {
   width: 100%;
-  padding: 0.7rem 1rem;
-  border-radius: 10px;
+  padding: 0.52rem 0.85rem;
+  border-radius: 8px;
   border: none;
   font-size: 0.88rem;
   font-weight: 600;
@@ -1800,12 +1820,12 @@ body {
 
 .consult-bubble--booking .chat-confirm-panel,
 .consult-bubble--booking .chat-choice-panel {
-  margin-top: 0.5rem;
+  margin-top: 0.35rem;
 }
 
 .consult-bubble--booking .chat-choice-panel--followup {
-  margin-top: 0.85rem;
-  padding-top: 0.85rem;
+  margin-top: 0.55rem;
+  padding-top: 0.55rem;
   border-top: 1px solid rgba(0, 104, 128, 0.12);
 }
 
@@ -1902,10 +1922,10 @@ body {
 .appt-confirmed-card {
   background: #ffffff;
   border: 1.5px solid #b6dce8;
-  border-radius: 18px;
+  border-radius: 12px;
   overflow: hidden;
   font-family: "Inter", "Segoe UI", system-ui, sans-serif;
-  box-shadow: 0 4px 20px rgba(0, 80, 110, 0.1);
+  box-shadow: 0 2px 10px rgba(0, 80, 110, 0.07);
   width: 100%;
 }
 
@@ -1913,15 +1933,15 @@ body {
 .appt-confirmed-header {
   display: flex;
   align-items: center;
-  gap: 0.6rem;
-  padding: 0.9rem 1.1rem;
+  gap: 0.45rem;
+  padding: 0.55rem 0.85rem;
   background: linear-gradient(135deg, #1a7a5e 0%, #15664f 100%);
   color: #ffffff;
 }
 
 .appt-confirmed-check {
-  width: 26px;
-  height: 26px;
+  width: 22px;
+  height: 22px;
   border-radius: 50%;
   background: rgba(255, 255, 255, 0.25);
   display: flex;
@@ -1933,10 +1953,11 @@ body {
 }
 
 .appt-confirmed-header-title {
-  font-size: 0.97rem;
+  font-size: 0.86rem;
   font-weight: 700;
   flex: 1;
   letter-spacing: 0.01em;
+  line-height: 1.3;
 }
 
 .appt-confirmed-apt-id {
@@ -2000,7 +2021,7 @@ body {
 
 /* Info rows */
 .appt-confirmed-info {
-  padding: 0.65rem 1.1rem;
+  padding: 0.45rem 0.85rem;
   background: #f5fbfd;
   display: flex;
   flex-direction: column;
@@ -2009,11 +2030,13 @@ body {
 
 .appt-confirmed-row {
   display: flex;
-  align-items: baseline;
-  gap: 0.65rem;
-  padding: 0.5rem 0;
+  align-items: flex-start;
+  flex-wrap: wrap;
+  gap: 0.2rem 0.55rem;
+  padding: 0.38rem 0;
   border-bottom: 1px solid #daedf5;
-  font-size: 0.875rem;
+  font-size: 0.84rem;
+  line-height: 1.35;
 }
 
 .appt-confirmed-row:last-child {
@@ -2021,7 +2044,7 @@ body {
 }
 
 .appt-confirmed-row-label {
-  min-width: 90px;
+  min-width: 7.5rem;
   flex-shrink: 0;
   font-weight: 600;
   color: #1a5f6a;
@@ -2031,6 +2054,9 @@ body {
 .appt-confirmed-row-value {
   color: #0d2d3d;
   font-weight: 500;
+  flex: 1;
+  min-width: 0;
+  word-break: break-word;
 }
 
 .appt-confirmed-id-val {
@@ -2046,8 +2072,8 @@ body {
 /* Action buttons row */
 .appt-confirmed-actions {
   display: flex;
-  gap: 0.5rem;
-  padding: 0.8rem 1rem;
+  gap: 0.4rem;
+  padding: 0.5rem 0.65rem;
   background: #ffffff;
   border-top: 1px solid #daedf5;
   flex-wrap: wrap;
@@ -2056,9 +2082,9 @@ body {
 .appt-confirmed-btn {
   display: inline-flex;
   align-items: center;
-  gap: 0.35rem;
-  padding: 0.55rem 0.9rem;
-  border-radius: 10px;
+  gap: 0.3rem;
+  padding: 0.42rem 0.7rem;
+  border-radius: 8px;
   border: 1.5px solid transparent;
   font-size: 0.82rem;
   font-weight: 600;
@@ -2130,18 +2156,20 @@ body {
 }
 
 .appt-confirmed-note {
-  font-size: 0.72rem;
+  font-size: 0.7rem;
   color: #4a7a8f;
   text-align: center;
-  padding: 0 1rem 0.65rem;
+  padding: 0 0.65rem 0.5rem;
   margin: 0;
   background: #ffffff;
+  line-height: 1.35;
 }
 
 @media (max-width: 480px) {
   .appt-confirmed-actions {
     flex-direction: column;
   }
+
   .appt-confirmed-btn--cancel {
     margin-left: 0;
   }
@@ -2158,9 +2186,9 @@ body {
   grid-template-columns: 1fr 1fr;
   gap: 0;
   background: #e8f4fb;
-  border-radius: 18px;
-  padding: 1.5rem;
-  box-shadow: 0 2px 12px rgba(0, 80, 110, 0.08);
+  border-radius: 12px;
+  padding: 0.85rem;
+  box-shadow: 0 2px 10px rgba(0, 80, 110, 0.07);
   font-family: "Inter", "Segoe UI", system-ui, sans-serif;
   border: none;
 }
@@ -2168,7 +2196,7 @@ body {
 @media (max-width: 680px) {
   .medai-booking-panel {
     grid-template-columns: 1fr;
-    gap: 1.25rem;
+    gap: 0.75rem;
   }
 }
 
@@ -2176,8 +2204,8 @@ body {
 .medai-doctor-col {
   display: flex;
   flex-direction: column;
-  gap: 0.85rem;
-  padding-right: 1.25rem;
+  gap: 0.5rem;
+  padding-right: 0.75rem;
 }
 
 .medai-section-label {
@@ -2193,13 +2221,13 @@ body {
 .medai-doc-card {
   display: flex;
   align-items: flex-start;
-  gap: 0.85rem;
+  gap: 0.6rem;
   width: 100%;
   text-align: left;
   background: #ffffff;
   border: 1.5px solid #d4e9f5;
-  border-radius: 14px;
-  padding: 0.9rem 0.9rem 0.9rem 1rem;
+  border-radius: 10px;
+  padding: 0.55rem 0.65rem 0.55rem 0.75rem;
   cursor: pointer;
   font-family: inherit;
   transition: border-color 0.18s, box-shadow 0.18s;
@@ -2242,16 +2270,16 @@ body {
 .medai-doc-avatar-wrap {
   position: relative;
   flex-shrink: 0;
-  margin-top: 2px;
-  width: 62px;
-  height: 62px;
+  margin-top: 1px;
+  width: 50px;
+  height: 50px;
 }
 
 .medai-doc-avatar--photo {
   object-fit: cover;
-  width: 62px;
-  height: 62px;
-  border-radius: 10px;
+  width: 50px;
+  height: 50px;
+  border-radius: 8px;
   display: block;
   background: #eef6f5;
   flex-shrink: 0;
@@ -2271,12 +2299,12 @@ body {
 }
 
 .medai-doc-avatar {
-  width: 62px;
-  height: 62px;
-  border-radius: 10px;
+  width: 50px;
+  height: 50px;
+  border-radius: 8px;
   background: linear-gradient(160deg, #c8dde6 0%, #9bbfcc 100%);
   color: #2a5566;
-  font-size: 1.2rem;
+  font-size: 1rem;
   font-weight: 700;
   display: flex;
   align-items: center;
@@ -2312,26 +2340,26 @@ body {
 }
 
 .medai-doc-name {
-  font-size: 0.97rem;
+  font-size: 0.86rem;
   font-weight: 700;
   color: #0d2d3d;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-  line-height: 1.3;
+  line-height: 1.25;
 }
 
 .medai-doc-meta {
-  font-size: 0.78rem;
+  font-size: 0.74rem;
   color: #4a7a8f;
-  line-height: 1.3;
+  line-height: 1.25;
 }
 
 .medai-doc-stats {
   display: flex;
   flex-wrap: wrap;
-  gap: 0.75rem;
-  margin-top: 0.45rem;
+  gap: 0.5rem;
+  margin-top: 0.25rem;
 }
 
 .medai-doc-stat {
@@ -2366,7 +2394,7 @@ body {
 .medai-picker-col {
   display: flex;
   flex-direction: column;
-  padding-left: 1.25rem;
+  padding-left: 0.75rem;
   border-left: 1px solid #cce4f0;
 }
 
@@ -2374,24 +2402,25 @@ body {
 .appt-picker {
   display: flex;
   flex-direction: column;
-  gap: 1rem;
+  gap: 0.65rem;
 }
 
 /* "Select Appointment" heading */
 .appt-picker-title {
-  font-size: 1.1rem;
+  font-size: 0.95rem;
   font-weight: 700;
   color: #0d2d3d;
-  margin: 0 0 0.1rem;
+  margin: 0;
   letter-spacing: -0.01em;
+  line-height: 1.3;
 }
 
 /* Calendar card — white surface on ice-blue booking panel */
 .appt-calendar-panel {
   background: #ffffff;
   border: 1px solid #c5dce8;
-  border-radius: 12px;
-  padding: 1rem 1.1rem 1.15rem;
+  border-radius: 10px;
+  padding: 0.65rem 0.75rem 0.7rem;
   box-shadow: 0 1px 4px rgba(0, 55, 76, 0.05);
 }
 
@@ -6520,23 +6549,28 @@ th { font-weight: 600; background: #f8f9fa; }
   position: fixed;
   bottom: 2rem;
   right: 2rem;
-  z-index: 150;
+  z-index: 500;
   width: min(380px, calc(100vw - 2rem));
-  height: 64px;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 0.75rem;
   pointer-events: none;
-  transition: width 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+  transition: width 0.35s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
-/* Expanded state — doubles width when user clicks inside */
+.aura-chat-widget--open {
+  pointer-events: auto;
+  align-items: stretch;
+}
+
 .aura-chat-widget--expanded {
   width: min(760px, calc(100vw - 2rem));
 }
 
 .aura-chat-fab {
-  position: absolute;
-  bottom: 0;
-  right: 0;
-  z-index: 2;
+  position: relative;
+  flex-shrink: 0;
   pointer-events: auto;
   width: 64px;
   height: 64px;
@@ -6557,44 +6591,51 @@ th { font-weight: 600; background: #f8f9fa; }
 .aura-chat-fab:hover { transform: scale(1.08); }
 .aura-chat-fab:active { transform: scale(0.95); }
 
+.aura-chat-window:not(.aura-chat-window--open) {
+  height: 0 !important;
+  max-height: 0 !important;
+  margin: 0;
+  padding: 0;
+  border: none;
+  box-shadow: none;
+  pointer-events: none !important;
+}
+
 .aura-chat-window {
-  position: absolute;
-  bottom: 4.5rem;
-  right: 0;
+  position: relative;
   width: 100%;
   display: flex;
   flex-direction: column;
-  height: 520px;
-  max-height: calc(100vh - 8rem);
-  background: rgba(255, 255, 255, 0.92);
+  flex-shrink: 0;
+  height: 0;
+  max-height: 0;
+  overflow: hidden;
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+  background: rgba(255, 255, 255, 0.96);
   backdrop-filter: blur(24px);
   border: 1px solid rgba(188, 201, 198, 0.4);
   border-radius: 1.5rem;
   box-shadow: 0 24px 48px rgba(11, 28, 48, 0.18);
-  overflow: hidden;
-  transform: scale(0.9) translateY(12px);
-  opacity: 0;
-  visibility: hidden;
-  pointer-events: none;
-  transform-origin: bottom right;
   transition:
-    transform 0.4s cubic-bezier(0.4, 0, 0.2, 1),
-    opacity 0.4s cubic-bezier(0.4, 0, 0.2, 1),
-    visibility 0.4s,
-    height 0.4s cubic-bezier(0.4, 0, 0.2, 1),
-    width 0.4s cubic-bezier(0.4, 0, 0.2, 1);
-}
-
-/* Expanded = double height, fills most of viewport */
-.aura-chat-window--expanded {
-  height: min(960px, calc(100vh - 6rem));
+    opacity 0.3s cubic-bezier(0.4, 0, 0.2, 1),
+    max-height 0.35s cubic-bezier(0.4, 0, 0.2, 1),
+    visibility 0.3s;
 }
 
 .aura-chat-window--open {
-  transform: scale(1) translateY(0);
+  height: min(520px, calc(100vh - 8rem));
+  max-height: min(520px, calc(100vh - 8rem));
   opacity: 1;
   visibility: visible;
   pointer-events: auto;
+  overflow: hidden;
+}
+
+.aura-chat-window--expanded.aura-chat-window--open {
+  height: min(960px, calc(100vh - 6rem));
+  max-height: min(960px, calc(100vh - 6rem));
 }
 
 .aura-chat-header {
@@ -6778,25 +6819,52 @@ th { font-weight: 600; background: #f8f9fa; }
 .aura-chat-text { white-space: pre-wrap; }
 
 .aura-chat-quick-actions {
-  display: flex;
-  flex-direction: column;
-  gap: 0.55rem;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.4rem;
   padding-left: 2.75rem;
-  margin-top: -0.25rem;
+  padding-right: 0.5rem;
+  margin-top: 0.2rem;
 }
 
 .aura-chat-quick-actions button {
   text-align: center;
-  padding: 0.65rem 1rem;
-  border-radius: 12px;
+  padding: 0.5rem 0.45rem;
+  min-height: 2.35rem;
+  border-radius: 10px;
   border: 1.5px solid rgba(0, 104, 95, 0.22);
   background: #fff;
   color: #00685f;
-  font-size: 0.8rem;
+  font-size: 0.74rem;
   font-weight: 600;
+  line-height: 1.2;
+  word-break: normal;
+  hyphens: none;
   cursor: pointer;
   font-family: inherit;
   transition: background 0.2s, color 0.2s, border-color 0.2s, box-shadow 0.2s;
+}
+
+/* Narrow widget: 2 on top, full-width third — avoids awkward hyphen breaks */
+.aura-chat-quick-actions button:nth-child(3) {
+  grid-column: 1 / -1;
+}
+
+/* Wide expanded widget: three equal columns in one row */
+@media (min-width: 520px) {
+  .aura-chat-widget--expanded .aura-chat-quick-actions {
+    grid-template-columns: repeat(3, 1fr);
+  }
+
+  .aura-chat-widget--expanded .aura-chat-quick-actions button:nth-child(3) {
+    grid-column: auto;
+  }
+
+  .aura-chat-widget--expanded .aura-chat-quick-actions button {
+    font-size: 0.78rem;
+    padding: 0.55rem 0.5rem;
+    min-height: 2.5rem;
+  }
 }
 
 .aura-chat-quick-actions button:hover:not(:disabled) {
@@ -6920,25 +6988,45 @@ th { font-weight: 600; background: #f8f9fa; }
 
 .aura-chat-composer {
   flex-shrink: 0;
-  padding: 1rem;
+  padding: 0.7rem 0.75rem 0.75rem;
   background: #fff;
   border-top: 1px solid rgba(188, 201, 198, 0.35);
 }
 
+.aura-chat-widget--expanded .aura-chat-composer {
+  padding: 0.85rem 1rem 1rem;
+}
+
 .aura-chat-input-wrap {
   position: relative;
+  z-index: 2;
 }
 
 .aura-chat-input-wrap input {
+  position: relative;
+  z-index: 1;
   width: 100%;
-  padding: 0.75rem 3.25rem 0.75rem 2.75rem;
+  box-sizing: border-box;
+  padding: 0.65rem 2.75rem 0.65rem 2.35rem;
   border: none;
   border-radius: 1rem;
   background: #eff4ff;
-  font-size: 0.875rem;
+  font-size: 0.8rem;
   font-family: inherit;
   color: #0b1c30;
   outline: none;
+  pointer-events: auto;
+  cursor: text;
+}
+
+.aura-chat-input-wrap input:disabled {
+  cursor: not-allowed;
+  opacity: 0.65;
+}
+
+.aura-chat-widget--expanded .aura-chat-input-wrap input {
+  padding: 0.75rem 3.25rem 0.75rem 2.75rem;
+  font-size: 0.875rem;
 }
 
 .aura-chat-input-wrap input:focus {
@@ -6950,6 +7038,7 @@ th { font-weight: 600; background: #f8f9fa; }
   left: 0.35rem;
   top: 50%;
   transform: translateY(-50%);
+  z-index: 2;
   width: 32px;
   height: 32px;
   border: none;
@@ -6971,6 +7060,7 @@ th { font-weight: 600; background: #f8f9fa; }
   right: 0.35rem;
   top: 50%;
   transform: translateY(-50%);
+  z-index: 2;
   width: 36px;
   height: 36px;
   border: none;
@@ -6985,6 +7075,38 @@ th { font-weight: 600; background: #f8f9fa; }
 }
 
 .aura-chat-send:disabled { opacity: 0.45; cursor: not-allowed; }
+
+.aura-chat-session-error {
+  margin: 0.45rem 0 0;
+  padding: 0.55rem 0.65rem;
+  border-radius: 10px;
+  background: #fff4f4;
+  border: 1px solid #f0c4c4;
+  text-align: center;
+}
+
+.aura-chat-session-error p {
+  margin: 0 0 0.45rem;
+  font-size: 0.72rem;
+  line-height: 1.4;
+  color: #9b1c1c;
+}
+
+.aura-chat-session-error button {
+  border: none;
+  border-radius: 999px;
+  padding: 0.35rem 0.85rem;
+  font-size: 0.72rem;
+  font-weight: 600;
+  font-family: inherit;
+  cursor: pointer;
+  color: #fff;
+  background: #00685f;
+}
+
+.aura-chat-session-error button:hover {
+  background: #00574f;
+}
 
 .aura-chat-disclaimer {
   margin: 0.5rem 0 0;
@@ -7189,12 +7311,24 @@ th { font-weight: 600; background: #f8f9fa; }
     width: calc(100vw - 2rem);
   }
 
-  .aura-chat-window {
+  .aura-chat-window--open {
     height: min(480px, calc(100vh - 5rem));
+    max-height: min(480px, calc(100vh - 5rem));
   }
 
-  .aura-chat-window--expanded {
+  .aura-chat-window--expanded.aura-chat-window--open {
     height: min(880px, calc(100vh - 4rem));
+    max-height: min(880px, calc(100vh - 4rem));
+  }
+}
+
+@media (max-width: 320px) {
+  .aura-chat-quick-actions {
+    grid-template-columns: 1fr;
+  }
+
+  .aura-chat-quick-actions button:nth-child(3) {
+    grid-column: auto;
   }
 }
 

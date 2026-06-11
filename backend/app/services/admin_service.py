@@ -55,7 +55,7 @@ async def _truncate_operational_tables(db: AsyncSession) -> None:
 
 
 async def _ensure_seed_doctors(db: AsyncSession) -> int:
-    added, _updated = await seed_doctor_catalog(db)
+    added, _updated, _removed = await seed_doctor_catalog(db)
     return added
 
 

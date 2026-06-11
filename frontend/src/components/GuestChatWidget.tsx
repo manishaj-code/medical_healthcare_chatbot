@@ -55,7 +55,7 @@ function inputPlaceholder(awaiting: string | null, uploadKind: "symptom" | "repo
     return "Choose a symptom photo to upload...";
   }
   if (awaiting === "upload") return "Choose a file to upload...";
-  return "Describe your symptoms or ask a health question...";
+  return "Symptoms or health question...";
 }
 
 interface Props {
@@ -70,6 +70,7 @@ export default function GuestChatWidget({ open, onOpenChange }: Props) {
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
   const [initError, setInitError] = useState("");
+  const [sessionConnecting, setSessionConnecting] = useState(true);
   const [awaitingInput, setAwaitingInput] = useState<"email" | "otp" | "upload" | null>(null);
   const [uploadKind, setUploadKind] = useState<"symptom" | "report" | null>(null);
   const [devOtpHint, setDevOtpHint] = useState<string | null>(null);
@@ -80,11 +81,27 @@ export default function GuestChatWidget({ open, onOpenChange }: Props) {
   const fileRef = useRef<HTMLInputElement>(null);
   const pendingUploadOpen = useRef(false);
 
-  useEffect(() => {
-    ensureGuestSession()
-      .then(setSessionId)
-      .catch(() => setInitError("Could not start chat. Please refresh."));
+  const bootstrapGuestSession = useCallback(async () => {
+    setSessionConnecting(true);
+    setInitError("");
+    try {
+      const id = await ensureGuestSession();
+      setSessionId(id);
+    } catch (err) {
+      const message =
+        err instanceof Error && err.message
+          ? err.message
+          : "Could not start chat. Make sure the backend API is running, then try again.";
+      setInitError(message);
+      setSessionId(null);
+    } finally {
+      setSessionConnecting(false);
+    }
   }, []);
+
+  useEffect(() => {
+    void bootstrapGuestSession();
+  }, [bootstrapGuestSession]);
 
   useEffect(() => {
     if (!sessionId) return;
@@ -334,8 +351,7 @@ export default function GuestChatWidget({ open, onOpenChange }: Props) {
   return (
     <div
       ref={widgetRef}
-      className={`aura-chat-widget${expanded ? " aura-chat-widget--expanded" : ""}`}
-      onClick={() => { if (open) setExpanded(true); }}
+      className={`aura-chat-widget${open ? " aura-chat-widget--open" : ""}${expanded ? " aura-chat-widget--expanded" : ""}`}
     >
       {/* Redirect loading overlay */}
       {redirecting && (
@@ -356,20 +372,6 @@ export default function GuestChatWidget({ open, onOpenChange }: Props) {
           </div>
         </div>
       )}
-      <button
-        type="button"
-        className="aura-chat-fab"
-        onClick={() => {
-          const nextOpen = !open;
-          onOpenChange(nextOpen);
-          if (nextOpen) setExpanded(true);
-          else setExpanded(false);
-        }}
-        aria-label={open ? "Close MediAI consultation" : "Open MediAI consultation"}
-      >
-        <span className="material-symbols-outlined">smart_toy</span>
-      </button>
-
       <div
         className={`aura-chat-window${open ? " aura-chat-window--open" : ""}${expanded ? " aura-chat-window--expanded" : ""}`}
       >
@@ -405,7 +407,10 @@ export default function GuestChatWidget({ open, onOpenChange }: Props) {
           </div>
         </header>
 
-        <div className="aura-chat-messages">
+        <div
+          className="aura-chat-messages"
+          onClick={() => { if (open) setExpanded(true); }}
+        >
           {initError && <p className="aura-chat-error">{initError}</p>}
 
           {messages.map((m, i) => {
@@ -447,7 +452,7 @@ export default function GuestChatWidget({ open, onOpenChange }: Props) {
                 <button
                   key={action.label}
                   type="button"
-                  disabled={loading}
+                  disabled={loading || sessionConnecting || !sessionId}
                   onClick={() => handleQuickAction(action)}
                 >
                   {action.label}
@@ -494,7 +499,7 @@ export default function GuestChatWidget({ open, onOpenChange }: Props) {
             <button
               type="button"
               className="aura-chat-attach"
-              disabled={loading || !sessionId}
+              disabled={loading || sessionConnecting || !sessionId}
               onClick={() => fileRef.current?.click()}
               aria-label={uploadKind === "symptom" ? "Upload symptom photo" : "Upload medical report"}
               title={uploadKind === "symptom" ? "Upload symptom photo" : "Upload medical report"}
@@ -513,8 +518,14 @@ export default function GuestChatWidget({ open, onOpenChange }: Props) {
                   void sendText(t);
                 }
               }}
-              placeholder={inputPlaceholder(awaitingInput, uploadKind)}
-              disabled={loading || !sessionId}
+              placeholder={
+                sessionConnecting
+                  ? "Connecting..."
+                  : initError
+                    ? "Chat unavailable — use Retry below"
+                    : inputPlaceholder(awaitingInput, uploadKind)
+              }
+              disabled={loading || sessionConnecting || !sessionId}
               type={awaitingInput === "email" ? "email" : awaitingInput === "otp" ? "text" : "text"}
               inputMode={awaitingInput === "otp" ? "numeric" : undefined}
               autoComplete={awaitingInput === "email" ? "email" : awaitingInput === "otp" ? "one-time-code" : undefined}
@@ -533,6 +544,14 @@ export default function GuestChatWidget({ open, onOpenChange }: Props) {
               <span className="material-symbols-outlined">send</span>
             </button>
           </div>
+          {initError && (
+            <div className="aura-chat-session-error" role="alert">
+              <p>{initError}</p>
+              <button type="button" onClick={() => void bootstrapGuestSession()}>
+                Retry connection
+              </button>
+            </div>
+          )}
           <p className="aura-chat-disclaimer">
             AI guidance should not replace professional medical advice.
             {" · "}
@@ -540,6 +559,20 @@ export default function GuestChatWidget({ open, onOpenChange }: Props) {
           </p>
         </footer>
       </div>
+
+      {!open && (
+        <button
+          type="button"
+          className="aura-chat-fab"
+          onClick={() => {
+            onOpenChange(true);
+            setExpanded(true);
+          }}
+          aria-label="Open MediAI consultation"
+        >
+          <span className="material-symbols-outlined">smart_toy</span>
+        </button>
+      )}
     </div>
   );
 }

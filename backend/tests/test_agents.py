@@ -37,6 +37,20 @@ def test_thanks_after_home_care():
     assert reply and "welcome" in reply.lower()
 
 
+def test_thanks_with_prefix_after_assessment():
+    from app.healthcare_policy import is_thanks_message
+
+    assert is_thanks_message("om thank you!!")
+    history = [
+        {
+            "role": "assistant",
+            "content": "Thanks, Aaaaaaaa. Rest and drink plenty of water. I recommend a General Physician.",
+        },
+    ]
+    reply = get_contextual_reply("om thank you!!", history)
+    assert reply and "welcome" in reply.lower()
+
+
 def test_decline_appointment_gives_home_care():
     history = [
         {"role": "user", "content": "I have fever"},

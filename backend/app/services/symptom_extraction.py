@@ -151,10 +151,14 @@ def _normalize_llm_symptoms(raw: object) -> list[str]:
 
 def is_non_symptom_message(text: str) -> bool:
     """Filter greetings, booking intents, auth fields, and triage UI replies."""
+    from app.healthcare_policy import is_thanks_message
+
     trimmed = text.strip()
     if not trimmed:
         return True
     lower = trimmed.lower()
+    if is_thanks_message(trimmed):
+        return True
     if lower in _SKIP_EXACT:
         return True
     if _INTERNAL_ACTION_TOKEN_RE.match(trimmed):

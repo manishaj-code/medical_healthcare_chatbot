@@ -1,4 +1,5 @@
 const GUEST_KEY = "guest_session_id";
+const SESSION_TIMEOUT_MS = 12_000;
 
 function parsePersistFlag(raw: string | undefined, defaultValue = true): boolean {
   if (raw === undefined || raw === "") return defaultValue;
@@ -24,9 +25,31 @@ export function setGuestSessionId(id: string) {
   localStorage.setItem(GUEST_KEY, id);
 }
 
+function withTimeout<T>(promise: Promise<T>, ms: number, message: string): Promise<T> {
+  return new Promise<T>((resolve, reject) => {
+    const timer = window.setTimeout(() => reject(new Error(message)), ms);
+    promise
+      .then((value) => {
+        window.clearTimeout(timer);
+        resolve(value);
+      })
+      .catch((err) => {
+        window.clearTimeout(timer);
+        reject(err);
+      });
+  });
+}
+
 async function createGuestSession(): Promise<string> {
   const { api } = await import("../api/client");
-  const res = await api<{ session_id: string }>("/api/v1/guest/session", { method: "POST" });
+  const res = await withTimeout(
+    api<{ session_id: string }>("/api/v1/guest/session", { method: "POST" }),
+    SESSION_TIMEOUT_MS,
+    "Could not reach the server. Is the API running?",
+  );
+  if (!res?.session_id) {
+    throw new Error("Guest session response was invalid.");
+  }
   setGuestSessionId(res.session_id);
   return res.session_id;
 }
@@ -42,7 +65,11 @@ export async function ensureGuestSession(): Promise<string> {
   const existing = getGuestSessionId();
   if (existing) {
     try {
-      await api(`/api/v1/guest/chat/history?session_id=${encodeURIComponent(existing)}`);
+      await withTimeout(
+        api(`/api/v1/guest/chat/history?session_id=${encodeURIComponent(existing)}`),
+        SESSION_TIMEOUT_MS,
+        "Could not reach the server. Is the API running?",
+      );
       return existing;
     } catch {
       localStorage.removeItem(GUEST_KEY);

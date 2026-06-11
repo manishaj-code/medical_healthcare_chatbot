@@ -43,11 +43,15 @@ from app.services.chat_ui import (
     SPECIALTY_PICKER_LABELS,
 )
 from app.healthcare_policy import (
+    build_assessment_reply,
+    build_booking_offer_intro,
     build_greeting_reply,
+    build_specialty_picker_intro,
     patient_display_name,
     patient_first_name,
     should_reset_to_greeting,
 )
+from app.services.patient_context import resolve_patient_first_name
 from app.services.flow_state import clear_flow, set_flow
 from app.services.guest_auth_service import guest_auth_gate
 from app.services.appointment_card_service import (
@@ -614,8 +618,8 @@ def _no(text: str) -> bool:
     return t in {"no", "nope", "nah", "not now", "later"} or t.startswith("no ")
 
 
-def _self_care_response(ctx: AgentContext) -> AgentResponse:
-    pname = patient_first_name(ctx.patient_ctx.get("name"))
+async def _self_care_response(ctx: AgentContext) -> AgentResponse:
+    pname = await resolve_patient_first_name(ctx.db, ctx.patient_ctx, ctx.patient)
     specialty = infer_recommended_specialty(ctx.session, ctx.history)
     reply = build_self_care_reply(ctx.session, ctx.history, pname)
     return AgentResponse(
@@ -749,7 +753,7 @@ async def start_find_doctor_flow(
             }
         return {
             "reply": (
-                f"Of course, {pname}! Based on your symptoms, I recommend a **{specialty}**. "
+                f"{build_booking_offer_intro(pname, specialty, basis='symptoms')} "
                 f"{doctor_list_intro(len(doctors))}"
             ),
             "ui": build_doctor_list_ui(search),
@@ -763,10 +767,7 @@ async def start_find_doctor_flow(
         }
 
     return {
-        "reply": (
-            f"Of course, {pname}! Which type of specialist would you like to see? "
-            "Choose one below, or type a specialty name in the chat."
-        ),
+        "reply": build_specialty_picker_intro(pname),
         "ui": build_specialty_picker_ui(),
         "session_patch": {
             "care_goal": "find_doctor",
@@ -789,10 +790,10 @@ async def _show_doctor_list(
             reply="I couldn't find doctors with open slots right now. Would you like me to search all specialties?",
             agent="scheduling_agent",
         )
-    pname = patient_first_name(ctx.patient_ctx.get("name"))
+    pname = await resolve_patient_first_name(ctx.db, ctx.patient_ctx, ctx.patient)
     list_line = doctor_list_intro(len(doctors))
     reply = f"{intro} {list_line}".strip() if intro else (
-        f"Of course, {pname}! I recommend a **{specialty}**. {list_line}"
+        f"{build_booking_offer_intro(pname, specialty)} {list_line}"
     )
     return AgentResponse(
         reply=reply,
@@ -863,7 +864,7 @@ def should_skip_booking_resolution(ctx: AgentContext) -> bool:
 async def resolve_booking_session(ctx: AgentContext) -> AgentResponse | None:
     session = ctx.session
     awaiting = session.get("awaiting")
-    pname = patient_first_name(ctx.patient_ctx.get("name"), default="Patient")
+    pname = await resolve_patient_first_name(ctx.db, ctx.patient_ctx, ctx.patient)
     t = ctx.text.strip().lower()
 
     if (
@@ -917,7 +918,7 @@ async def resolve_booking_session(ctx: AgentContext) -> AgentResponse | None:
             return await _show_doctor_list(
                 ctx,
                 specialty,
-                intro=f"Of course, {pname}! Based on your assessment, I recommend a **{specialty}**.",
+                intro=build_booking_offer_intro(pname, specialty),
             )
         if "recommend" in t and "doctor" in t:
             return AgentResponse(
@@ -930,7 +931,7 @@ async def resolve_booking_session(ctx: AgentContext) -> AgentResponse | None:
                 session_patch={"awaiting": "post_assessment", "recommended_specialty": specialty},
             )
         if wants_self_care_advice(ctx.text):
-            return _self_care_response(ctx)
+            return await _self_care_response(ctx)
         if "tell me more" in t:
             return None
 
@@ -948,7 +949,7 @@ async def resolve_booking_session(ctx: AgentContext) -> AgentResponse | None:
     if wants_self_care_advice(ctx.text) and (
         session.get("triage_assessed") or has_identified_symptoms(session, ctx.history)
     ):
-        return _self_care_response(ctx)
+        return await _self_care_response(ctx)
 
     if should_skip_booking_resolution(ctx):
         return None
@@ -986,13 +987,10 @@ async def resolve_booking_session(ctx: AgentContext) -> AgentResponse | None:
             return await _show_doctor_list(
                 ctx,
                 specialty,
-                intro=f"Of course, {pname}! Based on your symptoms, I recommend a **{specialty}**.",
+                intro=build_booking_offer_intro(pname, specialty, basis="symptoms"),
             )
         return AgentResponse(
-            reply=(
-                f"Of course, {pname}! Which type of specialist would you like to see? "
-                "Choose one below, or type a specialty name in the chat."
-            ),
+            reply=build_specialty_picker_intro(pname),
             agent="scheduling_agent",
             ui=build_specialty_picker_ui(),
             session_patch={
@@ -1530,22 +1528,12 @@ async def synthesize_tool_result(tool_result: dict, ctx: AgentContext) -> AgentR
         )
 
     if tool_result.get("recommended_specialty"):
-        pname = patient_first_name(ctx.patient_ctx.get("name"))
+        pname = await resolve_patient_first_name(ctx.db, ctx.patient_ctx, ctx.patient)
         specialty = tool_result["recommended_specialty"]
         recommendation = (tool_result.get("recommendation") or "").strip()
         risk = tool_result.get("risk_level", "low")
-        if risk in ("high", "emergency"):
-            booking_hint = (
-                f"\n\nGiven the severity, I recommend seeing a **{specialty}** promptly. "
-                "I can help you find available doctors when you're ready."
-            )
-        else:
-            booking_hint = (
-                f"\n\nIf symptoms persist or worsen, a **{specialty}** can review your case. "
-                "I'm here if you'd like self-care tips, more information, or help booking."
-            )
         return AgentResponse(
-            reply=f"Thanks, {pname}. {recommendation}{booking_hint}",
+            reply=build_assessment_reply(pname, recommendation, specialty, risk),
             agent="triage_agent",
             emergency=risk == "emergency",
             ui=build_post_assessment_ui(),

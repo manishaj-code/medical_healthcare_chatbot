@@ -82,7 +82,8 @@ def build_reschedule_slots_ui(
 
 
 def doctor_list_intro(count: int) -> str:
-    return f"I found **{count} doctors** with open appointments."
+    noun = "doctor" if count == 1 else "doctors"
+    return f"I found **{count} {noun}** with open time slots."
 
 
 def slot_list_intro(doctor_name: str) -> str:

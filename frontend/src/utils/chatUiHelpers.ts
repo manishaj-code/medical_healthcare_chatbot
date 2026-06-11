@@ -1,5 +1,18 @@
 import type { ChatUiPayload } from "../components/ChatBookingUI";
 
+export function isChatSlotPast(slotDate?: string, slotTime?: string): boolean {
+  if (!slotDate || !slotTime) return false;
+  const normalized = slotTime.length === 5 ? `${slotTime}:00` : slotTime;
+  const slot = new Date(`${slotDate}T${normalized}`);
+  return !Number.isNaN(slot.getTime()) && slot.getTime() < Date.now();
+}
+
+export function filterChatBookableSlots<
+  T extends { slot_date?: string; slot_time?: string },
+>(slots: T[]): T[] {
+  return slots.filter((s) => !isChatSlotPast(s.slot_date, s.slot_time));
+}
+
 interface ReminderSyncMessage {
   role: string;
   content: string;
@@ -92,14 +105,16 @@ export function buildDoctorListUi(doctors: ApiDoctor[]): ChatUiPayload {
       specialty: d.specialty,
       experience_years: d.experience_years,
       rating: d.rating,
-      slots: (d.slots ?? []).slice(0, 6).map((s) => ({
-        label: s.label,
-        doctor_id: s.doctor_id ?? d.id,
-        doctor_name: s.doctor_name ?? d.name,
-        slot_date: s.slot_date,
-        slot_time: s.slot_time,
-        message: `${d.name} ${s.label}`,
-      })),
+      slots: filterChatBookableSlots(d.slots ?? [])
+        .slice(0, 6)
+        .map((s) => ({
+          label: s.label,
+          doctor_id: s.doctor_id ?? d.id,
+          doctor_name: s.doctor_name ?? d.name,
+          slot_date: s.slot_date,
+          slot_time: s.slot_time,
+          message: `${d.name} ${s.label}`,
+        })),
     })),
   };
 }
