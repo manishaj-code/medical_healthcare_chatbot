@@ -1,0 +1,100 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Appointment Cancelled | MedTrust Health</title>
+</head>
+<body style="margin:0;padding:0;background-color:#f8f9ff;font-family:'Inter',Arial,Helvetica,sans-serif;color:#0b1c30;">
+  <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="background-color:#f8f9ff;">
+    <tr>
+      <td align="center" style="padding:24px 16px;">
+        <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="max-width:560px;">
+          <tr>
+            <td style="padding:16px 8px 24px;border-bottom:1px solid #bcc9c6;">
+              <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0">
+                <tr>
+                  <td style="font-size:18px;font-weight:700;color:#00685f;">MedTrust Health</td>
+                  <td align="right" style="font-size:13px;color:#3d4947;">Cancellation notice</td>
+                </tr>
+              </table>
+            </td>
+          </tr>
+          <tr>
+            <td style="padding:32px 24px;background-color:#ffffff;border:1px solid #fcd9c7;border-radius:12px;margin-top:16px;">
+              <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0">
+                <tr>
+                  <td align="center" style="padding-bottom:20px;">
+                    <div style="width:64px;height:64px;line-height:64px;border-radius:50%;background-color:#c2410c;color:#fff7ed;font-size:28px;text-align:center;">&#10005;</div>
+                  </td>
+                </tr>
+                <tr>
+                  <td align="center" style="padding-bottom:8px;font-size:28px;font-weight:600;line-height:1.2;color:#0b1c30;">
+                    Appointment Cancelled
+                  </td>
+                </tr>
+                <tr>
+                  <td align="center" style="padding-bottom:8px;font-size:16px;line-height:1.6;color:#3d4947;">
+                    Hello {{patient_name}},
+                  </td>
+                </tr>
+                <tr>
+                  <td align="center" style="padding-bottom:28px;font-size:16px;line-height:1.6;color:#3d4947;">
+                    Your appointment has been cancelled as requested.
+                  </td>
+                </tr>
+                <tr>
+                  <td style="padding-bottom:24px;">
+                    <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="background-color:#fff7ed;border:1px solid #fdba74;border-radius:8px;">
+                      <tr>
+                        <td style="padding:24px 28px;">
+                          <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0">
+                            <tr>
+                              <td style="padding:8px 0;font-size:12px;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;color:#c2410c;width:140px;vertical-align:top;">Appointment ID</td>
+                              <td style="padding:8px 0;font-size:16px;font-weight:700;color:#0b1c30;">{{apt_id}}</td>
+                            </tr>
+                            <tr>
+                              <td style="padding:8px 0;font-size:12px;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;color:#c2410c;vertical-align:top;">Doctor</td>
+                              <td style="padding:8px 0;font-size:16px;color:#0b1c30;">{{doctor_display}}</td>
+                            </tr>
+                            <tr>
+                              <td style="padding:8px 0;font-size:12px;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;color:#c2410c;vertical-align:top;">Date</td>
+                              <td style="padding:8px 0;font-size:16px;color:#0b1c30;">{{when_date}}</td>
+                            </tr>
+                            <tr>
+                              <td style="padding:8px 0;font-size:12px;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;color:#c2410c;vertical-align:top;">Time</td>
+                              <td style="padding:8px 0;font-size:16px;color:#0b1c30;">{{when_time}}</td>
+                            </tr>
+                            <tr>
+                              <td style="padding:8px 0;font-size:12px;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;color:#c2410c;vertical-align:top;">Reason</td>
+                              <td style="padding:8px 0;font-size:16px;color:#0b1c30;">{{cancellation_reason}}</td>
+                            </tr>
+                          </table>
+                        </td>
+                      </tr>
+                    </table>
+                  </td>
+                </tr>
+                <tr>
+                  <td style="padding:20px;background-color:#f0f4fc;border:1px solid #bcc9c6;border-radius:8px;">
+                    <div style="font-size:14px;line-height:1.55;color:#3d4947;">
+                      You can book a new appointment anytime from your Patient Portal or through the MediAI health assistant.
+                    </div>
+                  </td>
+                </tr>
+              </table>
+            </td>
+          </tr>
+          <tr>
+            <td align="center" style="padding:24px 8px 8px;font-size:13px;line-height:1.5;color:#3d4947;">
+              <div style="font-weight:700;color:#0b1c30;margin-bottom:4px;">MediAI Platform</div>
+              <div style="font-weight:700;color:#0b1c30;margin-bottom:4px;">MedTrust Health</div>
+              <div>&copy; {{year}} MedTrust Health. Secure &amp; Encrypted.</div>
+            </td>
+          </tr>
+        </table>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>

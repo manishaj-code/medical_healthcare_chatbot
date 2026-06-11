@@ -2,7 +2,8 @@ import random
 import string
 
 from app.services.cache import get_redis
-from app.services.email_service import EmailSendResult, send_plain_email
+from app.services.email_service import EmailSendResult, send_email
+from app.services.email_templates import render_otp_verification_email
 
 OTP_TTL_SECONDS = 600
 OTP_PREFIX = "otp:email:"
@@ -49,13 +50,15 @@ async def mark_otp_sent(email: str) -> None:
 
 
 async def send_otp_email(email: str, otp: str) -> EmailSendResult:
+    expiry_minutes = OTP_TTL_SECONDS // 60
     subject = "Your MediAI verification code"
     body = (
         f"Your MediAI verification code is: {otp}\n\n"
-        f"This code expires in {OTP_TTL_SECONDS // 60} minutes.\n"
+        f"This code expires in {expiry_minutes} minutes.\n"
         "If you did not request this, you can ignore this email."
     )
-    return await send_plain_email(email, subject, body)
+    html_body = render_otp_verification_email(otp, expiry_minutes)
+    return await send_email(email, subject, body, html_body=html_body)
 
 
 async def store_password_reset_otp(email: str, otp: str) -> None:
@@ -87,10 +90,12 @@ async def mark_password_reset_otp_sent(email: str) -> None:
 
 
 async def send_password_reset_email(email: str, otp: str) -> EmailSendResult:
+    expiry_minutes = OTP_TTL_SECONDS // 60
     subject = "Your MediAI password reset code"
     body = (
         f"Your password reset code is: {otp}\n\n"
-        f"This code expires in {OTP_TTL_SECONDS // 60} minutes.\n"
+        f"This code expires in {expiry_minutes} minutes.\n"
         "If you did not request a password reset, you can ignore this email."
     )
-    return await send_plain_email(email, subject, body)
+    html_body = render_otp_verification_email(otp, expiry_minutes)
+    return await send_email(email, subject, body, html_body=html_body)

@@ -16,6 +16,7 @@ from app.healthcare_policy import (
     patient_ctx_for_llm,
     patient_first_name,
     should_reset_to_greeting,
+    should_use_legacy_contextual_reply,
 )
 from app.models import Conversation, Patient
 from app.services.flow_state import clear_flow, get_flow, set_flow
@@ -96,12 +97,45 @@ class MultiAgentSupervisor:
             conversation.active_agent = "health_education"
             return build_greeting_reply(pname), "health_education", False, None
 
-        contextual = get_contextual_reply(text, history)
+        contextual = (
+            get_contextual_reply(text, history)
+            if should_use_legacy_contextual_reply(session)
+            else None
+        )
         if contextual:
-            self._reset_stale_flow_on_greeting(session)
+            if not is_active_care_flow(session):
+                self._reset_stale_flow_on_greeting(session)
+            ui = None
+            from app.services.chat_ui import (
+                build_post_assessment_ui,
+                build_yes_no_ui,
+                infer_triage_quick_actions,
+            )
+
+            triage_ui, triage_patch = infer_triage_quick_actions(contextual, session)
+            if triage_ui:
+                ui = triage_ui
+                session.update(triage_patch)
+            elif "would you like to book an appointment" in contextual.lower():
+                ui = build_post_assessment_ui()
+                session["awaiting"] = "offer_booking"
+                session.setdefault("care_goal", "symptom_assessment")
+            elif "would you like me to show available doctors" in contextual.lower():
+                ui = build_yes_no_ui(
+                    yes_label="Yes, show doctors",
+                    yes_message="Yes",
+                    no_label="No thanks",
+                    no_message="No",
+                )
+                session["awaiting"] = "offer_booking"
+            elif "do you have any breathing" in contextual.lower():
+                ui = build_yes_no_ui()
+            elif "existing conditions" in contextual.lower() or "diabetes, asthma" in contextual.lower():
+                ui = build_yes_no_ui(no_label="No conditions", no_message="No")
+            agent = "symptom_assessment" if ui else "health_education"
             await set_flow(conv_id, {"session": session})
-            conversation.active_agent = "health_education"
-            return contextual, "health_education", False, None
+            conversation.active_agent = agent
+            return contextual, agent, False, ui
 
         if is_thanks_message(text) and (
             not is_active_care_flow(session) or session.get("triage_assessed")

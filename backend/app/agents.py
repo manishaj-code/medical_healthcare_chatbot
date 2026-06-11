@@ -281,7 +281,7 @@ def _symptoms_in_history(history: list[dict] | None) -> bool:
 
 
 def get_contextual_reply(user: str, history: list[dict] | None) -> str | None:
-    """Multi-turn triage follow-ups per doc1.txt conversation flow."""
+    """Offline/dev fallback for short triage replies — not used during structured symptom assessment."""
     text = user.lower().strip()
     last_bot = _last_assistant_message(history)
 
@@ -318,13 +318,13 @@ def get_contextual_reply(user: str, history: list[dict] | None) -> str | None:
         if DURATION_UNIT_ONLY.match(text):
             num = _pending_duration_number(history)
             if num:
-                return "Do you have any breathing difficulty or shortness of breath?"
+                return None
             return f"How many {text} have you had these symptoms?"
         if _has_duration(text):
-            return "Do you have any breathing difficulty or shortness of breath?"
+            return None
 
     if last_bot and "how long" in last_bot and _has_duration(text):
-        return "Do you have any breathing difficulty or shortness of breath?"
+        return None
 
     # Bare number (e.g. "2") → ask days / hours / months
     if last_bot and "how long" in last_bot and re.fullmatch(r"\d+", text):
@@ -358,9 +358,6 @@ def get_contextual_reply(user: str, history: list[dict] | None) -> str | None:
             "I didn't catch a specific condition. Do you have diabetes, asthma, hypertension, "
             "or any other chronic condition? You can say the name or reply 'no'."
         )
-
-    if _symptoms_in_history(history) and _has_duration(text):
-        return "Do you have any breathing difficulty or shortness of breath?"
 
     return None
 

@@ -11,27 +11,20 @@ from app.services.flow_state import get_flow
 from app.services.symptom_extraction import resolve_detected_symptoms
 from app.services.symptom_service import save_assessment
 
-SYMPTOM_KEYWORDS = ("fever", "cough", "pain", "headache", "nausea", "fatigue", "cold")
-
 
 def extract_triage_from_history(history: list[dict] | None) -> dict:
-    symptoms: list[str] = []
+    """Parse duration and chronic conditions from user messages only — never infer symptoms."""
     duration: str | None = None
     conditions: list[str] = []
-    breathing_issue = False
 
     if not history:
-        return {"symptoms": symptoms, "duration": duration, "conditions": conditions}
+        return {"symptoms": [], "duration": duration, "conditions": conditions}
 
     for h in history:
         if str(h.get("role")) != "user":
             continue
         content = h.get("content", "")
         text = content.lower()
-
-        for s in SYMPTOM_KEYWORDS:
-            if s in text and s not in symptoms:
-                symptoms.append(s)
 
         if DURATION_PATTERN.search(text) or re.search(r"\d+\s*days?", text):
             duration = content.strip()
@@ -44,23 +37,15 @@ def extract_triage_from_history(history: list[dict] | None) -> dict:
         if cond and cond not in conditions:
             conditions.append(cond)
 
-        if text in {"yes", "yeah", "yep"}:
-            idx = history.index(h)
-            for prev in reversed(history[:idx]):
-                if str(prev.get("role")) == "assistant" and "do you have any breathing" in prev.get("content", "").lower():
-                    breathing_issue = True
-                    break
-
-    if breathing_issue and "breathing difficulty" not in symptoms:
-        symptoms.append("breathing difficulty")
-
-    return {"symptoms": symptoms, "duration": duration, "conditions": conditions}
+    return {"symptoms": [], "duration": duration, "conditions": conditions}
 
 
 def _add_symptom(symptoms: list[str], seen: set[str], raw: str) -> None:
     label = raw.strip()
     key = label.lower()
     if not label or key in seen:
+        return
+    if key in {"general symptoms", "general discomfort", "unspecified symptoms"}:
         return
     seen.add(key)
     symptoms.append(label)
@@ -79,8 +64,6 @@ async def collect_triage_data(session: dict, history: list[dict] | None) -> dict
     for raw in session.get("detected_symptoms") or []:
         _add_symptom(symptoms, seen, str(raw))
     for raw in await resolve_detected_symptoms(session, history or []):
-        _add_symptom(symptoms, seen, raw)
-    for raw in hist_data["symptoms"]:
         _add_symptom(symptoms, seen, raw)
 
     duration = triage.get("duration") or hist_data["duration"]
@@ -139,13 +122,13 @@ async def persist_triage_for_patient(
     session = flow.get("session") or {}
     data = await collect_triage_data(session, history)
 
-    if not data["symptoms"] and not data["conditions"]:
+    if not data["symptoms"]:
         return None
 
     return await save_assessment(
         db,
         patient_id,
-        data["symptoms"] or ["general symptoms"],
+        data["symptoms"],
         duration=data["duration"],
         conditions=data["conditions"] or None,
         conversation_id=conv_id,
@@ -161,12 +144,12 @@ async def persist_triage_from_chat(
     flow = await get_flow(conversation_id)
     session = flow.get("session") or {}
     data = await collect_triage_data(session, history)
-    if not data["symptoms"] and not data["conditions"]:
+    if not data["symptoms"]:
         return
     await save_assessment(
         db,
         patient_id,
-        data["symptoms"] or ["general symptoms"],
+        data["symptoms"],
         duration=data["duration"],
         conditions=data["conditions"] or None,
         conversation_id=conversation_id,

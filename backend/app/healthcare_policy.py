@@ -7,6 +7,12 @@ OFF_TOPIC_REPLY = (
     "questions. Please ask a healthcare-related query."
 )
 
+MEDICAL_DISCLAIMER = (
+    "\n\n_I provide general health information only — not a diagnosis, prescription, "
+    "or emergency medical service. If you feel worse or are in danger, seek urgent care "
+    "or call your local emergency number._"
+)
+
 _ANONYMOUS_PATIENT_NAMES = frozenset({"guest", "anonymous", "visitor", "patient"})
 
 
@@ -101,7 +107,7 @@ def build_assessment_reply(
             f"\n\nIf you still feel unwell, a **{specialty}** can help. "
             "I can share more tips or help you book a visit."
         )
-    return f"{opener}{rec}{closing}"
+    return f"{opener}{rec}{closing}{MEDICAL_DISCLAIMER}"
 
 
 HEALTH_QA_PROMPT = """You are MedAssist AI — a safe, production-grade healthcare assistant.
@@ -228,6 +234,37 @@ def build_thanks_reply(patient_name: str = "there") -> str:
         "You're welcome! I'm glad I could help. "
         "Take care, and message me anytime if you need health guidance or want to book an appointment."
     )
+
+
+def should_use_legacy_contextual_reply(session: dict) -> bool:
+    """Structured triage uses quick-action UI; legacy text-only replies override that flow."""
+    if not session:
+        return True
+    if session.get("triage_assessed"):
+        return True
+    if session.get("care_goal") == "symptom_assessment":
+        return False
+    if session.get("detected_symptoms"):
+        return False
+    if session.get("active_specialist") == "triage_agent":
+        return False
+    triage = session.get("triage_collected")
+    if isinstance(triage, dict) and (triage.get("symptoms") or triage.get("questions_asked")):
+        return False
+    if session.get("awaiting") in {
+        "pick_symptom",
+        "pick_duration",
+        "pick_severity",
+        "more_symptoms",
+        "free_text_symptoms",
+        "symptom_image",
+        "post_assessment",
+        "offer_booking",
+    }:
+        return False
+    if is_active_care_flow(session) and not session.get("triage_assessed"):
+        return False
+    return True
 
 
 def is_active_care_flow(session: dict) -> bool:

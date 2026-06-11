@@ -1,5 +1,6 @@
 import { useMemo, useState } from "react";
 import { formatChatText } from "../ChatBookingUI";
+import { resolveDisplayText } from "../../utils/chatTokens";
 
 export interface DoctorChatMessage {
   role: string;
@@ -81,7 +82,8 @@ export default function DoctorChatHistory({ conversations, patientName, onBack }
           <p className="dp-chat-sessions-label">Sessions</p>
           {conversations.map((conv) => {
             const isActive = conv.conversation_id === active?.conversation_id;
-            const preview = conv.messages.find((m) => m.role === "user")?.content ?? "No messages";
+            const previewRaw = conv.messages.find((m) => m.role === "user")?.content ?? "No messages";
+            const preview = resolveDisplayText(previewRaw);
             return (
               <button
                 key={conv.conversation_id}
@@ -165,7 +167,9 @@ export default function DoctorChatHistory({ conversations, patientName, onBack }
                         {time && <time dateTime={m.created_at}>{time}</time>}
                       </div>
                       <div className={`dp-chat-bubble${isUser ? " dp-chat-bubble--patient" : " dp-chat-bubble--ai"}`}>
-                        <div className="dp-chat-bubble-text">{formatChatText(m.content)}</div>
+                        <div className="dp-chat-bubble-text">
+                          {formatChatText(isUser ? resolveDisplayText(m.content) : m.content)}
+                        </div>
                       </div>
                     </div>
                   </div>

@@ -175,7 +175,13 @@ def build_self_care_reply(
             "Watch your symptoms and note any changes.",
         ]
 
-    assessment = assess_symptoms(symptoms or ["general discomfort"], duration or None, conditions or None)
+    if not symptoms:
+        return (
+            "I'd like to give you relevant self-care tips. "
+            "Could you briefly describe what symptoms or concerns you're experiencing?"
+        )
+
+    assessment = assess_symptoms(symptoms, duration or None, conditions or None)
     risk = assessment["risk_level"]
     risk_val = risk.value if hasattr(risk, "value") else str(risk)
 
@@ -209,4 +215,6 @@ def build_self_care_reply(
         "\n\nI can share more tips or help you **book a visit**."
     )
 
-    return f"{intro}\n\n{body}{footer}{closing}"
+    from app.healthcare_policy import MEDICAL_DISCLAIMER
+
+    return f"{intro}\n\n{body}{footer}{closing}{MEDICAL_DISCLAIMER}"

@@ -7,6 +7,7 @@ import { CHAT_QUICK_ACTIONS, resolveDisplayText } from "../utils/chatTokens";
 import { ensureGuestSession, resetGuestSession } from "../utils/guestSession";
 import {
   finalizeChatMessages,
+  resolveChatUiSync,
   shouldHideBookingCardCaption,
   shouldShowInteractiveBookingUi,
 } from "../utils/chatUiHelpers";
@@ -113,7 +114,9 @@ export default function GuestChatWidget({ open, onOpenChange }: Props) {
           setMessages(
             finalizeChatMessages(
               data.messages.map((m) =>
-                m.role === "user" ? { ...m, content: resolveDisplayText(m.content) } : m
+                m.role === "user"
+                  ? { ...m, content: resolveDisplayText(m.content) }
+                  : { ...m, ui: resolveChatUiSync(m.ui, m.content) }
               )
             )
           );
@@ -234,7 +237,11 @@ export default function GuestChatWidget({ open, onOpenChange }: Props) {
         setMessages((m) =>
           finalizeChatMessages([
             ...m,
-            { role: "assistant", content: res.reply, ui: res.ui },
+            {
+              role: "assistant",
+              content: res.reply,
+              ui: resolveChatUiSync(res.ui, res.reply),
+            },
           ])
         );
         if (res.auth_complete) {
@@ -285,7 +292,11 @@ export default function GuestChatWidget({ open, onOpenChange }: Props) {
         setMessages((m) =>
           finalizeChatMessages([
             ...m,
-            { role: "assistant", content: res.reply, ui: res.ui },
+            {
+              role: "assistant",
+              content: res.reply,
+              ui: resolveChatUiSync(res.ui, res.reply),
+            },
           ])
         );
       } catch (err) {

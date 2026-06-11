@@ -275,6 +275,8 @@ def conversational_triage_turn(
             collected["more_symptoms_answered"] = True
             collected["ready_to_assess"] = True
 
+    if session.get("detected_symptoms"):
+        collected["symptoms"] = list(session["detected_symptoms"])
     symptoms = collected.get("symptoms") or session.get("detected_symptoms") or []
 
     if "yes, i have more" in tl or (tl == "yes" and session.get("awaiting") == "more_symptoms"):

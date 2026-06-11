@@ -26,7 +26,13 @@ def smtp_status() -> dict[str, str | bool]:
     }
 
 
-async def send_plain_email(to: str, subject: str, body: str) -> EmailSendResult:
+async def send_email(
+    to: str,
+    subject: str,
+    body: str,
+    *,
+    html_body: str | None = None,
+) -> EmailSendResult:
     settings = get_settings()
     if settings.smtp_host:
         import smtplib
@@ -37,6 +43,8 @@ async def send_plain_email(to: str, subject: str, body: str) -> EmailSendResult:
         msg["From"] = settings.smtp_from
         msg["To"] = to
         msg.set_content(body)
+        if html_body:
+            msg.add_alternative(html_body, subtype="html")
         with smtplib.SMTP(settings.smtp_host, settings.smtp_port) as server:
             server.starttls()
             if settings.smtp_user:
@@ -44,10 +52,15 @@ async def send_plain_email(to: str, subject: str, body: str) -> EmailSendResult:
             server.send_message(msg)
         return EmailSendResult(sent=True, mode="smtp")
 
+    log_body = body if not html_body else f"{body}\n\n[HTML template rendered for SMTP delivery]"
     logger.info(
         "Email to %s (SMTP not configured — dev mode)\nSubject: %s\n%s",
         to,
         subject,
-        body,
+        log_body,
     )
     return EmailSendResult(sent=False, mode="console")
+
+
+async def send_plain_email(to: str, subject: str, body: str) -> EmailSendResult:
+    return await send_email(to, subject, body)

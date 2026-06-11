@@ -84,7 +84,7 @@ def test_triage_unit_only_after_number():
         {"role": "assistant", "content": "Just to confirm: is that 2 days, 2 hours, or 2 months?"},
     ]
     reply = get_contextual_reply("days", history)
-    assert reply and "breathing" in reply.lower()
+    assert reply is None
 
 
 def test_triage_condition_typo_astama():
@@ -101,7 +101,7 @@ def test_triage_multiturn_duration():
         {"role": "assistant", "content": "How long have you had these symptoms?"},
     ]
     reply = get_contextual_reply("from 2 days", history)
-    assert reply and "breathing" in reply.lower()
+    assert reply is None
 
 
 def test_triage_multiturn_diabetes():
