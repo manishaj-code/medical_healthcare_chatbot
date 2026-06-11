@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { api, apiUpload, clearTokens } from "../../api/client";
 import { ChatBookingUI, ChatUiPayload, formatChatText } from "../../components/ChatBookingUI";
@@ -34,10 +34,19 @@ import {
   saveHistoryRecommendation,
 } from "../../utils/recommendedSpecialty";
 import { REPORT_UPLOAD_ACCEPT } from "../../utils/reportUpload";
+import { buildConsultationInsights } from "../../utils/consultationInsights";
 import {
   DetectedSymptom,
   toDetectedSymptoms,
 } from "../../utils/symptomDetection";
+
+interface LatestAssessment {
+  risk_level: string | null;
+  recommended_specialty: string | null;
+  recommendation_text: string | null;
+  symptoms: string[];
+  duration: string | null;
+}
 
 interface Message {
   id?: string;
@@ -175,53 +184,19 @@ function userInitials(name: string): string {
   return (parts[0]?.[0] ?? "P").toUpperCase();
 }
 
-function consultationInsights(messages: Message[], emergency: boolean, symptoms: DetectedSymptom[]) {
-  const userCount = messages.filter((m) => m.role === "user").length;
-
-  let percent = 30;
-  let phase = "Intake Phase";
-  if (userCount >= 1) {
-    percent = 45;
-    phase = "Analysis Phase";
-  }
-  if (userCount >= 2 || symptoms.length >= 1) {
-    percent = 65;
-    phase = "Analysis Phase";
-  }
-  if (userCount >= 3 || symptoms.length >= 2) {
-    percent = 80;
-    phase = "Correlation Phase";
-  }
-  if (messages.some((m) => m.ui)) percent = 95;
-
-  const steps = [
-    { label: "History Review", done: true },
-    { label: "Initial Inquiry", done: userCount >= 1 },
-    { label: "Symptom Correlation", done: userCount >= 2 || symptoms.length > 0 },
-  ];
-
-  const risk = emergency
-    ? {
-        level: "High",
-        title: "Urgent Attention",
-        note: "Seek immediate medical care or emergency services.",
-        quote: "Critical indicators detected. Do not delay professional evaluation.",
-      }
-    : symptoms.length >= 2
-      ? {
-          level: "Moderate",
-          title: "Monitor Closely",
-          note: "Multiple symptoms reported — follow up if symptoms persist.",
-          quote: "Patterns suggest further evaluation may be helpful. Continue monitoring and stay hydrated.",
-        }
-      : {
-          level: "Low",
-          title: "Stable Condition",
-          note: "No immediate urgent indicators.",
-          quote: "Symptoms may align with tension headache or early viral infection. Continue monitoring temperature.",
-        };
-
-  return { percent, phase, steps, symptoms, risk };
+function mergeSymptomLabels(detected: DetectedSymptom[], assessmentSymptoms: string[]): string[] {
+  const seen = new Set<string>();
+  const labels: string[] = [];
+  const add = (raw: string) => {
+    const label = raw.trim();
+    const key = label.toLowerCase();
+    if (!label || seen.has(key)) return;
+    seen.add(key);
+    labels.push(label);
+  };
+  for (const s of detected) add(s.label);
+  for (const s of assessmentSymptoms) add(s);
+  return labels;
 }
 
 function ConsultActionChips({
@@ -262,6 +237,7 @@ export default function PatientChat() {
   const [initError, setInitError] = useState("");
   const [initializing, setInitializing] = useState(true);
   const [detectedSymptoms, setDetectedSymptoms] = useState<DetectedSymptom[]>([]);
+  const [latestAssessment, setLatestAssessment] = useState<LatestAssessment | null>(null);
   const bottom = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const fileRef = useRef<HTMLInputElement>(null);
@@ -272,8 +248,29 @@ export default function PatientChat() {
   const lastSendRef = useRef<{ signature: string; at: number } | null>(null);
   const patientName = localStorage.getItem("user_name") || "Patient";
 
-  const insights = consultationInsights(messages, emergency, detectedSymptoms);
   const sidebarItems = buildChatSidebar(conversations);
+
+  const fetchLatestAssessment = useCallback(async () => {
+    try {
+      const data = await api<LatestAssessment | null>("/api/v1/symptoms/latest-assessment");
+      setLatestAssessment(data);
+    } catch {
+      setLatestAssessment(null);
+    }
+  }, []);
+
+  const insights = useMemo(
+    () =>
+      buildConsultationInsights(
+        messages,
+        emergency,
+        mergeSymptomLabels(detectedSymptoms, latestAssessment?.symptoms ?? []),
+        latestAssessment?.risk_level,
+        latestAssessment?.recommendation_text,
+        latestAssessment?.recommended_specialty,
+      ),
+    [messages, emergency, detectedSymptoms, latestAssessment],
+  );
 
   const fetchDetectedSymptoms = useCallback(async (convId: string) => {
     try {
@@ -314,7 +311,7 @@ export default function PatientChat() {
     const hydrated = await hydrateMessages(history);
     setMessages(hydrated);
     setEmergency(latestAssistantEmergency(hydrated));
-    await fetchDetectedSymptoms(convId);
+    await Promise.all([fetchDetectedSymptoms(convId), fetchLatestAssessment()]);
   };
 
   const loadConversationMessages = async (convId: string, _list: Conversation[]) => {
@@ -809,16 +806,37 @@ export default function PatientChat() {
             <span className="consult-risk-deco material-symbols-outlined">analytics</span>
             <h3>Risk Assessment</h3>
             <div className="consult-risk-row">
-              <div className={`consult-risk-ring ${emergency ? "urgent" : ""}`}>
-                <span>{insights.risk.level}</span>
+              <div
+                className={`consult-risk-ring consult-risk-ring--${insights.risk.variant} ${emergency ? "urgent" : ""}`}
+                aria-label={insights.risk.level}
+              >
+                <span>{insights.risk.ringLabel}</span>
               </div>
-              <div>
+              <div className="consult-risk-copy">
                 <p className="consult-risk-title">{insights.risk.title}</p>
                 <p className="consult-risk-note">{insights.risk.note}</p>
               </div>
             </div>
+            {(insights.suggestedSpecialty || latestAssessment?.duration) && (
+              <div className="consult-risk-meta">
+                {insights.suggestedSpecialty && (
+                  <p className="consult-suggested-specialty">
+                    <span className="material-symbols-outlined">medical_services</span>
+                    <span>
+                      Suggested follow-up: <strong>{insights.suggestedSpecialty}</strong>
+                    </span>
+                  </p>
+                )}
+                {latestAssessment?.duration && (
+                  <p className="consult-assessment-duration">
+                    Duration reported: <strong>{latestAssessment.duration}</strong>
+                  </p>
+                )}
+              </div>
+            )}
             <div className="consult-risk-quote">
-              <p>&ldquo;{insights.risk.quote}&rdquo;</p>
+              <p className="consult-risk-quote-label">Clinical recommendation</p>
+              <p className="consult-risk-quote-text">{insights.risk.quote}</p>
             </div>
           </div>
 

@@ -173,6 +173,60 @@ def assess_symptoms(
     }
 
 
+def enrich_assessment_fields(
+    symptoms: list[str],
+    duration: str | None,
+    conditions: list[str] | None,
+    risk_level: RiskLevel | str | None,
+    recommended_specialty: str | None,
+    recommendation_text: str | None,
+) -> dict:
+    """Fill missing triage fields from rule-based assessment (keeps portals in sync)."""
+    computed = assess_symptoms(symptoms, duration, conditions)
+    resolved_risk = risk_level or computed["risk_level"]
+    if isinstance(resolved_risk, str):
+        try:
+            resolved_risk = RiskLevel(resolved_risk.lower())
+        except ValueError:
+            resolved_risk = computed["risk_level"]
+    risk_value = resolved_risk.value if hasattr(resolved_risk, "value") else str(resolved_risk)
+    return {
+        "risk_level": risk_value,
+        "recommended_specialty": recommended_specialty or computed["recommended_specialty"],
+        "recommendation_text": recommendation_text or computed["recommendation_text"],
+    }
+
+
+def assessment_payload_from_row(assessment: SymptomAssessment) -> dict:
+    symptoms_data = assessment.symptoms_json or {}
+    symptoms = symptoms_data.get("symptoms", []) if isinstance(symptoms_data, dict) else []
+    if not isinstance(symptoms, list):
+        symptoms = []
+    conditions = symptoms_data.get("conditions", []) if isinstance(symptoms_data, dict) else []
+    if not isinstance(conditions, list):
+        conditions = []
+
+    enriched = enrich_assessment_fields(
+        symptoms,
+        assessment.duration,
+        conditions or None,
+        assessment.risk_level,
+        assessment.recommended_specialty,
+        assessment.recommendation_text,
+    )
+    return {
+        "id": str(assessment.id),
+        "conversation_id": str(assessment.conversation_id) if assessment.conversation_id else None,
+        "symptoms": symptoms,
+        "duration": assessment.duration,
+        "severity": assessment.severity,
+        "risk_level": enriched["risk_level"],
+        "recommended_specialty": enriched["recommended_specialty"],
+        "recommendation_text": enriched["recommendation_text"],
+        "completed_at": assessment.completed_at.isoformat() if assessment.completed_at else None,
+    }
+
+
 async def save_assessment(
     db: AsyncSession,
     patient_id: UUID,

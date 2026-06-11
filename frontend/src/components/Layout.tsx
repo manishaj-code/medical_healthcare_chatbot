@@ -1,6 +1,7 @@
 import { Link, Outlet, useLocation, useNavigate } from "react-router-dom";
 import { clearTokens } from "../api/client";
 import PatientLayout from "./PatientLayout";
+import DoctorLayout from "./doctor/DoctorLayout";
 
 export default function Layout() {
   const loc = useLocation();
@@ -11,8 +12,11 @@ export default function Layout() {
     return <PatientLayout />;
   }
 
+  if (role === "doctor") {
+    return <DoctorLayout />;
+  }
+
   const links: Record<string, { to: string; label: string }[]> = {
-    doctor: [{ to: "/doctor", label: "Dashboard" }],
     admin: [{ to: "/admin", label: "Admin Panel" }],
   };
 

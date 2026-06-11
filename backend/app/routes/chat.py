@@ -464,6 +464,18 @@ async def send_message(
     db.add(asst_msg)
     await db.flush()
 
+    try:
+        from app.services.triage_chat_service import persist_triage_from_chat
+
+        await persist_triage_from_chat(
+            db,
+            patient.id,
+            conversation_id,
+            history + [{"role": "assistant", "content": reply}],
+        )
+    except Exception:
+        pass
+
     return ResponseEnvelope(
         data=ChatReply(
             reply=reply,

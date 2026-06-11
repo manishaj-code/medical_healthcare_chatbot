@@ -19,7 +19,7 @@ from app.services.appointment_service import (
     schedule_reminder,
 )
 from app.services.doctor_service import get_availability, list_doctors_with_availability
-from app.services.summary_service import generate_summary
+from app.services.summary_service import prepare_appointment_summary
 from app.services.symptom_service import assess_symptoms, save_assessment
 
 
@@ -249,7 +249,7 @@ async def tool_book_slot(
     s = deserialize_slot(slot) if isinstance(slot.get("slot_date"), str) else slot
     appt = await book_appointment(db, patient.id, s["doctor_id"], s["slot_date"], s["slot_time"], user_id)
     try:
-        await generate_summary(db, appt.id)
+        await prepare_appointment_summary(db, appt.id, conversation_id)
     except Exception:
         pass
     return {

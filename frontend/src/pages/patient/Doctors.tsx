@@ -89,9 +89,15 @@ function toDateKey(year: number, month: number, day: number): string {
   return `${year}-${String(month + 1).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
 }
 
+function isSlotBookable(slotDate: string, slotTime: string): boolean {
+  const normalized = slotTime.length === 5 ? `${slotTime}:00` : slotTime;
+  const slot = new Date(`${slotDate}T${normalized}`);
+  return !Number.isNaN(slot.getTime()) && slot.getTime() >= Date.now();
+}
+
 function availabilityToSlots(rows: AvailabilityRow[], doctor: Doctor): Slot[] {
   return rows
-    .filter((r) => r.status === "available")
+    .filter((r) => r.status === "available" && isSlotBookable(r.date, r.time))
     .map((r) => ({
       doctor_id: doctor.id,
       doctor_name: doctor.name,

@@ -17,8 +17,12 @@ from app.models import (
     Patient,
     PatientSummary,
     Report,
+    SymptomAssessment,
     User,
 )
+from app.services.flow_state import get_flow
+from app.services.patient_context import load_patient_context
+from app.services.symptom_extraction import resolve_detected_symptoms
 from app.models import DoctorAvailability
 from app.models.enums import AppointmentStatus
 from app.schemas.common import ResponseEnvelope
@@ -214,6 +218,107 @@ async def patient_summary(
     )
     summary = result.scalar_one_or_none()
     return ResponseEnvelope(data={"summary": summary.summary_text if summary else "No summary yet"})
+
+
+@router.get("/patients/{patient_id}/consultation-summary")
+async def patient_consultation_summary(
+    patient_id: UUID, doctor: Doctor = Depends(get_doctor_profile), db: AsyncSession = Depends(get_db)
+):
+    if not await _verify_access(db, doctor.id, patient_id):
+        raise HTTPException(status_code=403, detail="Forbidden")
+
+    patient = await db.get(Patient, patient_id)
+    if not patient:
+        raise HTTPException(status_code=404, detail="Patient not found")
+
+    ctx = await load_patient_context(db, patient)
+
+    assessment_rows = await db.execute(
+        select(SymptomAssessment)
+        .where(SymptomAssessment.patient_id == patient_id)
+        .order_by(SymptomAssessment.completed_at.desc())
+        .limit(10)
+    )
+    from app.services.symptom_service import assessment_payload_from_row
+
+    assessments = [assessment_payload_from_row(a) for a in assessment_rows.scalars().all()]
+
+    conv_rows = await db.execute(
+        select(Conversation)
+        .where(Conversation.patient_id == patient_id)
+        .order_by(Conversation.created_at.desc())
+    )
+    conversations = conv_rows.scalars().all()
+
+    detected_symptoms: list[str] = []
+    seen_symptoms: set[str] = set()
+    consultation_history = []
+    emergency_flag = False
+    total_messages = 0
+
+    for conv in conversations:
+        emergency_flag = emergency_flag or bool(conv.emergency_flag)
+        msg_rows = await db.execute(
+            select(Message)
+            .where(Message.conversation_id == conv.id)
+            .order_by(Message.created_at, Message.id)
+        )
+        msgs = msg_rows.scalars().all()
+        total_messages += len(msgs)
+        history = [
+            {
+                "role": m.role.value if hasattr(m.role, "value") else str(m.role),
+                "content": m.content,
+            }
+            for m in msgs
+        ]
+        flow = await get_flow(conv.id)
+        session = flow.get("session") or {}
+        conv_symptoms = await resolve_detected_symptoms(session, history)
+        for s in conv_symptoms:
+            key = s.strip().lower()
+            if key and key not in seen_symptoms:
+                seen_symptoms.add(key)
+                detected_symptoms.append(s.strip())
+
+        preview = ""
+        for m in msgs:
+            role = m.role.value if hasattr(m.role, "value") else str(m.role)
+            if role == "user" and m.content:
+                preview = m.content.strip()[:160]
+                break
+        if not preview and msgs:
+            preview = (msgs[-1].content or "").strip()[:160]
+
+        consultation_history.append({
+            "conversation_id": str(conv.id),
+            "title": conv.title or "Health Chat",
+            "created_at": conv.created_at.isoformat() if conv.created_at else None,
+            "message_count": len(msgs),
+            "emergency_flag": conv.emergency_flag,
+            "detected_symptoms": conv_symptoms,
+            "preview": preview,
+        })
+
+    latest = assessments[0] if assessments else None
+    return ResponseEnvelope(
+        data={
+            "detected_symptoms": detected_symptoms,
+            "risk_level": latest.get("risk_level") if latest else None,
+            "recommended_specialty": latest.get("recommended_specialty") if latest else None,
+            "recommendation_text": latest.get("recommendation_text") if latest else None,
+            "duration": latest.get("duration") if latest else None,
+            "emergency_flag": emergency_flag,
+            "conversation_count": len(conversations),
+            "total_messages": total_messages,
+            "assessments": assessments,
+            "consultation_history": consultation_history,
+            "conditions": ctx.get("conditions") or [],
+            "medications": ctx.get("medications") or [],
+            "allergies": ctx.get("allergies") or [],
+            "memory_facts": ctx.get("memory_facts") or [],
+        }
+    )
 
 
 @router.get("/patients/{patient_id}/conversations")

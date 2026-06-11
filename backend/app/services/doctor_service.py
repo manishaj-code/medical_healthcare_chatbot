@@ -1,4 +1,4 @@
-from datetime import date, time, timedelta
+from datetime import date, datetime, time, timedelta
 from uuid import UUID
 
 from sqlalchemy import select
@@ -41,6 +41,14 @@ def _day_label(d: date) -> str:
     if d == today + timedelta(days=1):
         return "Tomorrow"
     return str(d)
+
+
+def _is_slot_past(slot_date: date, slot_time: time) -> bool:
+    return datetime.combine(slot_date, slot_time) < datetime.now()
+
+
+def _filter_bookable_slots(slot_date: date, slot_time: time) -> bool:
+    return not _is_slot_past(slot_date, slot_time)
 
 
 async def get_or_create_specialization(db: AsyncSession, name: str) -> Specialization:
@@ -128,6 +136,8 @@ async def _fetch_doctor_slots(
     )
     slots = []
     for s in rows.scalars().all():
+        if not _filter_bookable_slots(s.slot_date, s.slot_time):
+            continue
         slots.append({
             "doctor_id": str(doctor_id),
             "doctor_name": doctor_name,
@@ -211,4 +221,5 @@ async def get_availability(db: AsyncSession, doctor_id: UUID, from_date: date | 
     return [
         {"date": str(s.slot_date), "time": str(s.slot_time), "status": s.status}
         for s in result.scalars().all()
+        if _filter_bookable_slots(s.slot_date, s.slot_time)
     ]

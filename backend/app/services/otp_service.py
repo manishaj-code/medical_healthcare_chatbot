@@ -53,13 +53,20 @@ async def mark_otp_sent(email: str) -> None:
 
 
 async def send_otp_email(email: str, otp: str) -> None:
+    from app.services.email_templates import format_otp_display, render_otp_verification_email
+
     settings = get_settings()
-    subject = "Your MediAI verification code"
-    body = (
-        f"Your MediAI verification code is: {otp}\n\n"
-        f"This code expires in {OTP_TTL_SECONDS // 60} minutes.\n"
-        "If you did not request this, you can ignore this email."
+    expiry_minutes = OTP_TTL_SECONDS // 60
+    otp_display = format_otp_display(otp)
+    subject = "Verify Your Email | MedTrust Health"
+    plain_body = (
+        f"Your MedTrust Health verification code is: {otp_display}\n\n"
+        f"This code expires in {expiry_minutes} minutes.\n\n"
+        "For your protection, MedTrust Health (MediAI) will never ask for this code "
+        "over the phone, email, or chat.\n\n"
+        "If you did not request this, please secure your account immediately."
     )
+    html_body = render_otp_verification_email(otp, expiry_minutes)
 
     if settings.smtp_host:
         import smtplib
@@ -69,7 +76,8 @@ async def send_otp_email(email: str, otp: str) -> None:
         msg["Subject"] = subject
         msg["From"] = settings.smtp_from
         msg["To"] = email
-        msg.set_content(body)
+        msg.set_content(plain_body)
+        msg.add_alternative(html_body, subtype="html")
         with smtplib.SMTP(settings.smtp_host, settings.smtp_port) as server:
             server.starttls()
             if settings.smtp_user:

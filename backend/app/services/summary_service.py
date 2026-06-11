@@ -11,6 +11,23 @@ from app.models import (
     PatientSummary,
     SymptomAssessment,
 )
+from app.services.triage_chat_service import persist_triage_for_patient
+
+
+async def prepare_appointment_summary(
+    db: AsyncSession,
+    appointment_id: UUID,
+    conversation_id: UUID | None = None,
+) -> PatientSummary:
+    """Persist chat triage then generate the doctor-facing pre-visit summary."""
+    appt = await db.get(Appointment, appointment_id)
+    if not appt:
+        raise ValueError("Appointment not found")
+    try:
+        await persist_triage_for_patient(db, appt.patient_id, conversation_id)
+    except Exception:
+        pass
+    return await generate_summary(db, appointment_id)
 
 
 async def generate_summary(db: AsyncSession, appointment_id: UUID) -> PatientSummary:

@@ -327,6 +327,7 @@ function AppointmentPicker({
 
       <h3 className="appt-picker-title">Select Appointment</h3>
 
+      <div className="appt-calendar-panel">
       {/* Month navigation */}
       <div className="appt-cal-header">
         <span className="appt-cal-month">{MONTH_NAMES[calMonth]} {calYear}</span>
@@ -408,6 +409,7 @@ function AppointmentPicker({
           No slots in {MONTH_NAMES[calMonth]} — try next month ›
         </p>
       )}
+      </div>
 
       {/* Time slots */}
       <div className="appt-slots-section">
