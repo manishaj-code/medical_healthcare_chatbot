@@ -1,13 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { api } from "../../api/client";
-
-interface NotificationItem {
-  id: string;
-  type: string;
-  message: string;
-  sent_at: string | null;
-}
+import { NotificationItem, typeIcon, typeLabel } from "../../utils/notifications";
 
 interface RefillRequest {
   id: string;
@@ -18,22 +12,6 @@ interface RefillRequest {
   denial_reason: string | null;
   requested_at: string | null;
   reviewed_at: string | null;
-}
-
-function typeLabel(type: string): string {
-  if (type === "refill_approved") return "Refill approved";
-  if (type === "refill_denied") return "Refill denied";
-  if (type === "refill_request") return "Refill request";
-  if (type === "booking_confirmation") return "Appointment";
-  return "Update";
-}
-
-function typeIcon(type: string): string {
-  if (type === "refill_approved") return "check_circle";
-  if (type === "refill_denied") return "cancel";
-  if (type === "refill_request") return "medication";
-  if (type === "booking_confirmation") return "event";
-  return "notifications";
 }
 
 function statusClass(status: string): string {

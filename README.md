@@ -191,7 +191,10 @@ Copy `.env.example` to `.env`. Key settings:
 | `GEMINI_API_KEY` | One of Groq/Gemini | Google Gemini API key |
 | `LLM_PROVIDER` | No | `groq` or `gemini` (default: groq in Docker) |
 | `JWT_SECRET` | No | Change for production |
-| `EMAIL_PROVIDER` | No | Use `console` for local dev (OTP in API logs) |
+| `SMTP_HOST` | No | Leave empty for dev (OTP in API logs); use `sandbox.smtp.mailtrap.io` for Mailtrap Sandbox |
+| `SMTP_USER` / `SMTP_PASSWORD` | No | Sandbox: inbox credentials from Mailtrap; Live: user `api`, password = API token |
+| `SMTP_FROM` | No | Sender shown in test emails (sandbox); live sending requires a verified domain |
+| `DEV_OTP` | No | `true` shows OTP in chat/login UI; set `false` when using SMTP/Mailtrap (default) |
 
 Docker Compose reads `.env` from the project root for LLM keys. Database, Redis, and MinIO URLs are set inside `docker-compose.yml` for containers.
 
@@ -247,7 +250,7 @@ Do **not** push these to GitHub:
 | Port already in use | Stop other apps on 5173, 8000, 5433, 6379 |
 | AI chat errors | Verify `GROQ_API_KEY` or `GEMINI_API_KEY` in `.env`, restart API |
 | Login fails | Run `docker compose down -v` then `docker compose up --build` |
-| OTP not received | With `EMAIL_PROVIDER=console`, check `docker compose logs api` |
+| OTP not received | Check Mailtrap sandbox inbox; or set `DEV_OTP=true` to show codes in chat, or check `docker compose logs api` |
 | UI not updating | Hard refresh: `Ctrl+Shift+R` |
 
 ---

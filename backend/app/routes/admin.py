@@ -1,14 +1,23 @@
 from uuid import UUID
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.database import get_db, require_admin
+from app.database import get_db, get_settings, require_admin
 from app.models import Appointment, Conversation, SymptomAssessment, User
 from app.models.system import AuditLog
-from app.schemas.admin import DeleteAccountResponse, ResetDataRequest, ResetDataResponse
+from app.schemas.admin import (
+    DeleteAccountResponse,
+    EmailStatusResponse,
+    EmailTestRequest,
+    EmailTestResponse,
+    ResetDataRequest,
+    ResetDataResponse,
+)
 from app.schemas.common import ResponseEnvelope
+from app.services.email_service import smtp_status
+from app.services.otp_service import generate_otp, send_otp_email
 from app.services.admin_service import (
     delete_doctor_account,
     delete_patient_account,
@@ -82,6 +91,43 @@ async def audit_logs(db: AsyncSession = Depends(get_db), _=Depends(require_admin
             {"action": a.action, "status": a.status_code, "at": str(a.created_at)}
             for a in result.scalars().all()
         ]
+    )
+
+
+@router.get("/email/status", response_model=ResponseEnvelope[EmailStatusResponse])
+async def email_status(_=Depends(require_admin)):
+    status = smtp_status()
+    return ResponseEnvelope(
+        data=EmailStatusResponse(
+            smtp_configured=bool(status["smtp_configured"]),
+            smtp_host=str(status["smtp_host"]),
+            smtp_port=int(status["smtp_port"]),
+            smtp_from=str(status["smtp_from"]),
+        )
+    )
+
+
+@router.post("/email/test", response_model=ResponseEnvelope[EmailTestResponse])
+async def email_test(data: EmailTestRequest, _=Depends(require_admin)):
+    """Send a sample chat verification email using the same SMTP path as guest OTP."""
+    otp = generate_otp()
+    try:
+        result = await send_otp_email(data.email, otp)
+    except Exception as exc:
+        raise HTTPException(status_code=502, detail=f"SMTP send failed: {exc}") from exc
+
+    settings = get_settings()
+    if result.mode == "smtp":
+        message = f"Sample verification email sent to {data.email} via SMTP."
+    else:
+        message = f"SMTP not configured — sample OTP logged on the server for {data.email}."
+
+    return ResponseEnvelope(
+        data=EmailTestResponse(
+            message=message,
+            mode=result.mode,
+            dev_otp=otp if settings.dev_otp or result.mode == "console" else None,
+        )
     )
 
 

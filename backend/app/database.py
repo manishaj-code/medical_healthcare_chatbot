@@ -58,6 +58,7 @@ class Settings(BaseSettings):
     smtp_user: str = ""
     smtp_password: str = ""
     smtp_from: str = "noreply@mediai.com"
+    dev_otp: bool = False
 
     cors_origins: str = "http://localhost:5173,http://localhost:3000"
     guest_session_persist: bool = True

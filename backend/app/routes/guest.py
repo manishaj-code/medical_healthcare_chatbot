@@ -214,7 +214,7 @@ async def send_otp(data: SendOtpRequest, db: AsyncSession = Depends(get_db)):
     settings = get_settings()
     payload = SendOtpResponse(
         message=f"Verification code sent to {data.email}.",
-        dev_otp=otp if settings.is_dev else None,
+        dev_otp=otp if settings.dev_otp else None,
     )
     return ResponseEnvelope(data=payload)
 

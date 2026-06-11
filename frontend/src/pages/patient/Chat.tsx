@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
+import NotificationDropdown from "../../components/NotificationDropdown";
 import { api, apiUpload, clearTokens } from "../../api/client";
 import { ChatBookingUI, ChatUiPayload, formatChatText } from "../../components/ChatBookingUI";
 import ChatFileAttachment, {
@@ -590,9 +591,7 @@ export default function PatientChat() {
           )}
         </div>
         <div className="consult-topbar-right">
-          <Link to="/notifications" className="consult-topbar-notify" title="Notifications">
-            <span className="material-symbols-outlined">notifications</span>
-          </Link>
+          <NotificationDropdown variant="icon" />
           <div className="consult-topbar-user">
             <span className="consult-topbar-user-name">{patientName}</span>
             <div className="consult-topbar-avatar">{userInitials(patientName)}</div>

@@ -52,6 +52,7 @@ services:
       REDIS_URL: redis://redis:6379/0
       JWT_SECRET: dev-secret-change-in-production-64chars-minimum!!
       APP_ENV: development
+      DEV_OTP: ${DEV_OTP:-false}
       LLM_PROVIDER: ${LLM_PROVIDER:-groq}
       GEMINI_API_KEY: ${GEMINI_API_KEY:-}
       GEMINI_MODEL: ${GEMINI_MODEL:-gemini-2.0-flash}
@@ -61,6 +62,11 @@ services:
       GUEST_SESSION_PERSIST: ${GUEST_SESSION_PERSIST:-true}
       SQL_ECHO: ${SQL_ECHO:-false}
       S3_ENDPOINT: http://minio:9000
+      SMTP_HOST: ${SMTP_HOST:-}
+      SMTP_PORT: ${SMTP_PORT:-587}
+      SMTP_USER: ${SMTP_USER:-}
+      SMTP_PASSWORD: ${SMTP_PASSWORD:-}
+      SMTP_FROM: ${SMTP_FROM:-noreply@mediai.com}
       WATCHFILES_FORCE_POLLING: "true"
     volumes:
       - ./backend:/app

@@ -380,7 +380,7 @@ async def _handle_guest_email(
         f"Enter the code here to {action}."
     )
     extra: dict[str, Any] = {"awaiting_input": "otp"}
-    if settings.is_dev:
+    if settings.dev_otp:
         extra["dev_otp"] = otp
 
     return await _append_and_save(session_id, data, session, history, text, reply, extra=extra)
