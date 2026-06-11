@@ -15,6 +15,7 @@ import {
   patientInitials,
   todayIso,
 } from "../../utils/doctorPortal";
+import type { HealthVital } from "../../utils/healthVitals";
 
 type PatientTab = "summary" | "chats" | "appointments";
 
@@ -61,6 +62,7 @@ export default function PatientDetail() {
   const [detail, setDetail] = useState<PatientDetailData | null>(null);
   const [conversations, setConversations] = useState<PatientConversation[]>([]);
   const [reports, setReports] = useState<ReportRow[]>([]);
+  const [healthVitals, setHealthVitals] = useState<HealthVital[]>([]);
   const [consultSummary, setConsultSummary] = useState<ConsultationSummaryData | null>(null);
   const [loading, setLoading] = useState(true);
   const viewRef = useRef<HTMLDivElement>(null);
@@ -82,12 +84,16 @@ export default function PatientDetail() {
       api<PatientConversation[]>(`/api/v1/doctor/patients/${patientId}/conversations`),
       api<ReportRow[]>(`/api/v1/doctor/patients/${patientId}/reports`).catch(() => []),
       api<ConsultationSummaryData>(`/api/v1/doctor/patients/${patientId}/consultation-summary`).catch(() => null),
+      api<{ vitals: HealthVital[] }>(`/api/v1/doctor/patients/${patientId}/health-vitals`).catch(() => ({
+        vitals: [],
+      })),
     ])
-      .then(([d, chats, reps, consult]) => {
+      .then(([d, chats, reps, consult, vitalsRes]) => {
         setDetail(d);
         setConversations(chats);
         setReports(reps);
         setConsultSummary(consult);
+        setHealthVitals(vitalsRes.vitals ?? []);
       })
       .catch((err) => {
         console.error(err);
@@ -239,33 +245,34 @@ export default function PatientDetail() {
                 </div>
               )}
 
-              <div className="dp-glass">
-                <div className="dp-panel-head">
-                  <h2 className="dp-panel-title">Vitals History</h2>
-                  <span className="dp-link dp-link--muted">From latest reports</span>
+              {healthVitals.length > 0 && (
+                <div className="dp-glass">
+                  <div className="dp-panel-head">
+                    <h2 className="dp-panel-title">Vitals History</h2>
+                    <span className="dp-link dp-link--muted">From latest reports</span>
+                  </div>
+                  <div className="dp-vitals-grid">
+                    {healthVitals.map((vital) => (
+                      <div key={vital.key} className="dp-vital-card">
+                        <p className="dp-vital-label">{vital.label}</p>
+                        <p className="dp-vital-value">
+                          {vital.value_secondary ? (
+                            <>
+                              {vital.value}/{vital.value_secondary}
+                            </>
+                          ) : (
+                            vital.display
+                          )}{" "}
+                          <span className="dp-vital-unit">{vital.unit}</span>
+                        </p>
+                        {vital.source_filename && (
+                          <p className="dp-vital-source">{vital.source_filename}</p>
+                        )}
+                      </div>
+                    ))}
+                  </div>
                 </div>
-                <div className="dp-vitals-grid">
-                  <div className="dp-vital-card">
-                    <p className="dp-vital-label">Blood Pressure</p>
-                    <p className="dp-vital-value">
-                      128/82 <span className="dp-vital-unit">mmHg</span>
-                    </p>
-                  </div>
-                  <div className="dp-vital-card">
-                    <p className="dp-vital-label">Heart Rate</p>
-                    <p className="dp-vital-value">
-                      72 <span className="dp-vital-unit">BPM</span>
-                    </p>
-                  </div>
-                  <div className="dp-vital-card">
-                    <p className="dp-vital-label">Oxygen Sat.</p>
-                    <p className="dp-vital-value">
-                      98 <span className="dp-vital-unit">%</span>
-                    </p>
-                  </div>
-                </div>
-                <p className="dp-muted-note">Demo vitals shown when live device data is unavailable.</p>
-              </div>
+              )}
 
               {reports.length > 0 && (
                 <div className="dp-glass">

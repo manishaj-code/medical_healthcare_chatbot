@@ -33,6 +33,7 @@ from app.services.refill_service import (
     list_notifications_for_user,
     list_refills_for_doctor,
 )
+from app.services.vitals_service import extract_health_vitals_from_reports
 
 router = APIRouter(prefix="/doctor", tags=["doctor-portal"])
 
@@ -364,6 +365,20 @@ async def patient_reports(
         raise HTTPException(status_code=403)
     result = await db.execute(select(Report).where(Report.patient_id == patient_id))
     return ResponseEnvelope(data=[{"id": str(r.id), "analysis": r.analysis_json} for r in result.scalars().all()])
+
+
+@router.get("/patients/{patient_id}/health-vitals")
+async def patient_health_vitals(
+    patient_id: UUID, doctor: Doctor = Depends(get_doctor_profile), db: AsyncSession = Depends(get_db)
+):
+    if not await _verify_access(db, doctor.id, patient_id):
+        raise HTTPException(status_code=403)
+    result = await db.execute(
+        select(Report).where(Report.patient_id == patient_id).order_by(Report.created_at.desc())
+    )
+    reports = list(result.scalars().all())
+    vitals = extract_health_vitals_from_reports(reports)
+    return ResponseEnvelope(data={"vitals": vitals, "has_data": len(vitals) > 0})
 
 
 @router.post("/patients/{patient_id}/soap-notes")

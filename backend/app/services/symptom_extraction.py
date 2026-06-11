@@ -38,9 +38,15 @@ _REPORT_OR_ACTION_RE = re.compile(
 )
 
 _HAVE_COMPLAINT_RE = re.compile(
-    r"(?:i have|i'?ve had|i am having|i'?m having|feeling|suffering from|experiencing|"
+    r"(?:i have|i'?ve had|i am having|i'?m having|had|feeling|suffering from|experiencing|"
     r"dealing with|bothered by)\s+(?:a\s+|an\s+|some\s+)?(.+)",
     re.I,
+)
+
+_AND_HAD_RE = re.compile(r"\band\s+had\s+(.+)", re.I)
+
+_GENERIC_STANDALONE_SYMPTOMS = frozenset(
+    {"pain", "ache", "aches", "discomfort", "hurt", "hurting", "soreness", "sore"}
 )
 
 _SKIP_EXACT = frozenset(
@@ -82,6 +88,7 @@ Rules:
 - Do not invent symptoms the patient did not mention
 - Keep each label under 8 words
 - Do not duplicate items already in PRIOR SYMPTOMS
+- Do not add generic parent terms when a specific symptom is already listed (e.g. use "Leg pain" only, not also "Pain")
 
 PRIOR SYMPTOMS: {prior}
 PATIENT MESSAGE: {message}
@@ -101,6 +108,7 @@ Rules:
 - Exclude greetings, booking intents, and non-health messages
 - Do not invent symptoms
 - Keep each label under 8 words
+- Do not add generic parent terms when a specific symptom is already listed (e.g. "Leg pain" only, not also "Pain")
 
 PATIENT MESSAGES:
 {messages}
@@ -170,6 +178,24 @@ def is_non_symptom_message(text: str) -> bool:
     return False
 
 
+def _collapse_redundant_symptoms(labels: list[str]) -> list[str]:
+    """Drop generic labels like 'Pain' when 'Leg Pain' is already present."""
+    if len(labels) <= 1:
+        return labels
+
+    normalized = [label.lower().strip() for label in labels]
+    kept: list[str] = []
+    for index, label in enumerate(labels):
+        key = normalized[index]
+        if key in _GENERIC_STANDALONE_SYMPTOMS and any(
+            other_index != index and re.search(rf"\b{re.escape(key)}\b", normalized[other_index])
+            for other_index in range(len(labels))
+        ):
+            continue
+        kept.append(label)
+    return kept
+
+
 def merge_symptom_lists(prior: list[str] | None, new_items: list[str]) -> list[str]:
     merged: list[str] = []
     seen: set[str] = set()
@@ -182,7 +208,7 @@ def merge_symptom_lists(prior: list[str] | None, new_items: list[str]) -> list[s
             continue
         seen.add(key)
         merged.append(label)
-    return merged
+    return _collapse_redundant_symptoms(merged)
 
 def looks_like_health_complaint(text: str) -> bool:
     if is_non_symptom_message(text):
@@ -209,8 +235,10 @@ def extract_symptoms_offline(text: str, prior: list[str] | None = None) -> list[
     if is_non_symptom_message(text):
         return list(prior or [])
 
-    match = _HAVE_COMPLAINT_RE.search(text)
-    if match:
+    for pattern in (_AND_HAD_RE, _HAVE_COMPLAINT_RE):
+        match = pattern.search(text)
+        if not match:
+            continue
         labels = _split_complaint_phrases(match.group(1))
         if labels:
             return merge_symptom_lists(prior, labels)

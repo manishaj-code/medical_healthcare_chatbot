@@ -19,10 +19,37 @@ export function iconForSymptom(label: string): string {
   return "healing";
 }
 
+const GENERIC_STANDALONE_SYMPTOMS = new Set([
+  "pain",
+  "ache",
+  "aches",
+  "discomfort",
+  "hurt",
+  "hurting",
+  "soreness",
+  "sore",
+]);
+
+/** Drop generic labels like "pain" when "Leg Pain" is already listed. */
+export function collapseRedundantSymptomLabels(labels: string[]): string[] {
+  const cleaned = labels.map((raw) => raw.trim()).filter(Boolean);
+  if (cleaned.length <= 1) return cleaned;
+
+  const normalized = cleaned.map((label) => label.toLowerCase());
+  return cleaned.filter((label, index) => {
+    const key = normalized[index];
+    if (!GENERIC_STANDALONE_SYMPTOMS.has(key)) return true;
+    return !normalized.some(
+      (other, otherIndex) =>
+        otherIndex !== index && new RegExp(`\\b${key.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\b`, "i").test(other),
+    );
+  });
+}
+
 export function toDetectedSymptoms(labels: string[]): DetectedSymptom[] {
   const seen = new Set<string>();
   const found: DetectedSymptom[] = [];
-  for (const raw of labels) {
+  for (const raw of collapseRedundantSymptomLabels(labels)) {
     const label = raw.trim();
     if (!label) continue;
     const key = label.toLowerCase();
