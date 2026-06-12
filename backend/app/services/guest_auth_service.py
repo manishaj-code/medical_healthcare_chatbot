@@ -27,11 +27,9 @@ from app.services.guest_session_store import migrate_guest_session, save_guest_s
 from app.utils.email import normalize_email
 from app.services.otp_service import (
     can_send_otp,
-    generate_otp,
-    mark_otp_sent,
-    send_otp_email,
-    store_otp,
-    verify_otp,
+    check_otp,
+    issue_otp,
+    otp_bypass_enabled,
 )
 
 _EMAIL_RE = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
@@ -244,7 +242,7 @@ async def process_guest_auth_turn(
                 extra={"awaiting_input": "otp"},
             )
 
-        if not await verify_otp(email, text.strip()):
+        if not await check_otp(email, text.strip()):
             return await _append_and_save(
                 session_id,
                 data,
@@ -271,6 +269,12 @@ async def process_guest_auth_turn(
                 extra={"awaiting_input": "email"},
             )
 
+        session["guest_email"] = email
+
+        if otp_bypass_enabled():
+            user = await _get_or_create_patient(db, email)
+            return await _complete_guest_verification(db, session_id, session, history, data, user, text)
+
         if not await can_send_otp(email):
             return await _append_and_save(
                 session_id,
@@ -282,12 +286,7 @@ async def process_guest_auth_turn(
                 extra={"awaiting_input": "email"},
             )
 
-        otp = generate_otp()
-        await store_otp(email, otp)
-        await mark_otp_sent(email)
-        await send_otp_email(email, otp)
-
-        session["guest_email"] = email
+        otp = await issue_otp(email)
         session["awaiting"] = "guest_otp"
         settings = get_settings()
         reply = (

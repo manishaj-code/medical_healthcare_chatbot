@@ -1,6 +1,7 @@
 import random
 import string
 
+from app.database import get_settings
 from app.services.cache import get_redis
 from app.services.email_service import EmailSendResult, send_email
 from app.services.email_templates import render_otp_verification_email
@@ -18,6 +19,33 @@ def _normalize_email(email: str) -> str:
 
 def generate_otp() -> str:
     return "".join(random.choices(string.digits, k=6))
+
+
+def otp_bypass_enabled() -> bool:
+    return get_settings().bypass_otp
+
+
+def fixed_otp_code() -> str:
+    code = (get_settings().bypass_otp_code or "").strip()
+    return code if len(code) == 6 and code.isdigit() else "123456"
+
+
+async def issue_otp(email: str) -> str:
+    """Create OTP for email; skip SMTP when BYPASS_OTP is enabled."""
+    otp = fixed_otp_code() if otp_bypass_enabled() else generate_otp()
+    await store_otp(email, otp)
+    await mark_otp_sent(email)
+    if not otp_bypass_enabled():
+        await send_otp_email(email, otp)
+    return otp
+
+
+async def check_otp(email: str, otp: str) -> bool:
+    """Verify OTP from Redis, or accept the fixed bypass code when enabled."""
+    submitted = otp.strip()
+    if otp_bypass_enabled() and submitted == fixed_otp_code():
+        return True
+    return await verify_otp(email, submitted)
 
 
 async def store_otp(email: str, otp: str) -> None:

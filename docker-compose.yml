@@ -53,6 +53,8 @@ services:
       JWT_SECRET: dev-secret-change-in-production-64chars-minimum!!
       APP_ENV: development
       DEV_OTP: ${DEV_OTP:-false}
+      BYPASS_OTP: ${BYPASS_OTP:-false}
+      BYPASS_OTP_CODE: ${BYPASS_OTP_CODE:-123456}
       LLM_PROVIDER: ${LLM_PROVIDER:-groq}
       GEMINI_API_KEY: ${GEMINI_API_KEY:-}
       GEMINI_MODEL: ${GEMINI_MODEL:-gemini-2.0-flash}

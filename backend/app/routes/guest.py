@@ -30,11 +30,9 @@ from app.services.chat_orchestrator import load_patient_resume_context
 from app.services.guest_session_store import create_guest_session, migrate_guest_session
 from app.services.otp_service import (
     can_send_otp,
-    generate_otp,
-    mark_otp_sent,
-    send_otp_email,
-    store_otp,
-    verify_otp,
+    check_otp,
+    issue_otp,
+    otp_bypass_enabled,
 )
 router = APIRouter(prefix="/guest", tags=["guest"])
 
@@ -95,6 +93,7 @@ class SendOtpRequest(BaseModel):
 class SendOtpResponse(BaseModel):
     message: str
     dev_otp: str | None = None
+    bypass_otp: bool = False
 
 
 class VerifyOtpRequest(BaseModel):
@@ -203,25 +202,27 @@ async def send_otp(data: SendOtpRequest, db: AsyncSession = Depends(get_db)):
     if existing.scalar_one_or_none():
         raise HTTPException(status_code=400, detail=EMAIL_ALREADY_EXISTS)
 
-    if not await can_send_otp(data.email):
+    if not otp_bypass_enabled() and not await can_send_otp(data.email):
         raise HTTPException(status_code=429, detail="Please wait a minute before requesting another code.")
 
-    otp = generate_otp()
-    await store_otp(data.email, otp)
-    await mark_otp_sent(data.email)
-    await send_otp_email(data.email, otp)
-
+    otp = await issue_otp(data.email)
     settings = get_settings()
+    bypass = otp_bypass_enabled()
     payload = SendOtpResponse(
-        message=f"Verification code sent to {data.email}.",
-        dev_otp=otp if settings.dev_otp else None,
+        message=(
+            f"Email accepted for {data.email}. Continuing to Patient Portal."
+            if bypass
+            else f"Verification code sent to {data.email}."
+        ),
+        dev_otp=otp if settings.dev_otp or bypass else None,
+        bypass_otp=bypass,
     )
     return ResponseEnvelope(data=payload)
 
 
 @router.post("/auth/verify-otp", response_model=ResponseEnvelope[VerifyOtpResponse])
 async def verify_otp_and_register(data: VerifyOtpRequest, db: AsyncSession = Depends(get_db)):
-    if not await verify_otp(data.email, data.otp):
+    if not await check_otp(data.email, data.otp):
         raise HTTPException(status_code=400, detail="Invalid or expired verification code.")
 
     result = await db.execute(select(User).where(User.email == data.email))

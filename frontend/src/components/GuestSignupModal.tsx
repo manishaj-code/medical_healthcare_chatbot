@@ -31,12 +31,51 @@ export default function GuestSignupModal({ open, sessionId, reason, onClose }: P
     setLoading(true);
     try {
       const normalizedEmail = normalizeEmail(email);
-      const res = await api<{ message: string; dev_otp?: string }>("/api/v1/guest/auth/send-otp", {
-        method: "POST",
-        body: JSON.stringify({ email: normalizedEmail, name, session_id: sessionId }),
-      });
+      const res = await api<{ message: string; dev_otp?: string; bypass_otp?: boolean }>(
+        "/api/v1/guest/auth/send-otp",
+        {
+          method: "POST",
+          body: JSON.stringify({ email: normalizedEmail, name, session_id: sessionId }),
+        }
+      );
       setEmail(normalizedEmail);
       if (res.dev_otp) setDevOtp(res.dev_otp);
+      if (res.bypass_otp) {
+        setOtp(res.dev_otp || "123456");
+        const verifyRes = await api<{
+          access_token: string;
+          refresh_token: string;
+          user: { name: string; role: string };
+          conversation_id?: string | null;
+          pending_auth_action?: string | null;
+        }>("/api/v1/guest/auth/verify-otp", {
+          method: "POST",
+          body: JSON.stringify({
+            email: normalizedEmail,
+            otp: res.dev_otp || "123456",
+            name,
+            session_id: sessionId,
+          }),
+        });
+        setTokens(verifyRes.access_token, verifyRes.refresh_token);
+        localStorage.setItem("user_role", verifyRes.user.role);
+        localStorage.setItem("user_name", verifyRes.user.name);
+        localStorage.removeItem("guest_session_id");
+        if (verifyRes.conversation_id) {
+          sessionStorage.setItem("post_signup_conversation_id", verifyRes.conversation_id);
+        }
+        if (verifyRes.pending_auth_action) {
+          sessionStorage.setItem("post_signup_pending_action", verifyRes.pending_auth_action);
+        }
+        onClose();
+        nav("/chat", {
+          replace: true,
+          state: verifyRes.conversation_id
+            ? { conversationId: verifyRes.conversation_id, fromGuestBooking: true }
+            : undefined,
+        });
+        return;
+      }
       setStep("otp");
     } catch (err: unknown) {
       const errMsg = err instanceof Error ? err.message : "Could not send code";
