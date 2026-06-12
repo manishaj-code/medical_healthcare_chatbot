@@ -8,6 +8,7 @@ from app.database import hash_password
 from app.models import (
     Allergy,
     Appointment,
+    AppointmentReminder,
     Conversation,
     ConversationMemory,
     Doctor,
@@ -149,8 +150,15 @@ async def delete_doctor_account(db: AsyncSession, doctor_id: UUID) -> dict:
     if not user or user.role != UserRole.doctor.value:
         raise HTTPException(status_code=400, detail="Account is not a doctor")
 
-    await db.execute(delete(Appointment).where(Appointment.doctor_id == doctor_id))
+    appt_ids = (
+        await db.execute(select(Appointment.id).where(Appointment.doctor_id == doctor_id))
+    ).scalars().all()
+    if appt_ids:
+        await db.execute(delete(AppointmentReminder).where(AppointmentReminder.appointment_id.in_(appt_ids)))
+        await db.execute(delete(PatientSummary).where(PatientSummary.appointment_id.in_(appt_ids)))
+        await db.execute(delete(DoctorNote).where(DoctorNote.appointment_id.in_(appt_ids)))
     await db.execute(delete(DoctorNote).where(DoctorNote.doctor_id == doctor_id))
+    await db.execute(delete(Appointment).where(Appointment.doctor_id == doctor_id))
     await db.execute(delete(DoctorAvailability).where(DoctorAvailability.doctor_id == doctor_id))
     await db.execute(delete(DoctorSpecialization).where(DoctorSpecialization.doctor_id == doctor_id))
     await db.delete(doctor)
