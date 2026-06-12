@@ -25,6 +25,14 @@ class DeleteAccountResponse(BaseModel):
     email: str
 
 
+class ClearDoctorAppointmentsResponse(BaseModel):
+    doctor_id: str
+    doctor_email: str
+    deleted_appointments: int
+    slots_freed: int
+    message: str
+
+
 class EmailTestRequest(BaseModel):
     email: EmailStr
 

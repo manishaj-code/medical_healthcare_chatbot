@@ -105,6 +105,31 @@ export default function AdminPanel() {
     }
   };
 
+  const clearDoctorAppointments = async (row: DoctorRow) => {
+    if (
+      !window.confirm(
+        `Delete all ${row.appointments_count} appointment(s) for ${row.name}? Booked time slots will be marked available again for new bookings.`
+      )
+    ) {
+      return;
+    }
+    setActionLoading(true);
+    setMessage("");
+    setError("");
+    try {
+      const res = await api<{ message: string; deleted_appointments: number; slots_freed: number }>(
+        `/api/v1/admin/doctors/${row.id}/appointments`,
+        { method: "DELETE" }
+      );
+      setMessage(res.message);
+      await load();
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : "Could not clear doctor appointments");
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
   const deleteDoctor = async (row: DoctorRow) => {
     if (!window.confirm(`Delete doctor ${row.name} (${row.email}) and their availability?`)) return;
     setActionLoading(true);
@@ -148,7 +173,7 @@ export default function AdminPanel() {
   const resetData = async (mode: "keep_doctors" | "all_data") => {
     const label =
       mode === "keep_doctors"
-        ? "Clear ALL patient records (chats, reports, appointments) and remove patient accounts, but KEEP the doctor catalog?"
+        ? "Clear ALL patient records (chats, reports, appointments) and remove patient accounts, but KEEP doctors and admin accounts?"
         : "Clear ALL patients AND doctors, then re-seed the default doctor catalog? Admin accounts are kept.";
     if (!window.confirm(label)) return;
     if (!window.confirm("This cannot be undone. Continue?")) return;
@@ -257,7 +282,10 @@ export default function AdminPanel() {
       {!loading && tab === "doctors" && (
         <div className="card admin-card">
           <h3>Doctor accounts</h3>
-          <p className="admin-card-hint">Delete removes the doctor account, availability slots, and linked appointments.</p>
+          <p className="admin-card-hint">
+            Clear appointments removes all bookings for a doctor and frees those slots for new patients.
+            Delete removes the doctor account, availability slots, and linked appointments.
+          </p>
           {doctors.length === 0 ? (
             <p className="muted-text">No doctor accounts.</p>
           ) : (
@@ -281,7 +309,15 @@ export default function AdminPanel() {
                       <td>{row.specialty || "—"}</td>
                       <td>{row.rating.toFixed(1)}</td>
                       <td>{row.appointments_count}</td>
-                      <td>
+                      <td className="admin-actions-cell">
+                        <button
+                          type="button"
+                          className="admin-warning-btn"
+                          disabled={actionLoading || row.appointments_count === 0}
+                          onClick={() => void clearDoctorAppointments(row)}
+                        >
+                          Clear appointments
+                        </button>
                         <button
                           type="button"
                           className="admin-danger-btn"
@@ -343,7 +379,7 @@ export default function AdminPanel() {
             <h3>Truncate patient data (keep doctors)</h3>
             <p>
               Removes all patients and operational records: consultations, reports, appointments,
-              medical history, tokens, and audit logs. The seeded doctor catalog stays intact.
+              medical history, tokens, and audit logs. Doctor and admin accounts stay intact.
             </p>
             <button
               type="button"

@@ -8,6 +8,7 @@ from app.database import get_db, get_settings, require_admin
 from app.models import Appointment, Conversation, SymptomAssessment, User
 from app.models.system import AuditLog
 from app.schemas.admin import (
+    ClearDoctorAppointmentsResponse,
     DeleteAccountResponse,
     EmailStatusResponse,
     EmailTestRequest,
@@ -19,6 +20,7 @@ from app.schemas.common import ResponseEnvelope
 from app.services.email_service import smtp_status
 from app.services.otp_service import generate_otp, send_otp_email
 from app.services.admin_service import (
+    clear_doctor_appointments,
     delete_doctor_account,
     delete_patient_account,
     list_doctors_admin,
@@ -53,6 +55,25 @@ async def remove_patient(patient_id: UUID, db: AsyncSession = Depends(get_db), _
     result = await delete_patient_account(db, patient_id)
     await db.commit()
     return ResponseEnvelope(data=DeleteAccountResponse(**result))
+
+
+@router.delete("/doctors/{doctor_id}/appointments", response_model=ResponseEnvelope[ClearDoctorAppointmentsResponse])
+async def remove_doctor_appointments(
+    doctor_id: UUID,
+    db: AsyncSession = Depends(get_db),
+    _=Depends(require_admin),
+):
+    result = await clear_doctor_appointments(db, doctor_id)
+    await db.commit()
+    deleted = result["deleted_appointments"]
+    freed = result["slots_freed"]
+    message = (
+        f"Removed {deleted} appointment(s) for {result['doctor_email']}. "
+        f"{freed} slot(s) marked available for booking."
+        if deleted
+        else f"No appointments to remove for {result['doctor_email']}."
+    )
+    return ResponseEnvelope(data=ClearDoctorAppointmentsResponse(**result, message=message))
 
 
 @router.delete("/doctors/{doctor_id}", response_model=ResponseEnvelope[DeleteAccountResponse])

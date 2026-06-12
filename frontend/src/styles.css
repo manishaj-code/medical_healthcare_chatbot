@@ -3261,6 +3261,25 @@ th { font-weight: 600; background: #f8f9fa; }
 .admin-card h3 { margin-bottom: 0.5rem; }
 .admin-card-hint { color: var(--muted); font-size: 0.88rem; margin-bottom: 1rem; }
 .admin-table-wrap { overflow-x: auto; }
+.admin-actions-cell {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.45rem;
+}
+
+.admin-warning-btn {
+  border: 1px solid #d4a017;
+  background: #fff8e6;
+  color: #8a6400;
+  border-radius: 8px;
+  padding: 0.35rem 0.65rem;
+  font-size: 0.82rem;
+  cursor: pointer;
+}
+
+.admin-warning-btn:hover:not(:disabled) { background: #fff1cc; }
+.admin-warning-btn:disabled { opacity: 0.55; cursor: not-allowed; }
+
 .admin-danger-btn {
   padding: 0.35rem 0.75rem;
   border: 1px solid #f1b0b7;

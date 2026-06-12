@@ -6,6 +6,7 @@ from sqlalchemy import select
 from app.database import AsyncSessionLocal, hash_password
 from app.models import Allergy, MedicalHistory, Medication, Patient, User
 from app.models.enums import UserRole
+from app.services.bootstrap_service import DEFAULT_ADMIN_EMAIL, DEFAULT_ADMIN_PASSWORD, ensure_admin_account
 from app.services.doctor_seed_service import seed_doctor_catalog
 
 PATIENTS = [
@@ -24,15 +25,7 @@ async def seed() -> None:
     async with AsyncSessionLocal() as db:
         created_any = False
 
-        if not await _user_exists(db, "admin@clinic.com"):
-            db.add(
-                User(
-                    name="System Admin",
-                    email="admin@clinic.com",
-                    password_hash=hash_password("Admin@12345"),
-                    role=UserRole.admin.value,
-                )
-            )
+        if await ensure_admin_account(db):
             created_any = True
 
         added_docs, updated_docs, removed_docs = await seed_doctor_catalog(db)
@@ -88,7 +81,7 @@ async def seed() -> None:
         print(f"  Doctors added: {added_docs}, updated: {updated_docs}, removed: {removed_docs}")
         print("  Patient: john@test.com / Patient@12345")
         print("  Doctor:  dr.sharma@clinic.com / Doctor@12345")
-        print("  Admin:   admin@clinic.com / Admin@12345")
+        print(f"  Admin:   {DEFAULT_ADMIN_EMAIL} / {DEFAULT_ADMIN_PASSWORD}")
 
 
 if __name__ == "__main__":

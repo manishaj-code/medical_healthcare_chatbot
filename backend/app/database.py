@@ -189,9 +189,15 @@ async def get_current_user(
     return user
 
 
+def _role_value(role: UserRole | str) -> str:
+    return role.value if isinstance(role, UserRole) else str(role)
+
+
 def require_role(*roles: UserRole):
+    allowed = {r.value for r in roles}
+
     async def checker(user: User = Depends(get_current_user)) -> User:
-        if user.role not in [r.value for r in roles]:
+        if _role_value(user.role) not in allowed:
             raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Forbidden")
         return user
 

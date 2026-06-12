@@ -1,10 +1,11 @@
 from datetime import date, time, timedelta
 from uuid import UUID
 
-from sqlalchemy import select
+from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.models import Doctor, DoctorAvailability, DoctorSpecialization, Specialization, User
+from app.models import Appointment, Doctor, DoctorAvailability, DoctorSpecialization, Specialization, User
+from app.models.enums import AppointmentStatus
 from app.utils.clinic_time import clinic_today, is_slot_past
 from app.utils.doctor_avatar import resolve_doctor_profile_image_url
 
@@ -46,6 +47,48 @@ def _day_label(d: date) -> str:
 
 def _filter_bookable_slots(slot_date: date, slot_time: time) -> bool:
     return not is_slot_past(slot_date, slot_time)
+
+
+_ACTIVE_APPOINTMENT_STATUSES = (AppointmentStatus.confirmed, AppointmentStatus.pending)
+
+
+async def reconcile_doctor_availability(
+    db: AsyncSession,
+    doctor_id: UUID,
+    *,
+    from_date: date | None = None,
+) -> int:
+    """Free availability rows marked booked when no active appointment exists."""
+    from_date = from_date or clinic_today()
+    rows = (
+        await db.execute(
+            select(DoctorAvailability)
+            .where(
+                DoctorAvailability.doctor_id == doctor_id,
+                DoctorAvailability.slot_date >= from_date,
+                DoctorAvailability.status != "available",
+            )
+        )
+    ).scalars().all()
+    freed = 0
+    for slot in rows:
+        booked = await db.execute(
+            select(Appointment.id)
+            .where(
+                Appointment.doctor_id == doctor_id,
+                Appointment.slot_date == slot.slot_date,
+                Appointment.slot_time == slot.slot_time,
+                Appointment.status.in_(_ACTIVE_APPOINTMENT_STATUSES),
+            )
+            .limit(1)
+        )
+        if booked.scalar_one_or_none():
+            continue
+        slot.status = "available"
+        freed += 1
+    if freed:
+        await db.flush()
+    return freed
 
 
 async def get_or_create_specialization(db: AsyncSession, name: str) -> Specialization:
@@ -121,6 +164,7 @@ async def _fetch_doctor_slots(
     db: AsyncSession, doctor_id: UUID, doctor_name: str, limit: int = 30
 ) -> list[dict]:
     today = clinic_today()
+    await reconcile_doctor_availability(db, doctor_id, from_date=today)
     rows = await db.execute(
         select(DoctorAvailability)
         .where(

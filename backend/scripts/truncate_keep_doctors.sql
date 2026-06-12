@@ -22,6 +22,6 @@ DELETE FROM refresh_tokens;
 DELETE FROM notifications;
 DELETE FROM audit_logs;
 
-DELETE FROM users WHERE role <> 'doctor';
+DELETE FROM users WHERE role = 'patient';
 
 COMMIT;

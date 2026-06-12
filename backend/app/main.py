@@ -15,7 +15,13 @@ settings = get_settings()
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     setup_logging()
+    from app.database import AsyncSessionLocal
+    from app.services.bootstrap_service import ensure_admin_account
     from app.services.reminder_scheduler_service import reminder_worker_loop
+
+    async with AsyncSessionLocal() as db:
+        await ensure_admin_account(db)
+        await db.commit()
 
     reminder_task = asyncio.create_task(reminder_worker_loop())
     yield

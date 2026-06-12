@@ -1,13 +1,14 @@
 from uuid import UUID
 
 from fastapi import HTTPException
-from sqlalchemy import delete, func, select, text
+from sqlalchemy import delete, func, select, text, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import hash_password
 from app.models import (
     Allergy,
     Appointment,
+    AppointmentReminder,
     Conversation,
     ConversationMemory,
     Doctor,
@@ -26,7 +27,8 @@ from app.models import (
     SymptomAssessment,
     User,
 )
-from app.models.enums import UserRole
+from app.models.enums import AppointmentStatus, UserRole
+from app.services.bootstrap_service import ensure_admin_account
 from app.services.doctor_seed_service import seed_doctor_catalog
 
 OPERATIONAL_TRUNCATE_SQL = """
@@ -52,6 +54,11 @@ RESTART IDENTITY CASCADE
 
 async def _truncate_operational_tables(db: AsyncSession) -> None:
     await db.execute(text(OPERATIONAL_TRUNCATE_SQL))
+    await db.execute(
+        update(DoctorAvailability)
+        .where(DoctorAvailability.status != "available")
+        .values(status="available")
+    )
 
 
 async def _ensure_seed_doctors(db: AsyncSession) -> int:
@@ -62,7 +69,7 @@ async def _ensure_seed_doctors(db: AsyncSession) -> int:
 async def truncate_keep_doctors(db: AsyncSession) -> dict:
     await _truncate_operational_tables(db)
     result = await db.execute(
-        delete(User).where(User.role != UserRole.doctor.value).returning(User.id)
+        delete(User).where(User.role == UserRole.patient.value).returning(User.id)
     )
     removed_users = len(result.fetchall())
 
@@ -70,6 +77,8 @@ async def truncate_keep_doctors(db: AsyncSession) -> dict:
     added_doctors = 0
     if not doctor_count:
         added_doctors = await _ensure_seed_doctors(db)
+
+    await ensure_admin_account(db)
 
     return {
         "mode": "keep_doctors",
@@ -89,6 +98,7 @@ async def truncate_all_data(db: AsyncSession) -> dict:
     )
     removed_users = len(result.fetchall())
     added_doctors = await _ensure_seed_doctors(db)
+    await ensure_admin_account(db)
     return {
         "mode": "all_data",
         "removed_users": removed_users,
@@ -114,6 +124,20 @@ async def _delete_patient_records(db: AsyncSession, patient_id: UUID) -> None:
     await db.execute(delete(Report).where(Report.patient_id == patient_id))
     await db.execute(delete(PatientSummary).where(PatientSummary.patient_id == patient_id))
     await db.execute(delete(DoctorNote).where(DoctorNote.patient_id == patient_id))
+    appts = (
+        await db.execute(select(Appointment).where(Appointment.patient_id == patient_id))
+    ).scalars().all()
+    for appt in appts:
+        avail = await db.execute(
+            select(DoctorAvailability).where(
+                DoctorAvailability.doctor_id == appt.doctor_id,
+                DoctorAvailability.slot_date == appt.slot_date,
+                DoctorAvailability.slot_time == appt.slot_time,
+            )
+        )
+        slot = avail.scalar_one_or_none()
+        if slot:
+            slot.status = "available"
     await db.execute(delete(Appointment).where(Appointment.patient_id == patient_id))
     await db.execute(delete(Allergy).where(Allergy.patient_id == patient_id))
     await db.execute(delete(Medication).where(Medication.patient_id == patient_id))
@@ -138,6 +162,74 @@ async def delete_patient_account(db: AsyncSession, patient_id: UUID) -> dict:
     await db.delete(user)
     await db.flush()
     return {"deleted_patient_id": str(patient_id), "email": user.email}
+
+
+async def clear_doctor_appointments(db: AsyncSession, doctor_id: UUID) -> dict:
+    doctor = await db.get(Doctor, doctor_id)
+    if not doctor:
+        raise HTTPException(status_code=404, detail="Doctor not found")
+
+    user = await db.get(User, doctor.user_id)
+    appts = (
+        await db.execute(select(Appointment).where(Appointment.doctor_id == doctor_id))
+    ).scalars().all()
+    if not appts:
+        return {
+            "doctor_id": str(doctor_id),
+            "doctor_email": user.email if user else "",
+            "deleted_appointments": 0,
+            "slots_freed": 0,
+        }
+
+    appt_ids = [appt.id for appt in appts]
+    slots_to_check = {(appt.slot_date, appt.slot_time) for appt in appts}
+
+    await db.execute(delete(AppointmentReminder).where(AppointmentReminder.appointment_id.in_(appt_ids)))
+    await db.execute(
+        update(PatientSummary)
+        .where(PatientSummary.appointment_id.in_(appt_ids))
+        .values(appointment_id=None)
+    )
+    await db.execute(
+        update(DoctorNote).where(DoctorNote.appointment_id.in_(appt_ids)).values(appointment_id=None)
+    )
+    await db.execute(delete(Appointment).where(Appointment.doctor_id == doctor_id))
+
+    slots_freed = 0
+    active_statuses = [AppointmentStatus.confirmed, AppointmentStatus.pending]
+    for slot_date, slot_time in slots_to_check:
+        still_booked = await db.execute(
+            select(Appointment.id)
+            .where(
+                Appointment.doctor_id == doctor_id,
+                Appointment.slot_date == slot_date,
+                Appointment.slot_time == slot_time,
+                Appointment.status.in_(active_statuses),
+            )
+            .limit(1)
+        )
+        if still_booked.scalar_one_or_none():
+            continue
+
+        avail_row = await db.execute(
+            select(DoctorAvailability).where(
+                DoctorAvailability.doctor_id == doctor_id,
+                DoctorAvailability.slot_date == slot_date,
+                DoctorAvailability.slot_time == slot_time,
+            )
+        )
+        availability = avail_row.scalar_one_or_none()
+        if availability and availability.status != "available":
+            availability.status = "available"
+            slots_freed += 1
+
+    await db.flush()
+    return {
+        "doctor_id": str(doctor_id),
+        "doctor_email": user.email if user else "",
+        "deleted_appointments": len(appts),
+        "slots_freed": slots_freed,
+    }
 
 
 async def delete_doctor_account(db: AsyncSession, doctor_id: UUID) -> dict:
