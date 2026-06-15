@@ -11,6 +11,7 @@ from app.emergency_detection import (
     build_emergency_reply,
     detect_emergency,
     detect_mental_health_crisis,
+    detect_urgent_consult,
 )
 from app.models import Conversation, Patient
 from app.multi_agent.supervisor import multi_agent_supervisor
@@ -118,6 +119,7 @@ async def process_patient_message(
 ) -> tuple[str, str, bool, dict | None, list[str]]:
     """Authenticated patient chat — used by Patient Portal."""
     from app.services.appointment_card_service import complete_guest_resume_booking
+    from app.services.urgent_consult_service import complete_guest_resume_urgent_consult
 
     flow = await get_flow(conversation.id)
     session = flow.get("session") or {}
@@ -133,6 +135,20 @@ async def process_patient_message(
                 completed["reply"],
                 completed["agent"],
                 False,
+                completed.get("ui"),
+                list(session.get("detected_symptoms") or []),
+            )
+
+    if resuming and session.get("pending_urgent_consult"):
+        completed = await complete_guest_resume_urgent_consult(
+            db, patient, conversation.id, session
+        )
+        if completed:
+            await set_flow(conversation.id, {"session": session})
+            return (
+                completed["reply"],
+                completed["agent"],
+                completed.get("emergency", False),
                 completed.get("ui"),
                 list(session.get("detected_symptoms") or []),
             )
@@ -260,7 +276,8 @@ async def process_guest_message(
         await save_guest_session(session_id, data)
         return {"reply": reply, "emergency": True, "agent": "emergency", "ui": None, "requires_signup": False}
 
-    if detect_emergency(text):
+    urgent_info = detect_urgent_consult(text)
+    if detect_emergency(text) and not urgent_info:
         reply = build_emergency_reply()
         history.append({"role": "user", "content": original_text})
         history.append({"role": "assistant", "content": reply, "agent": "emergency", "emergency": True})

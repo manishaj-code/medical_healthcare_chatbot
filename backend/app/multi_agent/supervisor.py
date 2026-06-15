@@ -7,6 +7,7 @@ import re
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.agents import detect_prescription_request, get_contextual_reply
+from app.emergency_detection import detect_mental_health_crisis, detect_urgent_consult
 from app.healthcare_policy import (
     OFF_TOPIC_REPLY,
     build_greeting_reply,
@@ -30,6 +31,7 @@ from app.multi_agent.booking_actions import (
     resolve_booking_session,
     resolve_refill_session,
     should_skip_booking_resolution,
+    start_urgent_consult_from_message,
 )
 from app.multi_agent.llm import llm
 from app.multi_agent.specialists import AGENTS, SafetyAgent, SPECIALIST_NAMES
@@ -150,7 +152,15 @@ class MultiAgentSupervisor:
             session["care_goal"] = "symptom_assessment"
             session.setdefault("active_specialist", "triage_agent")
 
-        await update_session_symptoms(session, text)
+        urgent_info = detect_urgent_consult(text)
+        if urgent_info:
+            session["skip_triage"] = True
+            session["care_goal"] = "urgent_consult"
+            session["active_specialist"] = "scheduling_agent"
+            session["detected_symptoms"] = urgent_info.get("symptoms") or []
+            session["recommended_specialty"] = urgent_info["specialty"]
+        else:
+            await update_session_symptoms(session, text)
         await set_flow(conv_id, {"session": session})
 
         if detect_prescription_request(text) and "refill" not in text.lower():
@@ -186,6 +196,18 @@ class MultiAgentSupervisor:
         if not in_refill_flow and _booking_intent(text, history) and not session.get("resume_after_auth"):
             session.setdefault("recommended_specialty", infer_recommended_specialty(session, history))
             session["care_goal"] = "appointment"
+
+        if detect_mental_health_crisis(text):
+            safety = await SafetyAgent().evaluate(ctx)
+            if safety:
+                await self._apply_session(conv_id, session, safety)
+                return self._finalize(conversation, conv_id, safety, session)
+
+        if urgent_info:
+            urgent_response = await start_urgent_consult_from_message(ctx, urgent_info)
+            await self._apply_session(conv_id, session, urgent_response)
+            await ctx.db.commit()
+            return self._finalize(conversation, conv_id, urgent_response, session)
 
         safety = await SafetyAgent().evaluate(ctx)
         if safety:

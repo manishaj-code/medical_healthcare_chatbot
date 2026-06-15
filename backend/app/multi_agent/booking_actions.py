@@ -731,6 +731,100 @@ def infer_recommended_specialty(session: dict, history: list[dict]) -> str:
     return "General Physician"
 
 
+async def start_urgent_consult_from_message(ctx: AgentContext, urgent_info: dict) -> AgentResponse:
+    from app.emergency_detection import build_urgent_consult_opener
+    from app.services.chat_ui import (
+        build_urgent_consult_accepted_ui,
+        build_urgent_consult_pending_ui,
+    )
+    from app.services.urgent_consult_service import create_urgent_request, get_request_for_patient
+
+    if ctx.is_guest or ctx.patient is None:
+        gate = guest_auth_gate(ctx, "urgent_consult", "urgent video consultation")
+        opener = build_urgent_consult_opener(
+            urgent_info["specialty"],
+            er_advisory=urgent_info.get("er_advisory", True),
+            symptoms=urgent_info.get("symptoms"),
+        )
+        patch = dict(gate.session_patch or {})
+        patch.update({
+            "pending_urgent_consult": urgent_info,
+            "pending_urgent_message": ctx.text,
+            "skip_triage": True,
+            "detected_symptoms": urgent_info.get("symptoms") or [],
+            "recommended_specialty": urgent_info["specialty"],
+            "active_specialist": "scheduling_agent",
+        })
+        return AgentResponse(
+            reply=f"{opener}\n\n{gate.reply}",
+            agent="scheduling_agent",
+            emergency=urgent_info.get("risk_level") == "emergency",
+            session_patch=patch,
+        )
+
+    existing_id = ctx.session.get("urgent_consult_request_id")
+    if not existing_id and ctx.patient is not None:
+        from app.services.urgent_consult_service import _get_active_pending_request
+
+        active = await _get_active_pending_request(ctx.db, ctx.patient.id, conversation_id=ctx.conv_id)
+        if active:
+            existing_id = str(active.id)
+
+    if existing_id:
+        payload = await get_request_for_patient(ctx.db, ctx.patient.id, UUID(str(existing_id)))
+        if payload.get("status") == "assigned":
+            return AgentResponse(
+                reply=(
+                    f"**{payload.get('accepted_doctor_name') or 'Your doctor'}** has accepted your "
+                    "urgent consultation. You can join the video call below."
+                ),
+                agent="scheduling_agent",
+                ui=build_urgent_consult_accepted_ui(payload),
+                session_patch={"care_goal": "urgent_consult", "awaiting": None},
+            )
+        return AgentResponse(
+            reply="Still waiting for a doctor to accept your urgent consultation request.",
+            agent="scheduling_agent",
+            ui=build_urgent_consult_pending_ui(payload),
+            session_patch={
+                "care_goal": "urgent_consult",
+                "awaiting": "urgent_consult",
+                "urgent_consult_request_id": existing_id,
+            },
+        )
+
+    payload = await create_urgent_request(
+        ctx.db,
+        ctx.patient,
+        ctx.conv_id,
+        symptoms=urgent_info.get("symptoms") or [],
+        specialty=urgent_info["specialty"],
+        risk_level=urgent_info.get("risk_level", "high"),
+        patient_message=ctx.text,
+    )
+
+    reply = build_urgent_consult_opener(
+        urgent_info["specialty"],
+        er_advisory=urgent_info.get("er_advisory", True),
+        symptoms=urgent_info.get("symptoms"),
+    )
+    return AgentResponse(
+        reply=reply,
+        agent="scheduling_agent",
+        emergency=urgent_info.get("risk_level") == "emergency",
+        ui=build_urgent_consult_pending_ui(payload),
+        session_patch={
+            "care_goal": "urgent_consult",
+            "skip_triage": True,
+            "urgent_consult_request_id": payload["id"],
+            "awaiting": "urgent_consult",
+            "active_specialist": "scheduling_agent",
+            "recommended_specialty": urgent_info["specialty"],
+            "detected_symptoms": urgent_info.get("symptoms") or [],
+        },
+    )
+
+
 async def start_find_doctor_flow(
     db: AsyncSession,
     session: dict,
@@ -853,6 +947,8 @@ def should_skip_booking_resolution(ctx: AgentContext) -> bool:
         return False
     # Skip booking resolution when patient is in active symptom triage
     if ctx.session.get("care_goal") == "symptom_assessment":
+        return True
+    if ctx.session.get("care_goal") == "urgent_consult":
         return True
     if ctx.session.get("active_specialist") == "triage_agent" and awaiting not in (None, "offer_booking"):
         return True

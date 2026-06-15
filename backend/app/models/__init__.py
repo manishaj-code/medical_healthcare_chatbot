@@ -7,12 +7,15 @@ from app.models.doctor_ops import (
     DoctorSpecialization,
     Specialization,
 )
+from app.models.urgent_consult import UrgentConsultOffer, UrgentConsultRequest
 from app.models.enums import (
     AppointmentStatus,
     MessageRole,
     NotificationType,
     RefillRequestStatus,
     RiskLevel,
+    UrgentConsultOfferStatus,
+    UrgentConsultRequestStatus,
     UserRole,
 )
 from app.models.reports import DoctorNote, PatientSummary, Report
@@ -42,10 +45,14 @@ __all__ = [
     "RefreshToken",
     "Notification",
     "AuditLog",
+    "UrgentConsultRequest",
+    "UrgentConsultOffer",
     "UserRole",
     "AppointmentStatus",
     "RiskLevel",
     "MessageRole",
     "NotificationType",
     "RefillRequestStatus",
+    "UrgentConsultRequestStatus",
+    "UrgentConsultOfferStatus",
 ]

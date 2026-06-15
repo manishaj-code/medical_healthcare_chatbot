@@ -39,6 +39,24 @@ class NotificationType(str, enum.Enum):
     refill_approved = "refill_approved"
     refill_denied = "refill_denied"
     video_consultation = "video_consultation"
+    urgent_consult_request = "urgent_consult_request"
+    urgent_consult_assigned = "urgent_consult_assigned"
+    urgent_consult_superseded = "urgent_consult_superseded"
+
+
+class UrgentConsultRequestStatus(str, enum.Enum):
+    pending = "pending"
+    assigned = "assigned"
+    expired = "expired"
+    cancelled = "cancelled"
+
+
+class UrgentConsultOfferStatus(str, enum.Enum):
+    notified = "notified"
+    accepted = "accepted"
+    declined = "declined"
+    superseded = "superseded"
+    expired = "expired"
 
 
 class RefillRequestStatus(str, enum.Enum):

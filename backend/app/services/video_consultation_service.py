@@ -31,6 +31,7 @@ async def enable_video_consultation(
     user_id: UUID,
     *,
     patient_name: str,
+    bypass_time_window: bool = False,
 ) -> dict:
     result = await db.execute(
         select(Appointment).where(
@@ -45,15 +46,16 @@ async def enable_video_consultation(
 
     start = datetime.combine(appt.slot_date, appt.slot_time).replace(tzinfo=timezone.utc)
     now = datetime.now(timezone.utc)
-    window_start = start - timedelta(minutes=15)
-    window_end = start + timedelta(hours=2)
-    if now < window_start:
-        raise HTTPException(
-            status_code=400,
-            detail=f"Video consultation opens 15 minutes before your appointment ({appt.slot_date} {appt.slot_time}).",
-        )
-    if now > window_end:
-        raise HTTPException(status_code=400, detail="This appointment video window has ended.")
+    if not bypass_time_window:
+        window_start = start - timedelta(minutes=15)
+        window_end = start + timedelta(hours=2)
+        if now < window_start:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Video consultation opens 15 minutes before your appointment ({appt.slot_date} {appt.slot_time}).",
+            )
+        if now > window_end:
+            raise HTTPException(status_code=400, detail="This appointment video window has ended.")
 
     room_id = video_room_id_for_appointment(appt.id)
     appt.consultation_mode = "video"

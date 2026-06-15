@@ -40,7 +40,7 @@ import {
   DetectedSymptom,
   toDetectedSymptoms,
 } from "../../utils/symptomDetection";
-import type { ChatNavigationState } from "../../utils/appointmentChatActions";
+import { GUEST_RESUME_ACTIONS, type ChatNavigationState } from "../../utils/appointmentChatActions";
 
 interface LatestAssessment {
   risk_level: string | null;
@@ -244,6 +244,7 @@ export default function PatientChat() {
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const fileRef = useRef<HTMLInputElement>(null);
   const pendingPromptRef = useRef<string | null>(null);
+  const guestResumeCompletedRef = useRef(false);
   const sendTextRef = useRef<
     (text: string, reportId?: string, attachment?: ChatAttachment, options?: { fromUpload?: boolean; fromReportAction?: boolean; displayText?: string }) => Promise<void>
   >(() => Promise.resolve());
@@ -346,17 +347,19 @@ export default function PatientChat() {
       const resumeId =
         navState?.conversationId ?? sessionStorage.getItem("post_signup_conversation_id") ?? undefined;
       if (resumeId) sessionStorage.removeItem("post_signup_conversation_id");
-      const fromGuestBooking =
+      const pendingAction = sessionStorage.getItem("post_signup_pending_action");
+      const fromGuestResume =
         navState?.fromGuestBooking ||
-        sessionStorage.getItem("post_signup_pending_action") === "book";
-      if (fromGuestBooking) {
+        (pendingAction != null && GUEST_RESUME_ACTIONS.has(pendingAction));
+      if (fromGuestResume) {
         sessionStorage.removeItem("post_signup_pending_action");
       }
       try {
         await loadConversations(resumeId);
         if (resumeId) {
           const resumeCtx = await fetchResumeContext(resumeId);
-          if (fromGuestBooking && resumeCtx?.resume_after_auth) {
+          if (fromGuestResume && resumeCtx?.resume_after_auth && !guestResumeCompletedRef.current) {
+            guestResumeCompletedRef.current = true;
             try {
               await api(`/api/v1/chat/conversations/${resumeId}/resume/complete`, {
                 method: "POST",

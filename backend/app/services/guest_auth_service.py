@@ -42,6 +42,7 @@ ACTION_LABELS = {
     "cancel": "cancel your appointment",
     "reschedule": "reschedule your appointment",
     "refill": "request a prescription refill",
+    "urgent_consult": "start your urgent video consultation",
 }
 
 
@@ -74,7 +75,7 @@ def guest_auth_gate(ctx, action: str, detail: str | None = None) -> AgentRespons
             "We'll send a secure one-time verification code. After verification you'll be signed in "
             "to the Patient Portal to complete this step."
         ),
-        agent="scheduling_agent" if action in ("book", "cancel", "reschedule") else "refill_agent",
+        agent="scheduling_agent" if action in ("book", "cancel", "reschedule", "urgent_consult") else "refill_agent",
         session_patch={
             "awaiting": "guest_email",
             "pending_auth_action": action,
@@ -182,6 +183,10 @@ async def _complete_guest_verification(
         "cancel": "Your cancellation request is ready — I'll complete it in the Patient Portal.",
         "reschedule": "Your new time slot is saved — I'll finish rescheduling in the Patient Portal.",
         "refill": "Your refill request is ready — I'll submit it in the Patient Portal.",
+        "urgent_consult": (
+            "Your urgent consultation request is saved — I'll alert doctors immediately "
+            "in the Patient Portal."
+        ),
     }
     reply = (
         f"✅ **Email verified!** Welcome, {user.name.split()[0]}.\n\n"

@@ -301,6 +301,8 @@ class TriageAgent(BaseSpecialist):
 
         if (
             not ctx.session.get("triage_assessed")
+            and not ctx.session.get("skip_triage")
+            and ctx.session.get("care_goal") != "urgent_consult"
             and (
                 has_symptoms
                 or is_active_care_flow(ctx.session)

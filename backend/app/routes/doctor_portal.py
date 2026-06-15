@@ -18,6 +18,8 @@ from app.models import (
     PatientSummary,
     Report,
     SymptomAssessment,
+    UrgentConsultOffer,
+    UrgentConsultRequest,
     User,
 )
 from app.services.flow_state import get_flow
@@ -43,6 +45,12 @@ from app.services.refill_service import (
     list_refills_for_doctor,
 )
 from app.services.vitals_service import extract_health_vitals_from_reports
+from app.services.urgent_consult_service import (
+    accept_urgent_request,
+    decline_urgent_request,
+    list_pending_for_doctor,
+    list_urgent_consult_history_for_doctor,
+)
 
 router = APIRouter(prefix="/doctor", tags=["doctor-portal"])
 
@@ -72,7 +80,18 @@ async def _verify_access(db: AsyncSession, doctor_id: UUID, patient_id: UUID) ->
             Appointment.status.in_([AppointmentStatus.confirmed, AppointmentStatus.completed, AppointmentStatus.pending]),
         ).limit(1)
     )
-    return result.scalar_one_or_none() is not None
+    if result.scalar_one_or_none() is not None:
+        return True
+    urgent = await db.execute(
+        select(UrgentConsultOffer.id)
+        .join(UrgentConsultRequest, UrgentConsultOffer.request_id == UrgentConsultRequest.id)
+        .where(
+            UrgentConsultOffer.doctor_id == doctor_id,
+            UrgentConsultRequest.patient_id == patient_id,
+        )
+        .limit(1)
+    )
+    return urgent.scalar_one_or_none() is not None
 
 
 def _format_appt_row(a: Appointment, patient_id: UUID, patient_name: str) -> dict:
@@ -208,6 +227,7 @@ async def patient_detail(
             "patient_id": str(patient_id),
             "name": user.name if user else "Patient",
             "email": user.email if user else "",
+            "phone": patient.phone,
             "dob": str(patient.dob) if patient.dob else None,
             "gender": patient.gender,
             "blood_group": patient.blood_group,
@@ -475,3 +495,53 @@ async def doctor_notifications_mark_read(
 ):
     marked = await mark_notifications_read(db, doctor.user_id, data.ids)
     return ResponseEnvelope(data=MarkNotificationsReadResponse(marked=marked))
+
+
+@router.get("/urgent-consult/pending")
+async def doctor_urgent_consult_pending(
+    doctor: Doctor = Depends(get_doctor_profile),
+    db: AsyncSession = Depends(get_db),
+):
+    data = await list_pending_for_doctor(db, doctor.id)
+    return ResponseEnvelope(data=data)
+
+
+@router.get("/urgent-consult/history")
+async def doctor_urgent_consult_history(
+    bucket: str | None = None,
+    doctor: Doctor = Depends(get_doctor_profile),
+    db: AsyncSession = Depends(get_db),
+):
+    """Audit list — attended, declined, or missed urgent consults with patient details."""
+    data = await list_urgent_consult_history_for_doctor(db, doctor.id, bucket=bucket)
+    return ResponseEnvelope(data=data)
+
+
+@router.post("/urgent-consult/{request_id}/accept")
+async def doctor_accept_urgent_consult(
+    request_id: UUID,
+    doctor: Doctor = Depends(get_doctor_profile),
+    db: AsyncSession = Depends(get_db),
+):
+    user = await db.get(User, doctor.user_id)
+    doctor_name = user.name if user else "Doctor"
+    payload = await accept_urgent_request(
+        db,
+        doctor.id,
+        request_id,
+        doctor_user_id=doctor.user_id,
+        doctor_name=doctor_name,
+    )
+    await db.commit()
+    return ResponseEnvelope(data=payload)
+
+
+@router.post("/urgent-consult/{request_id}/decline")
+async def doctor_decline_urgent_consult(
+    request_id: UUID,
+    doctor: Doctor = Depends(get_doctor_profile),
+    db: AsyncSession = Depends(get_db),
+):
+    payload = await decline_urgent_request(db, doctor.id, request_id)
+    await db.commit()
+    return ResponseEnvelope(data=payload)

@@ -260,19 +260,22 @@ async def complete_guest_resume(
     patient: Patient = Depends(get_patient_profile),
     db: AsyncSession = Depends(get_db),
 ):
-    """Finish a pending guest booking after portal login — shows confirmation card only."""
+    """Finish a pending guest action after portal login — booking or urgent consult."""
     conv = await db.get(Conversation, conversation_id)
     if not conv or conv.patient_id != patient.id:
         raise HTTPException(status_code=404, detail="Conversation not found")
 
     from app.services.appointment_card_service import complete_guest_resume_booking
+    from app.services.urgent_consult_service import complete_guest_resume_urgent_consult
     from app.services.flow_state import get_flow, set_flow
 
     flow = await get_flow(conversation_id)
     session = dict(flow.get("session") or {})
     completed = await complete_guest_resume_booking(db, patient, conversation_id, session)
     if not completed:
-        raise HTTPException(status_code=400, detail="No pending booking to complete.")
+        completed = await complete_guest_resume_urgent_consult(db, patient, conversation_id, session)
+    if not completed:
+        raise HTTPException(status_code=400, detail="No pending action to complete.")
 
     await set_flow(conversation_id, {"session": session})
 
@@ -292,7 +295,7 @@ async def complete_guest_resume(
         data=ChatReply(
             reply=completed["reply"],
             agent=completed["agent"],
-            emergency=False,
+            emergency=completed.get("emergency", False),
             message_id=asst_msg.id,
             ui=completed.get("ui"),
             detected_symptoms=list(session.get("detected_symptoms") or []),

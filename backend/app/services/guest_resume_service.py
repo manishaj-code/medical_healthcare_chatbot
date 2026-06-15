@@ -23,6 +23,10 @@ FLOW_STATE_KEYS = (
     "pending_auth_action",
     "resume_after_auth",
     "guest_resume_action",
+    "pending_urgent_consult",
+    "pending_urgent_message",
+    "urgent_consult_request_id",
+    "skip_triage",
 )
 
 ACTION_TITLES = {
@@ -30,6 +34,7 @@ ACTION_TITLES = {
     "cancel": "Appointment cancellation",
     "reschedule": "Appointment rescheduling",
     "refill": "Prescription refill",
+    "urgent_consult": "Urgent video consultation",
 }
 
 
@@ -57,6 +62,7 @@ def prepare_resume_session(session: dict, action: str) -> dict:
         "cancel": "manage_appointment",
         "reschedule": "manage_appointment",
         "refill": "refill",
+        "urgent_consult": "urgent_consult",
     }
     session.setdefault("care_goal", care_goals.get(action, "appointment"))
 
@@ -73,6 +79,11 @@ def prepare_resume_session(session: dict, action: str) -> dict:
         session.setdefault("awaiting", "confirm_refill")
         session["active_specialist"] = "refill_agent"
         session["care_goal"] = "refill"
+    elif action == "urgent_consult":
+        session["awaiting"] = "urgent_consult"
+        session["active_specialist"] = "scheduling_agent"
+        session["care_goal"] = "urgent_consult"
+        session["skip_triage"] = True
 
     return session
 
@@ -96,6 +107,8 @@ def build_resume_prompt(session: dict) -> str | None:
         if med:
             return f"Yes, please submit my refill request for {med}."
         return "Yes, please submit my prescription refill request."
+    if action == "urgent_consult":
+        return "Please start my urgent video consultation and notify available doctors now."
     if session.get("awaiting") == "confirm_booking" and pending:
         return "Yes, please confirm my appointment."
     if session.get("awaiting") == "confirm_refill":

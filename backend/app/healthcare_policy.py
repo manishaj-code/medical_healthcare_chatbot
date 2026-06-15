@@ -166,6 +166,7 @@ _ACTIVE_CARE_AWAITING = frozenset({
     "pick_severity",
     "more_symptoms",
     "list_more_symptoms",
+    "urgent_consult",
     "free_text_symptoms",
     "symptom_image",
     "post_assessment",
@@ -193,6 +194,7 @@ _ACTIVE_CARE_GOALS = frozenset({
     "refill",
     "manage_appointment",
     "video_consultation",
+    "urgent_consult",
 })
 
 
@@ -258,6 +260,7 @@ def should_use_legacy_contextual_reply(session: dict) -> bool:
         "pick_severity",
         "more_symptoms",
         "list_more_symptoms",
+        "urgent_consult",
         "free_text_symptoms",
         "symptom_image",
         "post_assessment",

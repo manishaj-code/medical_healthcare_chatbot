@@ -332,6 +332,33 @@ def build_no_more_symptoms_ui() -> dict:
     }
 
 
+def build_urgent_consult_pending_ui(payload: dict) -> dict:
+    return {
+        "type": "urgent_consult_pending",
+        "request_id": payload.get("id"),
+        "specialty": payload.get("specialty"),
+        "status": payload.get("status", "pending"),
+        "risk_level": payload.get("risk_level"),
+        "symptoms": payload.get("symptoms") or [],
+        "doctors": payload.get("doctors") or [],
+        "expires_at": payload.get("expires_at"),
+    }
+
+
+def build_urgent_consult_accepted_ui(payload: dict) -> dict:
+    return {
+        "type": "urgent_consult_accepted",
+        "request_id": payload.get("id"),
+        "status": "assigned",
+        "specialty": payload.get("specialty"),
+        "appointment_id": payload.get("appointment_id"),
+        "apt_id": payload.get("apt_id"),
+        "doctor_name": payload.get("accepted_doctor_name") or payload.get("doctor_name"),
+        "join_url": payload.get("join_url"),
+        "symptoms": payload.get("symptoms") or [],
+    }
+
+
 def build_post_assessment_ui() -> dict:
     return build_action_menu_ui(
         [

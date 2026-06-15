@@ -329,6 +329,7 @@ _MID_TRIAGE_AWAITING = frozenset({
     "pick_severity",
     "more_symptoms",
     "list_more_symptoms",
+    "urgent_consult",
     "free_text_symptoms",
     "symptom_image",
 })

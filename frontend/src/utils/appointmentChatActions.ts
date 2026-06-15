@@ -12,6 +12,8 @@ export function buildCancelAppointmentMessage(aptId: string): string {
   return `Please cancel my appointment ${aptId}`;
 }
 
+export const GUEST_RESUME_ACTIONS = new Set(["book", "urgent_consult"]);
+
 export interface ChatNavigationState {
   conversationId?: string;
   fromGuestBooking?: boolean;

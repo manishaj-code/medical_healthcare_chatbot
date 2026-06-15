@@ -3,6 +3,7 @@ import { useLocation, useNavigate, useOutletContext } from "react-router-dom";
 import { api } from "../../api/client";
 import DoctorAppointmentsSections from "../../components/doctor/DoctorAppointmentsSections";
 import DoctorAvailabilityGrid from "../../components/doctor/DoctorAvailabilityGrid";
+import DoctorUrgentConsultPanel from "../../components/doctor/DoctorUrgentConsultPanel";
 import type { DoctorOutletContext, DoctorTab } from "../../components/doctor/DoctorLayout";
 import ClinicalSummaryPanel from "../../components/doctor/ClinicalSummaryPanel";
 import type { ConsultationSummaryData } from "../../components/doctor/DoctorPatientConsultSummary";
@@ -353,6 +354,7 @@ export default function DoctorDashboard() {
 
       {activeTab === "overview" && (
         <div className="dp-dashboard-grid" id="schedule">
+          <DoctorUrgentConsultPanel />
           <section className="dp-panel">
             <div className="dp-panel-head dp-schedule-head">
               <h2 className="dp-panel-title">{scheduleHeading}</h2>

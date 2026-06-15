@@ -11,6 +11,7 @@ from app.routes import (
     patients,
     reports,
     symptoms,
+    urgent_consult,
 )
 
 api_router = APIRouter(prefix="/api/v1")
@@ -21,6 +22,7 @@ api_router.include_router(chat.router)
 api_router.include_router(symptoms.router)
 api_router.include_router(doctors.router)
 api_router.include_router(appointments.router)
+api_router.include_router(urgent_consult.router)
 api_router.include_router(reports.router)
 api_router.include_router(doctor_portal.router)
 api_router.include_router(admin.router)

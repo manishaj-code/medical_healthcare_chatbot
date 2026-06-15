@@ -1,6 +1,7 @@
 import { useState, useMemo, useEffect } from "react";
 import type { ReactNode } from "react";
 import DoctorAvatar from "./DoctorAvatar";
+import { api } from "../api/client";
 import { buildSetReminderMessage } from "../utils/chatTokens";
 import { filterChatBookableSlots } from "../utils/chatUiHelpers";
 import {
@@ -76,7 +77,9 @@ export interface ChatUiPayload {
     | "report_followup"
     | "nav_menu"
     | "video_consultation"
-    | "symptom_image_hint";
+    | "symptom_image_hint"
+    | "urgent_consult_pending"
+    | "urgent_consult_accepted";
   variant?: "pill" | "stack";
   join_url?: string;
   apt_id?: string;
@@ -97,6 +100,11 @@ export interface ChatUiPayload {
   status?: "confirmed" | "rescheduled" | "cancelled";
   reminder_set?: boolean;
   actions_disabled?: boolean;
+  request_id?: string;
+  risk_level?: string;
+  symptoms?: string[];
+  expires_at?: string;
+  join_url?: string;
   options?: ChoiceOption[];
 }
 
@@ -642,6 +650,221 @@ function AppointmentConfirmedCard({
   );
 }
 
+// ─── UrgentConsultCard ───────────────────────────────────────────────────────
+
+interface UrgentDoctorRow {
+  id: string;
+  name: string;
+  specialty?: string;
+  offer_status?: string;
+}
+
+function UrgentConsultCard({ ui }: { ui: ChatUiPayload }) {
+  const [live, setLive] = useState(ui);
+  const [waitSeconds, setWaitSeconds] = useState(0);
+
+  useEffect(() => {
+    setLive(ui);
+    setWaitSeconds(0);
+  }, [ui.request_id, ui.type, ui.join_url, ui.doctor_name]);
+
+  useEffect(() => {
+    if (live.type === "urgent_consult_accepted" || live.join_url) return;
+    const tick = window.setInterval(() => setWaitSeconds((s) => s + 1), 1000);
+    return () => window.clearInterval(tick);
+  }, [live.type, live.join_url]);
+
+  useEffect(() => {
+    if (!live.request_id || live.type === "urgent_consult_accepted" || live.join_url) return;
+    let active = true;
+    const poll = async () => {
+      try {
+        const data = await api<{
+          id: string;
+          status: string;
+          accepted_doctor_name?: string;
+          appointment_id?: string;
+          join_url?: string;
+          specialty?: string;
+          symptoms?: string[];
+        }>(`/api/v1/urgent-consult/requests/${live.request_id}`);
+        if (!active) return;
+        if (data.status === "assigned") {
+          setLive((prev) => ({
+            ...prev,
+            type: "urgent_consult_accepted",
+            doctor_name: data.accepted_doctor_name,
+            appointment_id: data.appointment_id,
+            join_url: data.join_url,
+            specialty: data.specialty,
+            symptoms: data.symptoms,
+          }));
+        }
+      } catch {
+        /* polling handled by interval */
+      }
+    };
+    void poll();
+    const timer = window.setInterval(poll, 4000);
+    return () => {
+      active = false;
+      window.clearInterval(timer);
+    };
+  }, [live.request_id, live.type, live.join_url]);
+
+  const accepted = live.type === "urgent_consult_accepted" || Boolean(live.join_url);
+  const doctors = (live.doctors ?? []) as UrgentDoctorRow[];
+  const symptoms = (live.symptoms ?? []).filter(Boolean);
+  const specialty = live.specialty || "General Physician";
+  const waitLabel =
+    waitSeconds < 60
+      ? `${waitSeconds}s`
+      : `${Math.floor(waitSeconds / 60)}m ${waitSeconds % 60}s`;
+
+  const steps = [
+    { label: "Request sent", done: true },
+    { label: "Doctors notified", done: doctors.length > 0 || accepted },
+    { label: "Doctor accepts", done: accepted },
+    { label: "Video consult", done: accepted && Boolean(live.join_url) },
+  ];
+
+  return (
+    <div className={`patient-urgent-card${accepted ? " patient-urgent-card--accepted" : ""}`}>
+      {!accepted && (
+        <div className="patient-urgent-er" role="note">
+          <span className="material-symbols-outlined" aria-hidden>
+            e911_emergency
+          </span>
+          <p>
+            If you have severe breathing difficulty, chest pain, or feel unsafe,{" "}
+            <strong>call emergency services (911) or go to the ER now</strong> — do not wait.
+          </p>
+        </div>
+      )}
+
+      <div className="patient-urgent-hero">
+        <div className={`patient-urgent-icon${accepted ? " patient-urgent-icon--success" : ""}`}>
+          <span className="material-symbols-outlined">{accepted ? "videocam" : "emergency"}</span>
+          {!accepted && <span className="patient-urgent-pulse" aria-hidden />}
+        </div>
+        <div className="patient-urgent-hero-text">
+          <span className="patient-urgent-kicker">
+            {accepted ? "Doctor connected" : "Urgent video consult"}
+          </span>
+          <strong>
+            {accepted
+              ? `${live.doctor_name || "Your doctor"} is ready for you`
+              : "We're connecting you with a doctor"}
+          </strong>
+          <p>
+            {accepted
+              ? "Join the secure video room below. Keep this tab open."
+              : `${specialty} doctors have been alerted. The first available doctor will accept your request.`}
+          </p>
+        </div>
+      </div>
+
+      {symptoms.length > 0 && (
+        <div className="patient-urgent-symptoms">
+          <span className="patient-urgent-symptoms-label">Your reported symptoms</span>
+          <div className="patient-urgent-symptom-tags">
+            {symptoms.map((symptom) => (
+              <span key={symptom} className="patient-urgent-symptom-tag">
+                {symptom}
+              </span>
+            ))}
+          </div>
+        </div>
+      )}
+
+      <ol className="patient-urgent-steps" aria-label="Consult progress">
+        {steps.map((step, index) => (
+          <li
+            key={step.label}
+            className={`patient-urgent-step${step.done ? " patient-urgent-step--done" : ""}${
+              !step.done && steps[index - 1]?.done ? " patient-urgent-step--active" : ""
+            }`}
+          >
+            <span className="patient-urgent-step-dot" aria-hidden>
+              {step.done ? (
+                <span className="material-symbols-outlined">check</span>
+              ) : (
+                <span>{index + 1}</span>
+              )}
+            </span>
+            <span>{step.label}</span>
+          </li>
+        ))}
+      </ol>
+
+      {!accepted && doctors.length > 0 && (
+        <div className="patient-urgent-doctors">
+          <span className="patient-urgent-doctors-label">
+            Notified doctors ({doctors.length})
+          </span>
+          <ul>
+            {doctors.map((doc) => (
+              <li key={doc.id}>
+                <DoctorAvatar
+                  name={doc.name}
+                  className="patient-urgent-doctor-avatar"
+                  initialsClassName="patient-urgent-doctor-avatar patient-urgent-doctor-avatar--initials"
+                />
+                <div>
+                  <strong>{doc.name}</strong>
+                  <span>{doc.specialty || specialty}</span>
+                </div>
+                <span className="patient-urgent-doctor-status">
+                  {doc.offer_status === "superseded" ? "Assigned elsewhere" : "Notified"}
+                </span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+
+      {accepted && live.doctor_name && (
+        <div className="patient-urgent-doctor-ready">
+          <DoctorAvatar
+            name={live.doctor_name}
+            className="patient-urgent-doctor-avatar patient-urgent-doctor-avatar--lg"
+            initialsClassName="patient-urgent-doctor-avatar patient-urgent-doctor-avatar--lg patient-urgent-doctor-avatar--initials"
+          />
+          <div>
+            <strong>{live.doctor_name}</strong>
+            <span>{specialty}</span>
+            {live.apt_id && <span className="patient-urgent-apt">Appointment {live.apt_id}</span>}
+          </div>
+        </div>
+      )}
+
+      {accepted && live.join_url ? (
+        <a
+          href={live.join_url}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="patient-urgent-join-btn"
+        >
+          <span className="material-symbols-outlined">videocam</span>
+          Join video consultation now
+        </a>
+      ) : (
+        <div className="patient-urgent-waiting" aria-live="polite">
+          <div className="patient-urgent-waiting-dots" aria-hidden>
+            <span />
+            <span />
+            <span />
+          </div>
+          <div>
+            <strong>Waiting for a doctor to accept</strong>
+            <span>Usually within a few minutes · waiting {waitLabel}</span>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ─── ChoiceButtons ───────────────────────────────────────────────────────────
 
 function ChoiceButtons({
@@ -906,6 +1129,14 @@ export function ChatBookingUI({ ui, disabled, onPick }: Props) {
   // ── reschedule_slots ──
   if (ui.type === "reschedule_slots" && ui.slots?.length) {
     return <RescheduleSlotCard ui={ui} disabled={disabled} onPick={onPick} />;
+  }
+
+  // ── urgent_consult ──
+  if (
+    (ui.type === "urgent_consult_pending" || ui.type === "urgent_consult_accepted") &&
+    ui.request_id
+  ) {
+    return <UrgentConsultCard ui={ui} />;
   }
 
   // ── video_consultation ──

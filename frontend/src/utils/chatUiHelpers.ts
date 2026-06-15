@@ -270,7 +270,9 @@ export function shouldHideBookingCardCaption(ui?: ChatUiPayload | null): boolean
     ui?.type === "confirm_booking" ||
     ui?.type === "confirm_reschedule" ||
     ui?.type === "reschedule_slots" ||
-    ui?.type === "appointment_confirmed"
+    ui?.type === "appointment_confirmed" ||
+    ui?.type === "urgent_consult_pending" ||
+    ui?.type === "urgent_consult_accepted"
   );
 }
 

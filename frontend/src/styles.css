@@ -7202,6 +7202,597 @@ th { font-weight: 600; background: #f8f9fa; }
   margin-bottom: 0.5rem;
 }
 
+.urgent-consult-card {
+  margin-top: 0.75rem;
+  padding: 1rem;
+  border-radius: 12px;
+  background: #fff7ed;
+  border: 1px solid rgba(234, 88, 12, 0.25);
+}
+
+.urgent-consult-card--accepted {
+  background: #f0fdfa;
+  border-color: rgba(0, 104, 95, 0.25);
+}
+
+.urgent-consult-card-header {
+  display: flex;
+  gap: 0.75rem;
+  align-items: flex-start;
+  margin-bottom: 0.75rem;
+}
+
+.urgent-consult-card-header p {
+  margin: 0.2rem 0 0;
+  font-size: 0.85rem;
+  color: #475569;
+}
+
+.urgent-consult-doctors ul {
+  margin: 0.35rem 0 0;
+  padding-left: 1.1rem;
+  font-size: 0.85rem;
+}
+
+.urgent-consult-label {
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: #9a3412;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.urgent-consult-wait {
+  margin: 0.5rem 0 0;
+  font-size: 0.82rem;
+  color: #64748b;
+}
+
+/* Patient portal — urgent consult status card */
+.patient-urgent-card {
+  margin-top: 0.5rem;
+  border-radius: 16px;
+  overflow: hidden;
+  border: 1px solid rgba(234, 88, 12, 0.28);
+  background: linear-gradient(180deg, #fffaf5 0%, #fff7ed 100%);
+  box-shadow: 0 8px 28px rgba(234, 88, 12, 0.1);
+}
+
+.patient-urgent-card--accepted {
+  border-color: rgba(0, 104, 95, 0.28);
+  background: linear-gradient(180deg, #f0fdfa 0%, #ecfdf5 100%);
+  box-shadow: 0 8px 28px rgba(0, 104, 95, 0.12);
+}
+
+.patient-urgent-er {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  padding: 12px 14px;
+  background: linear-gradient(90deg, #eff6ff, #dbeafe);
+  border-bottom: 1px solid rgba(37, 99, 235, 0.15);
+  color: #1e3a8a;
+}
+
+.patient-urgent-er .material-symbols-outlined {
+  font-size: 1.35rem;
+  color: #dc2626;
+  flex-shrink: 0;
+}
+
+.patient-urgent-er p {
+  margin: 0;
+  font-size: 0.82rem;
+  line-height: 1.45;
+}
+
+.patient-urgent-hero {
+  display: flex;
+  gap: 14px;
+  padding: 16px 16px 12px;
+  align-items: flex-start;
+}
+
+.patient-urgent-icon {
+  position: relative;
+  width: 52px;
+  height: 52px;
+  border-radius: 16px;
+  background: linear-gradient(145deg, #ea580c, #f97316);
+  color: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  box-shadow: 0 4px 14px rgba(234, 88, 12, 0.35);
+}
+
+.patient-urgent-icon--success {
+  background: linear-gradient(145deg, #00685f, #0d9488);
+  box-shadow: 0 4px 14px rgba(0, 104, 95, 0.35);
+}
+
+.patient-urgent-icon .material-symbols-outlined {
+  font-size: 1.6rem;
+}
+
+.patient-urgent-pulse {
+  position: absolute;
+  inset: -4px;
+  border-radius: 18px;
+  border: 2px solid rgba(234, 88, 12, 0.45);
+  animation: patient-urgent-pulse-ring 1.6s ease-out infinite;
+}
+
+@keyframes patient-urgent-pulse-ring {
+  0% { transform: scale(0.92); opacity: 0.9; }
+  100% { transform: scale(1.15); opacity: 0; }
+}
+
+.patient-urgent-kicker {
+  display: block;
+  font-size: 0.68rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: #c2410c;
+  margin-bottom: 4px;
+}
+
+.patient-urgent-card--accepted .patient-urgent-kicker {
+  color: #0f766e;
+}
+
+.patient-urgent-hero-text strong {
+  display: block;
+  font-size: 1.02rem;
+  line-height: 1.3;
+  color: #0f172a;
+  margin-bottom: 4px;
+}
+
+.patient-urgent-hero-text p {
+  margin: 0;
+  font-size: 0.84rem;
+  line-height: 1.45;
+  color: #475569;
+}
+
+.patient-urgent-symptoms {
+  padding: 0 16px 12px;
+}
+
+.patient-urgent-symptoms-label {
+  display: block;
+  font-size: 0.68rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: #64748b;
+  margin-bottom: 8px;
+}
+
+.patient-urgent-symptom-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.patient-urgent-symptom-tag {
+  font-size: 0.78rem;
+  font-weight: 600;
+  padding: 5px 10px;
+  border-radius: 999px;
+  background: #fff;
+  color: #0f766e;
+  border: 1px solid rgba(13, 148, 136, 0.25);
+}
+
+.patient-urgent-steps {
+  list-style: none;
+  margin: 0;
+  padding: 10px 16px 14px;
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 6px;
+  border-top: 1px solid rgba(234, 88, 12, 0.12);
+  border-bottom: 1px solid rgba(234, 88, 12, 0.12);
+  background: rgba(255, 255, 255, 0.55);
+}
+
+.patient-urgent-card--accepted .patient-urgent-steps {
+  border-color: rgba(0, 104, 95, 0.12);
+}
+
+.patient-urgent-step {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  text-align: center;
+  font-size: 0.68rem;
+  font-weight: 600;
+  color: #94a3b8;
+  line-height: 1.25;
+}
+
+.patient-urgent-step--done {
+  color: #0f766e;
+}
+
+.patient-urgent-step--active {
+  color: #c2410c;
+}
+
+.patient-urgent-step-dot {
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  border: 2px solid #cbd5e1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.72rem;
+  font-weight: 700;
+  background: #fff;
+}
+
+.patient-urgent-step--done .patient-urgent-step-dot {
+  border-color: #0d9488;
+  background: #0d9488;
+  color: #fff;
+}
+
+.patient-urgent-step--done .patient-urgent-step-dot .material-symbols-outlined {
+  font-size: 0.95rem;
+}
+
+.patient-urgent-step--active .patient-urgent-step-dot {
+  border-color: #ea580c;
+  color: #ea580c;
+  animation: patient-urgent-step-pulse 1.2s ease-in-out infinite;
+}
+
+@keyframes patient-urgent-step-pulse {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(234, 88, 12, 0.35); }
+  50% { box-shadow: 0 0 0 6px rgba(234, 88, 12, 0); }
+}
+
+.patient-urgent-doctors {
+  padding: 14px 16px 4px;
+}
+
+.patient-urgent-doctors-label {
+  display: block;
+  font-size: 0.68rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: #9a3412;
+  margin-bottom: 10px;
+}
+
+.patient-urgent-doctors ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.patient-urgent-doctors li {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  gap: 10px;
+  align-items: center;
+  padding: 10px 12px;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.85);
+  border: 1px solid rgba(234, 88, 12, 0.12);
+}
+
+.patient-urgent-doctors li strong {
+  display: block;
+  font-size: 0.88rem;
+  color: #0f172a;
+}
+
+.patient-urgent-doctors li span {
+  display: block;
+  font-size: 0.75rem;
+  color: #64748b;
+}
+
+.patient-urgent-doctor-avatar {
+  width: 40px;
+  height: 40px;
+  border-radius: 12px;
+  object-fit: cover;
+}
+
+.patient-urgent-doctor-avatar--lg {
+  width: 52px;
+  height: 52px;
+  border-radius: 14px;
+}
+
+.patient-urgent-doctor-avatar--initials {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: linear-gradient(145deg, #00685f, #0d9488);
+  color: #fff;
+  font-weight: 800;
+  font-size: 0.82rem;
+}
+
+.patient-urgent-doctor-status {
+  font-size: 0.68rem !important;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: #c2410c !important;
+  white-space: nowrap;
+}
+
+.patient-urgent-doctor-ready {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  padding: 14px 16px 4px;
+}
+
+.patient-urgent-doctor-ready strong {
+  display: block;
+  font-size: 1rem;
+}
+
+.patient-urgent-doctor-ready span {
+  display: block;
+  font-size: 0.78rem;
+  color: #64748b;
+}
+
+.patient-urgent-apt {
+  margin-top: 2px;
+  font-weight: 600;
+  color: #0f766e !important;
+}
+
+.patient-urgent-join-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  margin: 14px 16px 16px;
+  padding: 14px 18px;
+  border-radius: 14px;
+  background: linear-gradient(135deg, #00685f, #0d9488);
+  color: #fff;
+  font-weight: 700;
+  font-size: 0.92rem;
+  text-decoration: none;
+  box-shadow: 0 6px 20px rgba(0, 104, 95, 0.35);
+  transition: transform 0.15s, box-shadow 0.15s;
+}
+
+.patient-urgent-join-btn:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 8px 24px rgba(0, 104, 95, 0.4);
+  color: #fff;
+}
+
+.patient-urgent-waiting {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin: 14px 16px 16px;
+  padding: 12px 14px;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.75);
+  border: 1px dashed rgba(234, 88, 12, 0.35);
+}
+
+.patient-urgent-waiting strong {
+  display: block;
+  font-size: 0.86rem;
+  color: #0f172a;
+}
+
+.patient-urgent-waiting span {
+  display: block;
+  font-size: 0.75rem;
+  color: #64748b;
+  margin-top: 2px;
+}
+
+.patient-urgent-waiting-dots {
+  display: flex;
+  gap: 4px;
+  flex-shrink: 0;
+}
+
+.patient-urgent-waiting-dots span {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #ea580c;
+  animation: patient-urgent-dot 1.2s ease-in-out infinite;
+}
+
+.patient-urgent-waiting-dots span:nth-child(2) { animation-delay: 0.15s; }
+.patient-urgent-waiting-dots span:nth-child(3) { animation-delay: 0.3s; }
+
+@keyframes patient-urgent-dot {
+  0%, 80%, 100% { transform: scale(0.65); opacity: 0.45; }
+  40% { transform: scale(1); opacity: 1; }
+}
+
+@media (max-width: 560px) {
+  .patient-urgent-steps {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 10px;
+  }
+}
+
+.dp-urgent-consult {
+  grid-column: 1 / -1;
+}
+
+.dp-urgent-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.dp-urgent-card {
+  padding: 1rem;
+  border-radius: 12px;
+  border: 1px solid rgba(234, 88, 12, 0.25);
+  background: #fff7ed;
+}
+
+.dp-urgent-card-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+
+.dp-urgent-badge {
+  font-size: 0.7rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  padding: 0.15rem 0.45rem;
+  border-radius: 999px;
+  background: #fed7aa;
+  color: #9a3412;
+}
+
+.dp-urgent-badge--emergency {
+  background: #fecaca;
+  color: #991b1b;
+}
+
+.dp-urgent-symptoms {
+  margin: 0.5rem 0 0.25rem;
+  font-weight: 600;
+}
+
+.dp-urgent-message {
+  margin: 0.25rem 0;
+  font-style: italic;
+  color: #475569;
+}
+
+.dp-urgent-assigned {
+  margin: 0.5rem 0 0;
+  font-weight: 600;
+  color: #00685f;
+}
+
+.dp-urgent-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-top: 0.75rem;
+}
+
+.dp-urgent-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin: 0.75rem 0 1rem;
+}
+
+.dp-urgent-tab {
+  border: 1px solid #cbd5e1;
+  background: #fff;
+  color: #334155;
+  border-radius: 999px;
+  padding: 0.35rem 0.85rem;
+  font-size: 0.82rem;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.dp-urgent-tab--active {
+  background: #0f5c4c;
+  border-color: #0f5c4c;
+  color: #fff;
+}
+
+.dp-urgent-tab-count {
+  min-width: 1.25rem;
+  height: 1.25rem;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.2);
+  font-size: 0.72rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 0.25rem;
+}
+
+.dp-urgent-tab:not(.dp-urgent-tab--active) .dp-urgent-tab-count {
+  background: #e2e8f0;
+  color: #334155;
+}
+
+.dp-urgent-empty {
+  margin: 0.5rem 0 1rem;
+}
+
+.dp-urgent-patient {
+  margin-top: 0.75rem;
+  padding-top: 0.75rem;
+  border-top: 1px dashed rgba(15, 92, 76, 0.2);
+}
+
+.dp-urgent-patient-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  margin-bottom: 0.5rem;
+}
+
+.dp-urgent-patient-label {
+  font-size: 0.78rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: #64748b;
+}
+
+.dp-urgent-profile-link {
+  font-size: 0.78rem;
+  padding: 0.2rem 0.55rem;
+}
+
+.dp-urgent-patient-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: 0.5rem 1rem;
+  margin: 0;
+}
+
+.dp-urgent-patient-grid dt {
+  font-size: 0.72rem;
+  color: #64748b;
+  margin: 0;
+}
+
+.dp-urgent-patient-grid dd {
+  margin: 0.1rem 0 0;
+  font-size: 0.85rem;
+  color: #0f172a;
+  word-break: break-word;
+}
+
 .pd-appt-btn--video {
   background: #00685f;
   color: #fff;
