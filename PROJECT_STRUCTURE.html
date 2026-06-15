@@ -1,0 +1,1489 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>MediAI — Project Structure & Architecture Guide</title>
+  <script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
+  <style>
+    :root {
+      --bg: #0f1419;
+      --surface: #1a2332;
+      --surface2: #243044;
+      --border: #2d3a4f;
+      --text: #e8edf4;
+      --muted: #8b9cb3;
+      --accent: #3b9eff;
+      --accent2: #22c55e;
+      --warn: #f59e0b;
+      --danger: #ef4444;
+      --purple: #a78bfa;
+      --radius: 10px;
+      --font: "Segoe UI", system-ui, -apple-system, sans-serif;
+      --mono: "Cascadia Code", "Fira Code", Consolas, monospace;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    html { scroll-behavior: smooth; }
+
+    body {
+      font-family: var(--font);
+      background: var(--bg);
+      color: var(--text);
+      line-height: 1.65;
+      font-size: 15px;
+    }
+
+    /* Layout */
+    .layout {
+      display: grid;
+      grid-template-columns: 260px 1fr;
+      min-height: 100vh;
+    }
+
+    nav.sidebar {
+      position: sticky;
+      top: 0;
+      height: 100vh;
+      overflow-y: auto;
+      background: var(--surface);
+      border-right: 1px solid var(--border);
+      padding: 1.5rem 0;
+    }
+
+    nav.sidebar .logo {
+      padding: 0 1.25rem 1.25rem;
+      border-bottom: 1px solid var(--border);
+      margin-bottom: 1rem;
+    }
+
+    nav.sidebar .logo h1 {
+      font-size: 1.25rem;
+      color: var(--accent);
+      font-weight: 700;
+    }
+
+    nav.sidebar .logo p {
+      font-size: 0.75rem;
+      color: var(--muted);
+      margin-top: 0.25rem;
+    }
+
+    nav.sidebar a {
+      display: block;
+      padding: 0.45rem 1.25rem;
+      color: var(--muted);
+      text-decoration: none;
+      font-size: 0.875rem;
+      border-left: 3px solid transparent;
+      transition: all 0.15s;
+    }
+
+    nav.sidebar a:hover,
+    nav.sidebar a.active {
+      color: var(--text);
+      background: var(--surface2);
+      border-left-color: var(--accent);
+    }
+
+    main {
+      padding: 2.5rem 3rem 4rem;
+      max-width: 960px;
+    }
+
+    /* Typography */
+    h2 {
+      font-size: 1.75rem;
+      font-weight: 700;
+      margin: 2.5rem 0 1rem;
+      padding-bottom: 0.5rem;
+      border-bottom: 2px solid var(--border);
+      color: var(--text);
+    }
+
+    h2:first-of-type { margin-top: 0; }
+
+    h3 {
+      font-size: 1.15rem;
+      font-weight: 600;
+      margin: 1.75rem 0 0.75rem;
+      color: var(--accent);
+    }
+
+    h4 {
+      font-size: 0.95rem;
+      font-weight: 600;
+      margin: 1.25rem 0 0.5rem;
+      color: var(--purple);
+    }
+
+    p { margin-bottom: 0.85rem; color: #c8d4e3; }
+
+    ul, ol {
+      margin: 0.5rem 0 1rem 1.25rem;
+      color: #c8d4e3;
+    }
+
+    li { margin-bottom: 0.35rem; }
+
+    a { color: var(--accent); }
+
+    /* Hero */
+    .hero {
+      background: linear-gradient(135deg, #1a3a5c 0%, #1a2332 60%, #0f1419 100%);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 2rem 2.25rem;
+      margin-bottom: 2rem;
+    }
+
+    .hero h2 {
+      border: none;
+      margin: 0 0 0.75rem;
+      font-size: 2rem;
+    }
+
+    .hero .tagline {
+      color: var(--muted);
+      font-size: 1.05rem;
+      margin-bottom: 1.25rem;
+    }
+
+    .badges {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.5rem;
+    }
+
+    .badge {
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-radius: 999px;
+      padding: 0.25rem 0.75rem;
+      font-size: 0.78rem;
+      color: var(--muted);
+    }
+
+    .badge.accent { border-color: var(--accent); color: var(--accent); }
+    .badge.green  { border-color: var(--accent2); color: var(--accent2); }
+
+    /* Cards & grids */
+    .grid-2 {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 1rem;
+      margin: 1rem 0;
+    }
+
+    .grid-3 {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 1rem;
+      margin: 1rem 0;
+    }
+
+    .card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 1.1rem 1.25rem;
+    }
+
+    .card h4 { margin-top: 0; color: var(--text); }
+    .card p  { font-size: 0.875rem; margin: 0; color: var(--muted); }
+
+    /* Tables */
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin: 1rem 0 1.5rem;
+      font-size: 0.875rem;
+    }
+
+    th {
+      background: var(--surface2);
+      color: var(--text);
+      font-weight: 600;
+      text-align: left;
+      padding: 0.65rem 1rem;
+      border: 1px solid var(--border);
+    }
+
+    td {
+      padding: 0.6rem 1rem;
+      border: 1px solid var(--border);
+      color: #c8d4e3;
+      vertical-align: top;
+    }
+
+    tr:nth-child(even) td { background: rgba(255,255,255,0.02); }
+
+    code {
+      font-family: var(--mono);
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      padding: 0.1em 0.4em;
+      font-size: 0.85em;
+      color: #7dd3fc;
+    }
+
+    pre {
+      background: #0d1117;
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 1.1rem 1.25rem;
+      overflow-x: auto;
+      margin: 1rem 0 1.5rem;
+      font-family: var(--mono);
+      font-size: 0.82rem;
+      line-height: 1.55;
+      color: #c9d1d9;
+    }
+
+    pre .comment { color: #6a737d; }
+    pre .key     { color: #79c0ff; }
+    pre .str     { color: #a5d6ff; }
+
+    /* Diagrams */
+    .diagram {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 1.5rem;
+      margin: 1.25rem 0;
+      overflow-x: auto;
+    }
+
+    .mermaid { text-align: center; }
+
+    /* Flow steps */
+    .steps {
+      counter-reset: step;
+      list-style: none;
+      margin: 1rem 0 1.5rem;
+      padding: 0;
+    }
+
+    .steps li {
+      counter-increment: step;
+      display: flex;
+      gap: 1rem;
+      margin-bottom: 1rem;
+      align-items: flex-start;
+    }
+
+    .steps li::before {
+      content: counter(step);
+      flex-shrink: 0;
+      width: 28px;
+      height: 28px;
+      background: var(--accent);
+      color: #fff;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 0.8rem;
+      font-weight: 700;
+      margin-top: 2px;
+    }
+
+    .step-body strong { display: block; margin-bottom: 0.2rem; }
+
+    /* Repository tree */
+    .repo-tree {
+      background: #0d1117;
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 1rem 1.25rem;
+      margin: 1rem 0 1.5rem;
+      font-family: var(--mono);
+      font-size: 0.8rem;
+      line-height: 1.55;
+      overflow-x: auto;
+    }
+
+    .repo-tree details {
+      margin-left: 0;
+    }
+
+    .repo-tree details details {
+      margin-left: 1.15rem;
+      border-left: 1px solid var(--border);
+      padding-left: 0.65rem;
+    }
+
+    .repo-tree summary {
+      cursor: pointer;
+      list-style: none;
+      padding: 0.12rem 0;
+      user-select: none;
+    }
+
+    .repo-tree summary::-webkit-details-marker { display: none; }
+
+    .repo-tree summary::before {
+      content: "▸ ";
+      color: var(--muted);
+      display: inline-block;
+      width: 1em;
+      transition: transform 0.15s;
+    }
+
+    .repo-tree details[open] > summary::before {
+      transform: rotate(90deg);
+    }
+
+    .repo-tree .dir  { color: #79c0ff; font-weight: 600; }
+    .repo-tree .file { color: #a5d6ff; }
+    .repo-tree .note { color: #6a737d; font-style: italic; margin-left: 0.5rem; }
+
+    .repo-tree .file-row {
+      display: block;
+      padding: 0.1rem 0 0.1rem 1.15rem;
+      border-left: 1px solid transparent;
+    }
+
+    .repo-tree .file-row:hover {
+      background: rgba(255, 255, 255, 0.03);
+    }
+
+    .tree-legend {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 1rem;
+      margin-bottom: 0.75rem;
+      font-size: 0.8rem;
+      color: var(--muted);
+    }
+
+    .tree-legend span { display: flex; align-items: center; gap: 0.35rem; }
+    .tree-legend .swatch {
+      width: 10px;
+      height: 10px;
+      border-radius: 2px;
+      display: inline-block;
+    }
+    .tree-legend .swatch.dir  { background: #79c0ff; }
+    .tree-legend .swatch.file { background: #a5d6ff; }
+
+    /* Callout */
+    .callout {
+      border-left: 4px solid var(--accent);
+      background: rgba(59, 158, 255, 0.08);
+      border-radius: 0 var(--radius) var(--radius) 0;
+      padding: 0.85rem 1.1rem;
+      margin: 1rem 0 1.5rem;
+      font-size: 0.9rem;
+    }
+
+    .callout.warn {
+      border-left-color: var(--warn);
+      background: rgba(245, 158, 11, 0.08);
+    }
+
+    .callout.danger {
+      border-left-color: var(--danger);
+      background: rgba(239, 68, 68, 0.08);
+    }
+
+    /* Footer */
+    footer {
+      margin-top: 3rem;
+      padding-top: 1.5rem;
+      border-top: 1px solid var(--border);
+      color: var(--muted);
+      font-size: 0.82rem;
+    }
+
+    @media (max-width: 900px) {
+      .layout { grid-template-columns: 1fr; }
+      nav.sidebar {
+        position: relative;
+        height: auto;
+        border-right: none;
+        border-bottom: 1px solid var(--border);
+      }
+      main { padding: 1.5rem; }
+      .grid-2, .grid-3 { grid-template-columns: 1fr; }
+    }
+
+    @media print {
+      nav.sidebar { display: none; }
+      .layout { grid-template-columns: 1fr; }
+      body { background: #fff; color: #111; }
+      main { max-width: 100%; }
+    }
+  </style>
+</head>
+<body>
+<div class="layout">
+
+  <!-- Sidebar navigation -->
+  <nav class="sidebar">
+    <div class="logo">
+      <h1>MediAI</h1>
+      <p>Project Structure Guide</p>
+    </div>
+    <a href="#overview">Overview</a>
+    <a href="#architecture">Architecture</a>
+    <a href="#tech-stack">Tech Stack</a>
+    <a href="#startup">Startup &amp; Build</a>
+    <a href="#structure">Folder Structure</a>
+    <a href="#backend">Backend Details</a>
+    <a href="#frontend">Frontend Details</a>
+    <a href="#database">Database &amp; Models</a>
+    <a href="#multi-agent">Multi-Agent AI</a>
+    <a href="#flows">Key User Flows</a>
+    <a href="#api">API Routes</a>
+    <a href="#services">Backend Services</a>
+    <a href="#security">Security</a>
+    <a href="#demo">Demo Accounts</a>
+    <a href="#dev-guide">Developer Guide</a>
+  </nav>
+
+  <main>
+
+    <!-- Hero -->
+    <div class="hero" id="overview">
+      <h2>MediAI Platform</h2>
+      <p class="tagline">
+        An AI-powered intelligent digital care platform combining symptom triage, doctor discovery,
+        appointment scheduling, medical report analysis, emergency routing, and patient engagement —
+        built as a full-stack demo with multi-agent AI orchestration.
+      </p>
+      <div class="badges">
+        <span class="badge accent">React 18 + TypeScript</span>
+        <span class="badge accent">FastAPI + Python 3.12</span>
+        <span class="badge green">PostgreSQL + pgvector</span>
+        <span class="badge">Redis</span>
+        <span class="badge">MinIO (S3)</span>
+        <span class="badge">Groq / Gemini LLM</span>
+        <span class="badge">Docker Compose</span>
+      </div>
+    </div>
+
+    <!-- Architecture -->
+    <section id="architecture">
+      <h2>System Architecture</h2>
+      <p>
+        MediAI is a <strong>Dockerized monorepo</strong> with five services orchestrated by
+        <code>docker-compose.yml</code>. The React SPA talks to a FastAPI backend over REST.
+        The backend persists data in PostgreSQL, caches session state in Redis, stores files in
+        MinIO, and calls external LLM APIs for AI features.
+      </p>
+
+      <div class="diagram">
+        <pre class="mermaid">
+flowchart TB
+    subgraph Client["Browser"]
+        Web["React + Vite\nlocalhost:5173"]
+    end
+
+    subgraph Docker["Docker Compose"]
+        API["FastAPI API\nlocalhost:8000"]
+        PG[("PostgreSQL 16\n+ pgvector\n:5433")]
+        Redis[("Redis\n:6379")]
+        MinIO["MinIO S3\n:9000 / :9001"]
+    end
+
+    subgraph External["External Services"]
+        LLM["Groq / Gemini LLM"]
+        SMTP["SMTP Email"]
+    end
+
+    Web -->|"REST /api/v1"| API
+    API --> PG
+    API --> Redis
+    API --> MinIO
+    API --> LLM
+    API --> SMTP
+        </pre>
+      </div>
+
+      <div class="grid-3">
+        <div class="card">
+          <h4>Patient Portal</h4>
+          <p>Dashboard, AI chat, doctor search, appointments, reports, notifications, video consult.</p>
+        </div>
+        <div class="card">
+          <h4>Doctor Portal</h4>
+          <p>Schedule view, patient insights, clinical summaries, chat history, availability grid.</p>
+        </div>
+        <div class="card">
+          <h4>Admin Panel</h4>
+          <p>User management, appointment oversight, analytics, demo data reset.</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- Tech Stack -->
+    <section id="tech-stack">
+      <h2>Technology Stack</h2>
+      <table>
+        <thead>
+          <tr><th>Layer</th><th>Technology</th><th>Key Libraries / Tools</th></tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>Frontend</td>
+            <td>React 18, TypeScript, Vite</td>
+            <td>react-router-dom v6</td>
+          </tr>
+          <tr>
+            <td>Backend</td>
+            <td>FastAPI, Python 3.12</td>
+            <td>uvicorn, pydantic v2, sqlalchemy async, alembic</td>
+          </tr>
+          <tr>
+            <td>Database</td>
+            <td>PostgreSQL 16 + pgvector</td>
+            <td>asyncpg, alembic migrations</td>
+          </tr>
+          <tr>
+            <td>Cache</td>
+            <td>Redis 7</td>
+            <td>Chat flow state, guest sessions, rate limiting</td>
+          </tr>
+          <tr>
+            <td>Storage</td>
+            <td>MinIO (S3-compatible)</td>
+            <td>boto3 — medical report file storage</td>
+          </tr>
+          <tr>
+            <td>AI / LLM</td>
+            <td>Groq or Google Gemini</td>
+            <td>google-generativeai, groq, langgraph, langchain-core</td>
+          </tr>
+          <tr>
+            <td>Auth</td>
+            <td>JWT + OTP</td>
+            <td>python-jose, bcrypt, SMTP email verification</td>
+          </tr>
+          <tr>
+            <td>Documents</td>
+            <td>Report parsing</td>
+            <td>pdfplumber, python-docx, openpyxl</td>
+          </tr>
+          <tr>
+            <td>Deployment</td>
+            <td>Docker Compose</td>
+            <td>Multi-container with health checks</td>
+          </tr>
+        </tbody>
+      </table>
+    </section>
+
+    <!-- Startup -->
+    <section id="startup">
+      <h2>Startup &amp; Build Flow</h2>
+      <p>The project is designed for <strong>one-command startup</strong>. No manual DB setup required.</p>
+
+      <h3>Prerequisites</h3>
+      <ul>
+        <li>Docker Desktop installed</li>
+        <li>Copy <code>.env.example</code> → <code>.env</code></li>
+        <li>Set at least one LLM API key: <code>GROQ_API_KEY</code> or <code>GEMINI_API_KEY</code></li>
+      </ul>
+
+      <h3>Start Commands</h3>
+      <pre><span class="comment"># Windows</span>
+.\start.ps1
+
+<span class="comment"># Mac / Linux</span>
+docker compose up --build
+
+<span class="comment"># Full reset (wipes database)</span>
+docker compose down -v</pre>
+
+      <h3>What Happens on First Boot</h3>
+      <ol class="steps">
+        <li>
+          <div class="step-body">
+            <strong>Docker builds images</strong>
+            <span>Backend: Python 3.12-slim + pip install. Frontend: Node 20 + npm install.</span>
+          </div>
+        </li>
+        <li>
+          <div class="step-body">
+            <strong>Services start with health checks</strong>
+            <span>PostgreSQL, Redis, and MinIO must be healthy before the API starts.</span>
+          </div>
+        </li>
+        <li>
+          <div class="step-body">
+            <strong><code>entrypoint.py</code> runs in the API container</strong>
+            <span>Waits for DB → runs Alembic migrations → seeds demo data → starts Uvicorn with hot reload.</span>
+          </div>
+        </li>
+        <li>
+          <div class="step-body">
+            <strong>Frontend dev server starts</strong>
+            <span>Vite on port 5173, proxying API calls to the backend container.</span>
+          </div>
+        </li>
+      </ol>
+
+      <pre><span class="comment"># entrypoint.py sequence</span>
+wait_for_db()
+alembic upgrade head          <span class="comment"># Apply DB migrations</span>
+python seed.py                <span class="comment"># Users, doctors, patients</span>
+python seed_demo.py           <span class="comment"># Extra slots &amp; medications</span>
+uvicorn app.main:app --reload <span class="comment"># Start API on :8000</span></pre>
+
+      <h3>Access URLs</h3>
+      <table>
+        <thead><tr><th>URL</th><th>Purpose</th></tr></thead>
+        <tbody>
+          <tr><td><code>http://localhost:5173</code></td><td>Web application</td></tr>
+          <tr><td><code>http://localhost:8000/docs</code></td><td>Swagger API documentation</td></tr>
+          <tr><td><code>http://localhost:8000/health</code></td><td>API health check</td></tr>
+          <tr><td><code>http://localhost:9001</code></td><td>MinIO console (optional)</td></tr>
+        </tbody>
+      </table>
+    </section>
+
+    <!-- Folder Structure -->
+    <section id="structure">
+      <h2>Repository Folder Structure</h2>
+      <p>
+        Click folders to expand or collapse. This tree reflects the actual project layout —
+        ~187 source files across backend, frontend, migrations, tests, and scripts.
+      </p>
+
+      <div class="tree-legend">
+        <span><i class="swatch dir"></i> Directory</span>
+        <span><i class="swatch file"></i> File</span>
+        <span>▸ Click to expand</span>
+      </div>
+
+      <div class="repo-tree">
+        <details open>
+          <summary><span class="dir">medical_healthcare_chatbot/</span></summary>
+
+          <span class="file-row"><span class="file">docker-compose.yml</span><span class="note">— Postgres, Redis, MinIO, API, Web services</span></span>
+          <span class="file-row"><span class="file">start.ps1</span><span class="note">— Windows one-click Docker start</span></span>
+          <span class="file-row"><span class="file">.env.example</span><span class="note">— Environment variable template (copy to .env)</span></span>
+          <span class="file-row"><span class="file">.gitattributes</span></span>
+          <span class="file-row"><span class="file">.cursorignore</span></span>
+          <span class="file-row"><span class="file">README.md</span><span class="note">— Setup guide &amp; demo accounts</span></span>
+          <span class="file-row"><span class="file">PROJECT_DESCRIPTION.md</span><span class="note">— Product features &amp; capabilities</span></span>
+          <span class="file-row"><span class="file">PROJECT_STRUCTURE.html</span><span class="note">— This documentation page</span></span>
+
+          <details open>
+            <summary><span class="dir">scripts/</span></summary>
+            <span class="file-row"><span class="file">run_aura_e2e_tests.py</span><span class="note">— End-to-end AI flow test runner</span></span>
+          </details>
+
+          <details open>
+            <summary><span class="dir">backend/</span></summary>
+
+            <span class="file-row"><span class="file">Dockerfile</span><span class="note">— Python 3.12-slim image</span></span>
+            <span class="file-row"><span class="file">entrypoint.py</span><span class="note">— Docker boot: wait DB → migrate → seed → uvicorn</span></span>
+            <span class="file-row"><span class="file">requirements.txt</span><span class="note">— Python dependencies (FastAPI, SQLAlchemy, LLM, …)</span></span>
+            <span class="file-row"><span class="file">alembic.ini</span></span>
+            <span class="file-row"><span class="file">pytest.ini</span></span>
+            <span class="file-row"><span class="file">seed.py</span><span class="note">— Demo users, doctors, patients (idempotent)</span></span>
+            <span class="file-row"><span class="file">seed_demo.py</span><span class="note">— Evening slots &amp; medications (safe re-run)</span></span>
+            <span class="file-row"><span class="file">truncate_keep_doctors.py</span><span class="note">— Reset patients, keep doctor catalog</span></span>
+            <span class="file-row"><span class="file">restore_admin.py</span><span class="note">— Restore admin account utility</span></span>
+            <span class="file-row"><span class="file">free_doctor_slots_today.py</span><span class="note">— Dev utility for slot management</span></span>
+
+            <details>
+              <summary><span class="dir">alembic/</span></summary>
+              <span class="file-row"><span class="file">env.py</span><span class="note">— Migration runtime config</span></span>
+              <span class="file-row"><span class="file">script.py.mako</span></span>
+              <details>
+                <summary><span class="dir">versions/</span></summary>
+                <span class="file-row"><span class="file">001_initial_schema.py</span></span>
+                <span class="file-row"><span class="file">002_refill_requests.py</span></span>
+                <span class="file-row"><span class="file">003_reminders_video.py</span></span>
+                <span class="file-row"><span class="file">004_doctor_profiles.py</span></span>
+              </details>
+            </details>
+
+            <details>
+              <summary><span class="dir">scripts/</span></summary>
+              <span class="file-row"><span class="file">truncate_keep_doctors.sql</span></span>
+              <span class="file-row"><span class="file">truncate_patients.sql</span></span>
+            </details>
+
+            <details>
+              <summary><span class="dir">tests/</span> <span class="note">— pytest suite (12 test modules)</span></summary>
+              <span class="file-row"><span class="file">conftest.py</span></span>
+              <span class="file-row"><span class="file">test_health.py</span></span>
+              <span class="file-row"><span class="file">test_agents.py</span></span>
+              <span class="file-row"><span class="file">test_agent_flows_e2e.py</span></span>
+              <span class="file-row"><span class="file">test_appointment_chat.py</span></span>
+              <span class="file-row"><span class="file">test_booking_actions.py</span></span>
+              <span class="file-row"><span class="file">test_emergency_detection.py</span></span>
+              <span class="file-row"><span class="file">test_match_slot_from_text.py</span></span>
+              <span class="file-row"><span class="file">test_refill_flow.py</span></span>
+              <span class="file-row"><span class="file">test_report_service.py</span></span>
+              <span class="file-row"><span class="file">test_triage_chat_service.py</span></span>
+              <span class="file-row"><span class="file">test_triage_conversation.py</span></span>
+            </details>
+
+            <details open>
+              <summary><span class="dir">app/</span> <span class="note">— FastAPI application package</span></summary>
+
+              <span class="file-row"><span class="file">main.py</span><span class="note">— App factory, lifespan, middleware, routers</span></span>
+              <span class="file-row"><span class="file">database.py</span><span class="note">— Settings, async DB engine, JWT, auth deps</span></span>
+              <span class="file-row"><span class="file">middleware.py</span><span class="note">— Rate limit, audit log, request ID</span></span>
+              <span class="file-row"><span class="file">emergency_detection.py</span><span class="note">— Crisis &amp; emergency keyword routing</span></span>
+              <span class="file-row"><span class="file">healthcare_policy.py</span><span class="note">— Greetings, off-topic, care-flow rules</span></span>
+              <span class="file-row"><span class="file">agents.py</span><span class="note">— Legacy agent helpers &amp; contextual replies</span></span>
+              <span class="file-row"><span class="file">agent_flows.py</span></span>
+              <span class="file-row"><span class="file">dynamic_agent.py</span></span>
+
+              <details>
+                <summary><span class="dir">constants/</span></summary>
+                <span class="file-row"><span class="file">auth_messages.py</span></span>
+              </details>
+
+              <details>
+                <summary><span class="dir">data/</span></summary>
+                <span class="file-row"><span class="file">doctors_catalog.py</span><span class="note">— Doctor seed catalog data</span></span>
+              </details>
+
+              <details open>
+                <summary><span class="dir">routes/</span> <span class="note">— HTTP API endpoints → /api/v1</span></summary>
+                <span class="file-row"><span class="file">router.py</span><span class="note">— Central route registration</span></span>
+                <span class="file-row"><span class="file">health.py</span></span>
+                <span class="file-row"><span class="file">auth.py</span></span>
+                <span class="file-row"><span class="file">guest.py</span></span>
+                <span class="file-row"><span class="file">chat.py</span></span>
+                <span class="file-row"><span class="file">symptoms.py</span></span>
+                <span class="file-row"><span class="file">doctors.py</span></span>
+                <span class="file-row"><span class="file">appointments.py</span></span>
+                <span class="file-row"><span class="file">reports.py</span></span>
+                <span class="file-row"><span class="file">patients.py</span></span>
+                <span class="file-row"><span class="file">doctor_portal.py</span></span>
+                <span class="file-row"><span class="file">admin.py</span></span>
+              </details>
+
+              <details open>
+                <summary><span class="dir">services/</span> <span class="note">— Business logic layer (40 modules)</span></summary>
+                <span class="file-row"><span class="file">chat_orchestrator.py</span><span class="note">— Guest + patient chat entry point</span></span>
+                <span class="file-row"><span class="file">agent_tools.py</span><span class="note">— DB-backed AI tool implementations</span></span>
+                <span class="file-row"><span class="file">flow_state.py</span><span class="note">— Redis multi-turn session state</span></span>
+                <span class="file-row"><span class="file">appointment_service.py</span></span>
+                <span class="file-row"><span class="file">appointment_chat_service.py</span></span>
+                <span class="file-row"><span class="file">appointment_email_service.py</span></span>
+                <span class="file-row"><span class="file">appointment_card_service.py</span></span>
+                <span class="file-row"><span class="file">auth_service.py</span></span>
+                <span class="file-row"><span class="file">otp_service.py</span></span>
+                <span class="file-row"><span class="file">email_service.py</span></span>
+                <span class="file-row"><span class="file">email_templates.py</span></span>
+                <span class="file-row"><span class="file">doctor_service.py</span></span>
+                <span class="file-row"><span class="file">doctor_seed_service.py</span></span>
+                <span class="file-row"><span class="file">patient_context.py</span></span>
+                <span class="file-row"><span class="file">symptom_service.py</span></span>
+                <span class="file-row"><span class="file">symptom_extraction.py</span></span>
+                <span class="file-row"><span class="file">triage_chat_service.py</span></span>
+                <span class="file-row"><span class="file">report_service.py</span></span>
+                <span class="file-row"><span class="file">vitals_service.py</span></span>
+                <span class="file-row"><span class="file">summary_service.py</span></span>
+                <span class="file-row"><span class="file">refill_service.py</span></span>
+                <span class="file-row"><span class="file">reminder_scheduler_service.py</span></span>
+                <span class="file-row"><span class="file">video_consultation_service.py</span></span>
+                <span class="file-row"><span class="file">admin_service.py</span></span>
+                <span class="file-row"><span class="file">bootstrap_service.py</span></span>
+                <span class="file-row"><span class="file">cache.py</span></span>
+                <span class="file-row"><span class="file">chat_ui.py</span></span>
+                <span class="file-row"><span class="file">self_care_service.py</span></span>
+                <span class="file-row"><span class="file">guest_session_store.py</span></span>
+                <span class="file-row"><span class="file">guest_chat_service.py</span></span>
+                <span class="file-row"><span class="file">guest_auth_service.py</span></span>
+                <span class="file-row"><span class="file">guest_booking_service.py</span></span>
+                <span class="file-row"><span class="file">guest_report_service.py</span></span>
+                <span class="file-row"><span class="file">guest_symptom_image_service.py</span></span>
+                <span class="file-row"><span class="file">guest_aura_flow.py</span></span>
+                <span class="file-row"><span class="file">guest_resume_service.py</span></span>
+                <span class="file-row"><span class="file">guest_flow.py</span></span>
+                <span class="file-row"><span class="file">symptom_image_service.py</span></span>
+                <span class="file-row"><span class="file">agent_orchestrator.py</span></span>
+              </details>
+
+              <details open>
+                <summary><span class="dir">multi_agent/</span> <span class="note">— AI supervisor + specialists</span></summary>
+                <span class="file-row"><span class="file">supervisor.py</span><span class="note">— Routes messages to specialists</span></span>
+                <span class="file-row"><span class="file">specialists.py</span><span class="note">— Agent prompts &amp; tool permissions</span></span>
+                <span class="file-row"><span class="file">llm.py</span><span class="note">— Groq / Gemini client</span></span>
+                <span class="file-row"><span class="file">booking_actions.py</span></span>
+                <span class="file-row"><span class="file">offline_fallback.py</span></span>
+                <span class="file-row"><span class="file">types.py</span></span>
+                <span class="file-row"><span class="file">__init__.py</span></span>
+              </details>
+
+              <details>
+                <summary><span class="dir">models/</span> <span class="note">— SQLAlchemy ORM</span></summary>
+                <span class="file-row"><span class="file">user.py</span><span class="note">— User, Patient, Doctor</span></span>
+                <span class="file-row"><span class="file">clinical.py</span><span class="note">— MedicalHistory, Medication, Allergy, RefillRequest</span></span>
+                <span class="file-row"><span class="file">doctor_ops.py</span><span class="note">— Appointment, DoctorAvailability, Specialization</span></span>
+                <span class="file-row"><span class="file">chat.py</span><span class="note">— Conversation, Message, SymptomAssessment</span></span>
+                <span class="file-row"><span class="file">reports.py</span><span class="note">— Report, PatientSummary, DoctorNote</span></span>
+                <span class="file-row"><span class="file">system.py</span><span class="note">— Notification, AuditLog, RefreshToken</span></span>
+                <span class="file-row"><span class="file">enums.py</span></span>
+                <span class="file-row"><span class="file">__init__.py</span></span>
+              </details>
+
+              <details>
+                <summary><span class="dir">schemas/</span> <span class="note">— Pydantic request/response DTOs</span></summary>
+                <span class="file-row"><span class="file">auth.py</span></span>
+                <span class="file-row"><span class="file">chat.py</span></span>
+                <span class="file-row"><span class="file">common.py</span></span>
+                <span class="file-row"><span class="file">admin.py</span></span>
+              </details>
+
+              <details>
+                <summary><span class="dir">email_templates/</span> <span class="note">— HTML transactional emails</span></summary>
+                <span class="file-row"><span class="file">otp_verification.html</span></span>
+                <span class="file-row"><span class="file">appointment_patient.html</span></span>
+                <span class="file-row"><span class="file">appointment_doctor.html</span></span>
+                <span class="file-row"><span class="file">appointment_cancelled_patient.html</span></span>
+                <span class="file-row"><span class="file">appointment_cancelled_doctor.html</span></span>
+                <span class="file-row"><span class="file">appointment_rescheduled_patient.html</span></span>
+                <span class="file-row"><span class="file">appointment_rescheduled_doctor.html</span></span>
+              </details>
+
+              <details>
+                <summary><span class="dir">utils/</span></summary>
+                <span class="file-row"><span class="file">clinic_time.py</span></span>
+                <span class="file-row"><span class="file">email.py</span></span>
+                <span class="file-row"><span class="file">doctor_avatar.py</span></span>
+              </details>
+            </details>
+          </details>
+
+          <details open>
+            <summary><span class="dir">frontend/</span></summary>
+
+            <span class="file-row"><span class="file">Dockerfile</span><span class="note">— Node 20 Alpine + Vite dev server</span></span>
+            <span class="file-row"><span class="file">package.json</span></span>
+            <span class="file-row"><span class="file">index.html</span></span>
+            <span class="file-row"><span class="file">vite.config.ts</span><span class="note">— Dev server &amp; API proxy</span></span>
+            <span class="file-row"><span class="file">tsconfig.json</span></span>
+
+            <details open>
+              <summary><span class="dir">src/</span></summary>
+
+              <span class="file-row"><span class="file">main.tsx</span><span class="note">— React entry point</span></span>
+              <span class="file-row"><span class="file">App.tsx</span><span class="note">— Routes &amp; role-based access control</span></span>
+              <span class="file-row"><span class="file">styles.css</span></span>
+
+              <details>
+                <summary><span class="dir">api/</span></summary>
+                <span class="file-row"><span class="file">client.ts</span><span class="note">— Fetch wrapper + JWT auto-refresh</span></span>
+              </details>
+
+              <details open>
+                <summary><span class="dir">pages/</span></summary>
+                <span class="file-row"><span class="file">Landing.tsx</span><span class="note">— Public homepage + guest chat</span></span>
+                <span class="file-row"><span class="file">Login.tsx</span></span>
+                <details>
+                  <summary><span class="dir">patient/</span></summary>
+                  <span class="file-row"><span class="file">Dashboard.tsx</span></span>
+                  <span class="file-row"><span class="file">Chat.tsx</span></span>
+                  <span class="file-row"><span class="file">Doctors.tsx</span></span>
+                  <span class="file-row"><span class="file">Appointments.tsx</span></span>
+                  <span class="file-row"><span class="file">Reports.tsx</span></span>
+                  <span class="file-row"><span class="file">Notifications.tsx</span></span>
+                  <span class="file-row"><span class="file">VideoConsultation.tsx</span></span>
+                </details>
+                <details>
+                  <summary><span class="dir">doctor/</span></summary>
+                  <span class="file-row"><span class="file">Dashboard.tsx</span></span>
+                  <span class="file-row"><span class="file">PatientDetail.tsx</span></span>
+                </details>
+                <details>
+                  <summary><span class="dir">admin/</span></summary>
+                  <span class="file-row"><span class="file">Panel.tsx</span></span>
+                </details>
+              </details>
+
+              <details>
+                <summary><span class="dir">components/</span> <span class="note">— Shared UI components</span></summary>
+                <span class="file-row"><span class="file">Layout.tsx</span></span>
+                <span class="file-row"><span class="file">PatientLayout.tsx</span></span>
+                <span class="file-row"><span class="file">GuestChatWidget.tsx</span></span>
+                <span class="file-row"><span class="file">GuestSignupModal.tsx</span></span>
+                <span class="file-row"><span class="file">ChatBookingUI.tsx</span></span>
+                <span class="file-row"><span class="file">ChatFileAttachment.tsx</span></span>
+                <span class="file-row"><span class="file">ChatReportFollowUp.tsx</span></span>
+                <span class="file-row"><span class="file">ChatReportViewModal.tsx</span></span>
+                <span class="file-row"><span class="file">AppointmentCard.tsx</span></span>
+                <span class="file-row"><span class="file">NotificationDropdown.tsx</span></span>
+                <span class="file-row"><span class="file">DoctorAvatar.tsx</span></span>
+                <span class="file-row"><span class="file">EmailExistsNotice.tsx</span></span>
+                <details>
+                  <summary><span class="dir">doctor/</span></summary>
+                  <span class="file-row"><span class="file">DoctorLayout.tsx</span></span>
+                  <span class="file-row"><span class="file">DoctorAvailabilityGrid.tsx</span></span>
+                  <span class="file-row"><span class="file">DoctorAppointmentsSections.tsx</span></span>
+                  <span class="file-row"><span class="file">DoctorChatHistory.tsx</span></span>
+                  <span class="file-row"><span class="file">ClinicalSummaryPanel.tsx</span></span>
+                  <span class="file-row"><span class="file">StructuredClinicalSummary.tsx</span></span>
+                  <span class="file-row"><span class="file">DoctorPatientConsultSummary.tsx</span></span>
+                </details>
+              </details>
+
+              <details>
+                <summary><span class="dir">utils/</span> <span class="note">— Frontend helpers</span></summary>
+                <span class="file-row"><span class="file">guestSession.ts</span></span>
+                <span class="file-row"><span class="file">chatConversations.ts</span></span>
+                <span class="file-row"><span class="file">chatUiHelpers.ts</span></span>
+                <span class="file-row"><span class="file">chatTokens.ts</span></span>
+                <span class="file-row"><span class="file">reportUpload.ts</span></span>
+                <span class="file-row"><span class="file">healthVitals.ts</span></span>
+                <span class="file-row"><span class="file">healthInsights.ts</span></span>
+                <span class="file-row"><span class="file">symptomDetection.ts</span></span>
+                <span class="file-row"><span class="file">recommendedSpecialty.ts</span></span>
+                <span class="file-row"><span class="file">consultationInsights.ts</span></span>
+                <span class="file-row"><span class="file">clinicalSummaryFormat.ts</span></span>
+                <span class="file-row"><span class="file">doctorPortal.ts</span></span>
+                <span class="file-row"><span class="file">doctorAvatar.ts</span></span>
+                <span class="file-row"><span class="file">notifications.ts</span></span>
+                <span class="file-row"><span class="file">authErrors.ts</span></span>
+              </details>
+
+              <details>
+                <summary><span class="dir">styles/</span></summary>
+                <span class="file-row"><span class="file">doctor-portal.css</span></span>
+              </details>
+            </details>
+          </details>
+        </details>
+      </div>
+
+      <div class="callout">
+        <strong>Not committed to Git:</strong> <code>.env</code> (secrets), <code>venv/</code>,
+        <code>node_modules/</code>, Docker volumes (<code>pgdata/</code>, <code>miniodata/</code>),
+        and uploaded <code>reports/</code> samples.
+      </div>
+    </section>
+
+    <!-- Backend -->
+    <section id="backend">
+      <h2>Backend Details</h2>
+
+      <h3>Application Entry — <code>app/main.py</code></h3>
+      <p>Creates the FastAPI application with:</p>
+      <ul>
+        <li><strong>Lifespan hook</strong> — ensures admin account exists; starts appointment reminder background worker</li>
+        <li><strong>Middleware stack</strong> — CORS → Request ID → Rate Limiting → Audit Logging</li>
+        <li><strong>Route mounting</strong> — <code>/health</code> + <code>/api/v1/*</code> router</li>
+      </ul>
+
+      <h3>Configuration — <code>app/database.py</code></h3>
+      <p>Central configuration via Pydantic <code>Settings</code> (reads from <code>.env</code>):</p>
+      <div class="grid-2">
+        <div class="card">
+          <h4>Database &amp; Cache</h4>
+          <p><code>DATABASE_URL</code>, <code>REDIS_URL</code>, connection pooling</p>
+        </div>
+        <div class="card">
+          <h4>Auth</h4>
+          <p><code>JWT_SECRET</code>, access/refresh token expiry, bcrypt password hashing</p>
+        </div>
+        <div class="card">
+          <h4>AI</h4>
+          <p><code>LLM_PROVIDER</code>, Groq/Gemini keys and model names</p>
+        </div>
+        <div class="card">
+          <h4>Storage &amp; Email</h4>
+          <p>S3/MinIO config, SMTP settings, OTP dev mode</p>
+        </div>
+      </div>
+
+      <h3>Layered Architecture</h3>
+      <div class="diagram">
+        <pre class="mermaid">
+flowchart TB
+    Routes["routes/\nHTTP endpoints"] --> Services["services/\nBusiness logic"]
+    Services --> Models["models/\nSQLAlchemy ORM"]
+    Services --> MultiAgent["multi_agent/\nAI orchestration"]
+    MultiAgent --> LLM["llm.py\nGroq / Gemini"]
+    MultiAgent --> Tools["agent_tools.py\nDB-backed actions"]
+    Tools --> Models
+    Routes --> Schemas["schemas/\nPydantic DTOs"]
+        </pre>
+      </div>
+    </section>
+
+    <!-- Frontend -->
+    <section id="frontend">
+      <h2>Frontend Details</h2>
+
+      <h3>Routing — <code>src/App.tsx</code></h3>
+      <p>React Router v6 with role-based <code>Protected</code> wrapper checking JWT in <code>localStorage</code>.</p>
+
+      <table>
+        <thead><tr><th>Path</th><th>Role</th><th>Page</th></tr></thead>
+        <tbody>
+          <tr><td><code>/</code></td><td>Public</td><td>Landing page + guest chat widget</td></tr>
+          <tr><td><code>/login</code></td><td>Public</td><td>Login / register</td></tr>
+          <tr><td><code>/dashboard</code></td><td>Patient</td><td>Health dashboard &amp; vitals</td></tr>
+          <tr><td><code>/chat</code></td><td>Patient</td><td>AI health consultation chat</td></tr>
+          <tr><td><code>/doctors</code></td><td>Patient</td><td>Browse &amp; book doctors</td></tr>
+          <tr><td><code>/appointments</code></td><td>Patient</td><td>View / cancel appointments</td></tr>
+          <tr><td><code>/reports</code></td><td>Patient</td><td>Upload &amp; view lab reports</td></tr>
+          <tr><td><code>/notifications</code></td><td>Patient</td><td>Alerts &amp; reminders</td></tr>
+          <tr><td><code>/video/:id</code></td><td>Patient</td><td>Video consultation (demo)</td></tr>
+          <tr><td><code>/doctor</code></td><td>Doctor</td><td>Doctor dashboard &amp; schedule</td></tr>
+          <tr><td><code>/doctor/patients/:id</code></td><td>Doctor</td><td>Patient detail &amp; clinical summary</td></tr>
+          <tr><td><code>/admin</code></td><td>Admin</td><td>Platform administration</td></tr>
+        </tbody>
+      </table>
+
+      <h3>API Client — <code>src/api/client.ts</code></h3>
+      <ul>
+        <li><code>api()</code> — JSON requests with Bearer token injection</li>
+        <li><code>apiUpload()</code> — multipart form uploads (reports, symptom images)</li>
+        <li>Auto token refresh on 401 via <code>/auth/refresh</code></li>
+        <li>Guest paths skip auth; auth paths skip stale tokens</li>
+      </ul>
+
+      <h3>Key UI Components</h3>
+      <table>
+        <thead><tr><th>Component</th><th>Purpose</th></tr></thead>
+        <tbody>
+          <tr><td><code>GuestChatWidget.tsx</code></td><td>Anonymous landing-page AI chat with signup flow</td></tr>
+          <tr><td><code>ChatBookingUI.tsx</code></td><td>In-chat doctor/slot selection UI</td></tr>
+          <tr><td><code>AppointmentCard.tsx</code></td><td>Appointment display with actions</td></tr>
+          <tr><td><code>ChatFileAttachment.tsx</code></td><td>Report &amp; symptom image uploads in chat</td></tr>
+          <tr><td><code>ClinicalSummaryPanel.tsx</code></td><td>Doctor-facing pre-visit AI summary</td></tr>
+          <tr><td><code>DoctorAvailabilityGrid.tsx</code></td><td>Doctor schedule management grid</td></tr>
+        </tbody>
+      </table>
+    </section>
+
+    <!-- Database -->
+    <section id="database">
+      <h2>Database &amp; Data Models</h2>
+      <p>PostgreSQL 16 with pgvector. Schema managed by Alembic migrations in <code>backend/alembic/versions/</code>.</p>
+
+      <table>
+        <thead><tr><th>Module</th><th>Entities</th><th>Description</th></tr></thead>
+        <tbody>
+          <tr>
+            <td><code>models/user.py</code></td>
+            <td>User, Patient, Doctor</td>
+            <td>Core identity with role-based access</td>
+          </tr>
+          <tr>
+            <td><code>models/clinical.py</code></td>
+            <td>MedicalHistory, Medication, Allergy, RefillRequest</td>
+            <td>Patient clinical data</td>
+          </tr>
+          <tr>
+            <td><code>models/doctor_ops.py</code></td>
+            <td>Appointment, DoctorAvailability, Specialization</td>
+            <td>Scheduling &amp; doctor catalog</td>
+          </tr>
+          <tr>
+            <td><code>models/chat.py</code></td>
+            <td>Conversation, Message, SymptomAssessment</td>
+            <td>AI chat history &amp; triage results</td>
+          </tr>
+          <tr>
+            <td><code>models/reports.py</code></td>
+            <td>Report, PatientSummary, DoctorNote</td>
+            <td>Uploaded documents &amp; AI analysis</td>
+          </tr>
+          <tr>
+            <td><code>models/system.py</code></td>
+            <td>Notification, AuditLog, RefreshToken</td>
+            <td>Platform infrastructure</td>
+          </tr>
+        </tbody>
+      </table>
+
+      <h3>Seeding</h3>
+      <div class="grid-2">
+        <div class="card">
+          <h4><code>seed.py</code></h4>
+          <p>Creates admin account, doctor catalog with availability slots, and demo patients (John, Jane, Alex) with medical history.</p>
+        </div>
+        <div class="card">
+          <h4><code>seed_demo.py</code></h4>
+          <p>Idempotent — adds evening appointment slots for all doctors and medications for john@test.com. Safe to re-run on every startup.</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- Multi-Agent -->
+    <section id="multi-agent">
+      <h2>Multi-Agent AI Architecture</h2>
+      <p>
+        The core intelligence layer. A <strong>Supervisor</strong> routes each patient message to a
+        <strong>Specialist Agent</strong>, which uses an LLM plus scoped database tools to take
+        real actions (book appointments, assess symptoms, analyze reports).
+      </p>
+
+      <div class="diagram">
+        <pre class="mermaid">
+flowchart LR
+    User["Patient Message"] --> Orch["chat_orchestrator.py"]
+    Orch --> Emergency{"Emergency /\nCrisis?"}
+    Emergency -->|Yes| Safety["Safety Agent"]
+    Emergency -->|No| Sup["Supervisor\nsupervisor.py"]
+    Sup --> Edu["Education"]
+    Sup --> Tri["Triage"]
+    Sup --> Sch["Scheduling"]
+    Sup --> Rep["Report"]
+    Sup --> Fol["Follow-up"]
+    Sup --> Ref["Refill"]
+    Edu & Tri & Sch & Rep & Fol & Ref --> Tools["agent_tools.py"]
+    Tools --> DB[("PostgreSQL")]
+        </pre>
+      </div>
+
+      <h3>Specialist Agents</h3>
+      <table>
+        <thead><tr><th>Agent</th><th>Responsibility</th><th>Key Tools</th></tr></thead>
+        <tbody>
+          <tr>
+            <td><strong>Supervisor</strong></td>
+            <td>Routes message to the right specialist via LLM</td>
+            <td>—</td>
+          </tr>
+          <tr>
+            <td><strong>Safety</strong></td>
+            <td>Emergency &amp; mental health crisis detection</td>
+            <td>—</td>
+          </tr>
+          <tr>
+            <td><strong>Education</strong></td>
+            <td>General health Q&amp;A, wellness info</td>
+            <td>save_memory</td>
+          </tr>
+          <tr>
+            <td><strong>Triage</strong></td>
+            <td>Symptom assessment, specialist recommendation</td>
+            <td>assess_symptoms, save_memory</td>
+          </tr>
+          <tr>
+            <td><strong>Scheduling</strong></td>
+            <td>Find doctors, book/cancel/reschedule</td>
+            <td>search_doctors, get_doctor_slots, book_slot, cancel_appointment, …</td>
+          </tr>
+          <tr>
+            <td><strong>Report</strong></td>
+            <td>Lab report upload &amp; AI analysis</td>
+            <td>list_reports, analyze_report, get_report_analysis</td>
+          </tr>
+          <tr>
+            <td><strong>Follow-up</strong></td>
+            <td>Post-visit recovery check-ins</td>
+            <td>save_memory, search_doctors, get_medications</td>
+          </tr>
+          <tr>
+            <td><strong>Refill</strong></td>
+            <td>Prescription refill requests</td>
+            <td>get_medications, request_refill</td>
+          </tr>
+        </tbody>
+      </table>
+
+      <h3>Key AI Files</h3>
+      <table>
+        <thead><tr><th>File</th><th>Role</th></tr></thead>
+        <tbody>
+          <tr><td><code>services/chat_orchestrator.py</code></td><td>Shared entry for guest + patient chat; emergency pre-checks</td></tr>
+          <tr><td><code>multi_agent/supervisor.py</code></td><td>LLM-based routing to specialists; care goal tracking</td></tr>
+          <tr><td><code>multi_agent/specialists.py</code></td><td>Agent prompts, tool permissions, response parsing</td></tr>
+          <tr><td><code>multi_agent/llm.py</code></td><td>Groq/Gemini client with JSON mode support</td></tr>
+          <tr><td><code>services/agent_tools.py</code></td><td>DB-backed tool implementations (booking, triage, reports)</td></tr>
+          <tr><td><code>services/flow_state.py</code></td><td>Redis session state for multi-turn conversation flows</td></tr>
+          <tr><td><code>emergency_detection.py</code></td><td>Keyword-based emergency &amp; crisis routing</td></tr>
+          <tr><td><code>multi_agent/offline_fallback.py</code></td><td>Rule-based fallback when LLM is unavailable</td></tr>
+        </tbody>
+      </table>
+
+      <div class="callout">
+        Each specialist returns structured JSON: <code>reply</code>, optional <code>tool</code> call,
+        <code>session_patch</code>, and <code>handoff_to</code> another agent. Only <strong>one tool call
+        per turn</strong> is allowed — tools read/write real PostgreSQL data, not hallucinated responses.
+      </div>
+    </section>
+
+    <!-- Flows -->
+    <section id="flows">
+      <h2>Key User Flows</h2>
+
+      <h3>1. Guest Chat → Signup → Patient</h3>
+      <div class="diagram">
+        <pre class="mermaid">
+sequenceDiagram
+    participant U as User (Browser)
+    participant G as GuestChatWidget
+    participant API as /api/v1/guest
+    participant Redis as Redis Session
+    participant DB as PostgreSQL
+
+    U->>G: Open landing page chat
+    G->>API: POST /guest/session
+    API->>Redis: Create guest session
+    U->>G: "I have a headache"
+    G->>API: POST /guest/message
+    API->>API: chat_orchestrator → Supervisor → Triage
+    API-->>G: AI reply + quick actions
+    U->>G: Enter email + OTP
+    G->>API: POST /guest/register
+    API->>DB: Create User + Patient
+    API->>Redis: Migrate guest session → patient
+    API-->>G: JWT tokens
+        </pre>
+      </div>
+
+      <h3>2. Patient Chat Message Flow</h3>
+      <ol class="steps">
+        <li>
+          <div class="step-body">
+            <strong>Frontend sends message</strong>
+            <span><code>POST /api/v1/chat/conversations/{id}/messages</code></span>
+          </div>
+        </li>
+        <li>
+          <div class="step-body">
+            <strong>Message saved to PostgreSQL</strong>
+            <span>Conversation history loaded; patient context assembled from profile, meds, allergies.</span>
+          </div>
+        </li>
+        <li>
+          <div class="step-body">
+            <strong>Emergency pre-check</strong>
+            <span><code>emergency_detection.py</code> scans for crisis keywords before AI routing.</span>
+          </div>
+        </li>
+        <li>
+          <div class="step-body">
+            <strong>Supervisor picks specialist</strong>
+            <span>LLM routing based on message intent, active agent, and care goal.</span>
+          </div>
+        </li>
+        <li>
+          <div class="step-body">
+            <strong>Specialist processes + optional tool call</strong>
+            <span>e.g. <code>assess_symptoms</code>, <code>book_slot</code>, <code>analyze_report</code></span>
+          </div>
+        </li>
+        <li>
+          <div class="step-body">
+            <strong>Reply + UI hints returned</strong>
+            <span>Booking buttons, yes/no prompts, slot pickers rendered by frontend components.</span>
+          </div>
+        </li>
+      </ol>
+
+      <h3>3. Appointment Booking</h3>
+      <p>Can happen via chat (Scheduling Agent) or the Doctors page. Backend enforces slot availability, conflict prevention, and sends HTML email notifications to both patient and doctor.</p>
+
+      <h3>4. Report Upload &amp; Analysis</h3>
+      <p>Patient uploads PDF/DOCX/XLSX → stored in MinIO → parsed with pdfplumber/python-docx/openpyxl → LLM analyzes content → results saved and surfaced in chat and dashboard vitals.</p>
+    </section>
+
+    <!-- API Routes -->
+    <section id="api">
+      <h2>API Routes (<code>/api/v1</code>)</h2>
+      <p>All routes registered in <code>backend/app/routes/router.py</code>. Full docs at <code>/docs</code>.</p>
+
+      <table>
+        <thead><tr><th>Module</th><th>Prefix</th><th>Endpoints</th></tr></thead>
+        <tbody>
+          <tr><td><code>auth.py</code></td><td><code>/auth</code></td><td>Login, register, OTP verify, JWT refresh, password reset</td></tr>
+          <tr><td><code>guest.py</code></td><td><code>/guest</code></td><td>Anonymous chat, session, signup, file uploads</td></tr>
+          <tr><td><code>chat.py</code></td><td><code>/chat</code></td><td>Conversations, messages, report uploads in chat</td></tr>
+          <tr><td><code>symptoms.py</code></td><td><code>/symptoms</code></td><td>Symptom assessment endpoints</td></tr>
+          <tr><td><code>doctors.py</code></td><td><code>/doctors</code></td><td>Doctor listing, search, availability</td></tr>
+          <tr><td><code>appointments.py</code></td><td><code>/appointments</code></td><td>Book, cancel, reschedule, list</td></tr>
+          <tr><td><code>reports.py</code></td><td><code>/reports</code></td><td>Upload, list, analyze medical reports</td></tr>
+          <tr><td><code>patients.py</code></td><td><code>/patients</code></td><td>Profile, vitals, history, medications</td></tr>
+          <tr><td><code>doctor_portal.py</code></td><td><code>/doctor</code></td><td>Doctor dashboard, patient insights, notes</td></tr>
+          <tr><td><code>admin.py</code></td><td><code>/admin</code></td><td>User management, analytics, demo reset</td></tr>
+        </tbody>
+      </table>
+    </section>
+
+    <!-- Services -->
+    <section id="services">
+      <h2>Backend Services Layer</h2>
+      <p>Business logic lives in <code>backend/app/services/</code> — routes stay thin, services handle complexity.</p>
+
+      <table>
+        <thead><tr><th>Service</th><th>Purpose</th></tr></thead>
+        <tbody>
+          <tr><td><code>appointment_service.py</code></td><td>Booking logic, conflict prevention, slot release</td></tr>
+          <tr><td><code>appointment_email_service.py</code></td><td>Booking / cancel / reschedule email notifications</td></tr>
+          <tr><td><code>appointment_chat_service.py</code></td><td>Natural-language slot matching in chat</td></tr>
+          <tr><td><code>email_service.py</code></td><td>SMTP sending with HTML template rendering</td></tr>
+          <tr><td><code>otp_service.py</code></td><td>Email OTP generation, validation, rate limiting</td></tr>
+          <tr><td><code>reminder_scheduler_service.py</code></td><td>Background worker for appointment reminders</td></tr>
+          <tr><td><code>summary_service.py</code></td><td>Pre-visit AI clinical summaries for doctors</td></tr>
+          <tr><td><code>symptom_service.py</code></td><td>Symptom assessment persistence &amp; risk scoring</td></tr>
+          <tr><td><code>guest_session_store.py</code></td><td>Redis-backed guest chat session management</td></tr>
+          <tr><td><code>guest_auth_service.py</code></td><td>Guest email/OTP signup flow in chat</td></tr>
+          <tr><td><code>guest_booking_service.py</code></td><td>Guest appointment booking before signup</td></tr>
+          <tr><td><code>cache.py</code></td><td>Redis connection pool management</td></tr>
+          <tr><td><code>bootstrap_service.py</code></td><td>Admin account creation on startup</td></tr>
+          <tr><td><code>doctor_seed_service.py</code></td><td>Doctor catalog seeding with specializations</td></tr>
+        </tbody>
+      </table>
+    </section>
+
+    <!-- Security -->
+    <section id="security">
+      <h2>Security &amp; Cross-Cutting Concerns</h2>
+
+      <div class="grid-2">
+        <div class="card">
+          <h4>Authentication</h4>
+          <p>JWT access tokens (30 min) + refresh tokens (7 days). OTP email verification for signup.</p>
+        </div>
+        <div class="card">
+          <h4>Authorization (RBAC)</h4>
+          <p>Three roles: patient, doctor, admin — enforced in API dependencies and frontend routes.</p>
+        </div>
+        <div class="card">
+          <h4>Rate Limiting</h4>
+          <p>Configurable limits on chat (60/min) and auth (10/min) endpoints via Redis.</p>
+        </div>
+        <div class="card">
+          <h4>Audit Logging</h4>
+          <p>Middleware logs sensitive actions to <code>AuditLog</code> table with request IDs.</p>
+        </div>
+        <div class="card">
+          <h4>PHI Protection</h4>
+          <p>Sensitive fields (content, OCR text, passwords) masked in application logs.</p>
+        </div>
+        <div class="card">
+          <h4>Healthcare Policy</h4>
+          <p>Clinical disclaimers, off-topic filtering, responsible AI guidance rules.</p>
+        </div>
+      </div>
+
+      <div class="callout danger">
+        <strong>Demo / Educational Use Only.</strong> Not intended for production medical use without proper HIPAA/GDPR compliance review, security hardening, and clinical validation.
+      </div>
+    </section>
+
+    <!-- Demo Accounts -->
+    <section id="demo">
+      <h2>Demo Accounts</h2>
+      <p>Created automatically by <code>seed.py</code> on first startup:</p>
+
+      <table>
+        <thead><tr><th>Role</th><th>Email</th><th>Password</th><th>After Login</th></tr></thead>
+        <tbody>
+          <tr><td>Patient</td><td><code>john@test.com</code></td><td><code>Patient@12345</code></td><td><code>/dashboard</code></td></tr>
+          <tr><td>Patient</td><td><code>jane@test.com</code></td><td><code>Patient@12345</code></td><td><code>/dashboard</code></td></tr>
+          <tr><td>Doctor</td><td><code>dr.sharma@clinic.com</code></td><td><code>Doctor@12345</code></td><td><code>/doctor</code></td></tr>
+          <tr><td>Admin</td><td><code>admin@clinic.com</code></td><td><code>Admin@12345</code></td><td><code>/admin</code></td></tr>
+        </tbody>
+      </table>
+    </section>
+
+    <!-- Developer Guide -->
+    <section id="dev-guide">
+      <h2>Developer Quick Reference</h2>
+
+      <h3>Where to Look When…</h3>
+      <table>
+        <thead><tr><th>Task</th><th>Files to Edit</th></tr></thead>
+        <tbody>
+          <tr><td>Add a new API endpoint</td><td><code>routes/</code> + <code>schemas/</code></td></tr>
+          <tr><td>Change booking logic</td><td><code>appointment_service.py</code>, <code>agent_tools.py</code></td></tr>
+          <tr><td>Modify AI chat behavior</td><td><code>multi_agent/supervisor.py</code>, <code>specialists.py</code></td></tr>
+          <tr><td>Add a database table</td><td><code>models/</code> + new Alembic migration</td></tr>
+          <tr><td>Change UI pages</td><td><code>frontend/src/pages/</code></td></tr>
+          <tr><td>Modify chat UI components</td><td><code>GuestChatWidget.tsx</code>, <code>Chat.tsx</code>, <code>components/Chat*</code></td></tr>
+          <tr><td>Configure environment</td><td><code>.env</code> + <code>database.py</code> Settings</td></tr>
+          <tr><td>Change email templates</td><td><code>backend/app/email_templates/</code></td></tr>
+          <tr><td>Reset demo data</td><td><code>docker compose exec api python seed.py</code></td></tr>
+        </tbody>
+      </table>
+
+      <h3>Useful Commands</h3>
+      <pre><span class="comment"># View logs</span>
+docker compose logs -f api
+docker compose logs -f web
+
+<span class="comment"># Restart API after .env change</span>
+docker compose restart api
+
+<span class="comment"># Reset patient data, keep doctors</span>
+docker compose exec api python truncate_keep_doctors.py
+
+<span class="comment"># Re-run database seed</span>
+docker compose exec api python seed.py
+
+<span class="comment"># Run backend tests</span>
+docker compose exec api pytest</pre>
+
+      <h3>Environment Variables (Key)</h3>
+      <table>
+        <thead><tr><th>Variable</th><th>Required</th><th>Description</th></tr></thead>
+        <tbody>
+          <tr><td><code>GROQ_API_KEY</code></td><td>One of Groq/Gemini</td><td>Groq LLM API key</td></tr>
+          <tr><td><code>GEMINI_API_KEY</code></td><td>One of Groq/Gemini</td><td>Google Gemini API key</td></tr>
+          <tr><td><code>LLM_PROVIDER</code></td><td>No</td><td><code>groq</code> or <code>gemini</code> (default: groq)</td></tr>
+          <tr><td><code>JWT_SECRET</code></td><td>No</td><td>Change for production (64+ chars)</td></tr>
+          <tr><td><code>SMTP_HOST</code></td><td>No</td><td>Leave empty for dev (OTP in logs)</td></tr>
+          <tr><td><code>DEV_OTP</code></td><td>No</td><td><code>true</code> shows OTP in UI for testing</td></tr>
+          <tr><td><code>CLINIC_TIMEZONE</code></td><td>No</td><td>Default: <code>Asia/Kolkata</code></td></tr>
+        </tbody>
+      </table>
+    </section>
+
+    <footer>
+      <p>MediAI Platform — Project Structure Guide &nbsp;|&nbsp; Generated for internal documentation</p>
+      <p>Demo / educational project. Open this file in any browser: <code>PROJECT_STRUCTURE.html</code></p>
+    </footer>
+
+  </main>
+</div>
+
+<script>
+  mermaid.initialize({
+    startOnLoad: true,
+    theme: 'dark',
+    themeVariables: {
+      primaryColor: '#1a3a5c',
+      primaryTextColor: '#e8edf4',
+      primaryBorderColor: '#3b9eff',
+      lineColor: '#3b9eff',
+      secondaryColor: '#243044',
+      tertiaryColor: '#1a2332',
+      background: '#1a2332',
+      mainBkg: '#243044',
+      nodeBorder: '#2d3a4f',
+      clusterBkg: '#1a2332',
+      titleColor: '#e8edf4',
+      edgeLabelBackground: '#1a2332',
+    },
+  });
+
+  // Highlight active nav link on scroll
+  const sections = document.querySelectorAll('section[id], .hero[id]');
+  const navLinks = document.querySelectorAll('nav.sidebar a');
+
+  const observer = new IntersectionObserver(
+    (entries) => {
+      entries.forEach((entry) => {
+        if (entry.isIntersecting) {
+          navLinks.forEach((link) => link.classList.remove('active'));
+          const active = document.querySelector(`nav.sidebar a[href="#${entry.target.id}"]`);
+          if (active) active.classList.add('active');
+        }
+      });
+    },
+    { rootMargin: '-20% 0px -70% 0px' }
+  );
+
+  sections.forEach((s) => observer.observe(s));
+</script>
+</body>
+</html>
