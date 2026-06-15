@@ -328,6 +328,7 @@ _MID_TRIAGE_AWAITING = frozenset({
     "pick_duration",
     "pick_severity",
     "more_symptoms",
+    "list_more_symptoms",
     "free_text_symptoms",
     "symptom_image",
 })
@@ -345,15 +346,12 @@ async def update_session_symptoms(session: dict, text: str) -> list[str]:
     if looks_like_health_complaint(text) and not mid_triage:
         merged = await extract_symptoms_from_message(text, None)
         session["detected_symptoms"] = merged
-        prior_triage = dict(triage) if isinstance(triage, dict) else {}
-        notes = list(prior_triage.get("notes") or [])
-        if text.strip() and (not notes or notes[-1] != text.strip()):
-            notes.append(text.strip())
         session["triage_collected"] = {
-            **prior_triage,
-            "notes": notes[-8:],
+            "notes": [text.strip()] if text.strip() else [],
             "symptoms": merged,
+            "questions_asked": ["symptoms"],
         }
+        session.pop("awaiting", None)
         session.pop("assessment_shown", None)
         session.pop("triage_assessed", None)
         session.pop("booking_declined", None)

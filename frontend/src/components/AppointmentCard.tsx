@@ -1,4 +1,10 @@
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
+import {
+  appointmentDisplayId,
+  buildCancelAppointmentMessage,
+  buildRescheduleAppointmentMessage,
+  type ChatNavigationState,
+} from "../utils/appointmentChatActions";
 
 export interface AppointmentItem {
   id: string;
@@ -31,20 +37,22 @@ export function apptDateParts(dateStr: string): { month: string; day: string } {
 interface Props {
   appointment: AppointmentItem;
   showStatus?: boolean;
-  onCancel?: (id: string) => void;
-  cancelling?: boolean;
 }
 
 export default function AppointmentCard({
   appointment: a,
   showStatus = false,
-  onCancel,
-  cancelling = false,
 }: Props) {
+  const navigate = useNavigate();
   const { month, day } = apptDateParts(a.date);
   const isConfirmed = a.status === "confirmed";
   const isVideoConsultation = a.consultation_mode === "video";
   const statusLabel = a.status.charAt(0).toUpperCase() + a.status.slice(1);
+  const aptId = appointmentDisplayId(a);
+
+  function openChatWithAction(message: string) {
+    navigate("/chat", { state: { pendingMessage: message } satisfies ChatNavigationState });
+  }
 
   return (
     <article className="pd-appt-card">
@@ -95,19 +103,20 @@ export default function AppointmentCard({
                 Join Video
               </button>
             )}
-            <Link to="/chat" className="pd-appt-btn pd-appt-btn--reschedule">
+            <button
+              type="button"
+              className="pd-appt-btn pd-appt-btn--reschedule"
+              onClick={() => openChatWithAction(buildRescheduleAppointmentMessage(aptId))}
+            >
               Reschedule
-            </Link>
-            {onCancel && (
-              <button
-                type="button"
-                className="pd-appt-btn pd-appt-btn--cancel"
-                disabled={cancelling}
-                onClick={() => onCancel(a.id)}
-              >
-                {cancelling ? "Cancelling..." : "Cancel"}
-              </button>
-            )}
+            </button>
+            <button
+              type="button"
+              className="pd-appt-btn pd-appt-btn--cancel"
+              onClick={() => openChatWithAction(buildCancelAppointmentMessage(aptId))}
+            >
+              Cancel
+            </button>
           </>
         )}
       </div>

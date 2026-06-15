@@ -67,4 +67,67 @@ def test_yes_more_symptoms_opens_free_text_not_stomach_pain():
     reply = result.get("reply", "").lower()
     assert "stomach pain" not in reply
     assert "what other symptoms" in reply
-    assert result.get("session_patch", {}).get("awaiting") == "more_symptoms"
+    assert ", there" not in reply
+    assert result.get("session_patch", {}).get("awaiting") == "list_more_symptoms"
+    assert result.get("session_patch", {}).get("triage_collected", {}).get("more_symptoms_list_prompted") is True
+
+
+def test_repeat_yes_more_symptoms_nudges_instead_of_looping():
+    session = {
+        "detected_symptoms": ["Vomiting"],
+        "_patient_first_name": "there",
+        "care_goal": "symptom_assessment",
+        "awaiting": "list_more_symptoms",
+        "triage_collected": {
+            "symptoms": ["Vomiting"],
+            "duration": "2 days",
+            "severity": "moderate",
+            "more_symptoms_asked": True,
+            "more_symptoms_list_prompted": True,
+            "questions_asked": ["symptoms", "duration", "severity", "more_symptoms"],
+        },
+    }
+    result = conversational_triage_turn("Yes, I have more symptoms", session)
+    reply = result.get("reply", "").lower()
+    assert "please type" in reply
+    assert "what other symptoms are you experiencing" not in reply
+    assert result.get("ui", {}).get("options") == [{"label": "No, that's all", "message": "No other symptoms"}]
+
+
+def test_typed_symptoms_after_list_prompt_proceeds_to_assess():
+    session = {
+        "detected_symptoms": ["Vomiting", "Fever"],
+        "_patient_first_name": "there",
+        "care_goal": "symptom_assessment",
+        "awaiting": "list_more_symptoms",
+        "triage_collected": {
+            "symptoms": ["Vomiting", "Fever"],
+            "duration": "2 days",
+            "severity": "moderate",
+            "more_symptoms_asked": True,
+            "more_symptoms_list_prompted": True,
+            "questions_asked": ["symptoms", "duration", "severity", "more_symptoms"],
+        },
+    }
+    result = conversational_triage_turn("fever", session)
+    assert result.get("tool") == "assess_symptoms"
+    assert "Fever" in result.get("tool_args", {}).get("symptoms", [])
+
+
+def test_new_complaint_after_prior_triage_asks_duration():
+    """A fresh symptom message must not reuse duration/severity from an earlier assessment."""
+    session = {
+        "detected_symptoms": ["Fever", "Headache"],
+        "care_goal": "symptom_assessment",
+        "active_specialist": "triage_agent",
+        "triage_collected": {
+            "symptoms": ["Fever", "Headache"],
+            "notes": ["I have fever and headache"],
+            "questions_asked": ["symptoms"],
+        },
+    }
+    result = conversational_triage_turn("I have fever and headache", session)
+    reply = result.get("reply", "").lower()
+    assert result.get("tool") != "assess_symptoms"
+    assert "how long" in reply
+    assert result.get("session_patch", {}).get("awaiting") == "pick_duration"

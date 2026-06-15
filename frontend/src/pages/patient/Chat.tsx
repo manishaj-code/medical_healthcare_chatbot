@@ -40,6 +40,7 @@ import {
   DetectedSymptom,
   toDetectedSymptoms,
 } from "../../utils/symptomDetection";
+import type { ChatNavigationState } from "../../utils/appointmentChatActions";
 
 interface LatestAssessment {
   risk_level: string | null;
@@ -329,14 +330,19 @@ export default function PatientChat() {
   }, []);
 
   useEffect(() => {
+    const navState = location.state as ChatNavigationState | null;
+    const pending = navState?.pendingMessage?.trim();
+    if (!pending) return;
+    pendingPromptRef.current = pending;
+    navigate(location.pathname, { replace: true, state: {} });
+  }, [location.state, location.pathname, navigate]);
+
+  useEffect(() => {
     let active = true;
     const initChat = async () => {
       setInitError("");
       setInitializing(true);
-      const navState = location.state as {
-        conversationId?: string;
-        fromGuestBooking?: boolean;
-      } | null;
+      const navState = location.state as ChatNavigationState | null;
       const resumeId =
         navState?.conversationId ?? sessionStorage.getItem("post_signup_conversation_id") ?? undefined;
       if (resumeId) sessionStorage.removeItem("post_signup_conversation_id");

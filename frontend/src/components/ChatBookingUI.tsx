@@ -3,6 +3,10 @@ import type { ReactNode } from "react";
 import DoctorAvatar from "./DoctorAvatar";
 import { buildSetReminderMessage } from "../utils/chatTokens";
 import { filterChatBookableSlots } from "../utils/chatUiHelpers";
+import {
+  buildCancelAppointmentMessage,
+  buildRescheduleAppointmentMessage,
+} from "../utils/appointmentChatActions";
 
 interface SlotUi {
   label: string;
@@ -607,7 +611,7 @@ function AppointmentConfirmedCard({
             type="button"
             className="appt-confirmed-btn appt-confirmed-btn--reschedule"
             disabled={actionsOff}
-            onClick={() => onPick(`I want to reschedule my appointment ${aptId}`)}
+            onClick={() => onPick(buildRescheduleAppointmentMessage(aptId))}
             title="Reschedule this appointment"
           >
             <span className="appt-confirmed-btn-icon">🔄</span>
@@ -618,7 +622,7 @@ function AppointmentConfirmedCard({
             type="button"
             className="appt-confirmed-btn appt-confirmed-btn--cancel"
             disabled={actionsOff}
-            onClick={() => onPick(`Please cancel my appointment ${aptId}`)}
+            onClick={() => onPick(buildCancelAppointmentMessage(aptId))}
             title="Cancel this appointment"
           >
             <span className="appt-confirmed-btn-icon">✕</span>

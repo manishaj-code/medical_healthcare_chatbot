@@ -195,15 +195,24 @@ function parseSeverityPickerUi(content: string): ChatUiPayload | null {
 }
 
 function parseMoreSymptomsUi(content: string): ChatUiPayload | null {
-  if (!/other symptoms|anything else|additional symptom/i.test(content)) return null;
-  return {
-    type: "more_symptoms",
-    variant: "stack",
-    options: [
-      { label: "Yes, more symptoms", message: "Yes, I have more symptoms" },
-      { label: "No, that's all", message: "No other symptoms" },
-    ],
-  };
+  const lower = content.toLowerCase();
+  if (/type them below|type freely below|please type the other symptoms/i.test(lower)) {
+    return null;
+  }
+  if (
+    /^are you experiencing any other symptoms/i.test(content.trim()) ||
+    /any other symptoms, or should i summarize/i.test(lower)
+  ) {
+    return {
+      type: "more_symptoms",
+      variant: "stack",
+      options: [
+        { label: "Yes, more symptoms", message: "Yes, I have more symptoms" },
+        { label: "No, that's all", message: "No other symptoms" },
+      ],
+    };
+  }
+  return null;
 }
 
 function parseYesNoUi(content: string): ChatUiPayload | null {

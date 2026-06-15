@@ -7,6 +7,7 @@ from typing import Any
 from app.services.chat_ui import (
     build_duration_picker_ui,
     build_more_symptoms_ui,
+    build_no_more_symptoms_ui,
     build_severity_picker_ui,
     build_symptom_starter_ui,
 )
@@ -131,6 +132,32 @@ def _starts_new_triage(text: str) -> bool:
     return looks_like_health_complaint(text)
 
 
+def _is_affirmative_more_symptoms(text: str) -> bool:
+    tl = text.strip().lower()
+    if "yes, i have more" in tl:
+        return True
+    return tl in {"yes", "yeah", "yep", "sure"}
+
+
+def _format_list_more_symptoms_prompt(pname: str) -> str:
+    if pname != "there":
+        return (
+            f"What other symptoms are you experiencing, {pname}? "
+            "Please type them below — for example fever, headache, or cough."
+        )
+    return (
+        "What other symptoms are you experiencing? "
+        "Please type them below — for example fever, headache, or cough."
+    )
+
+
+def _format_more_symptoms_nudge() -> str:
+    return (
+        "Please type the other symptoms you're having (e.g. fever, cough, headache), "
+        "or tap **No, that's all** if you've shared everything."
+    )
+
+
 def _parse_severity(text: str, collected: dict, awaiting: str | None = None) -> str | None:
     """Parse severity from button labels or free text — avoid mistaking duration digits for pain scores."""
     t = text.strip().lower()
@@ -181,6 +208,15 @@ def _infer_pending_slot_from_history(history: list[dict] | None) -> str | None:
         if msg.get("role") not in ("assistant", "Assistant"):
             continue
         content = (msg.get("content") or "").lower()
+        if any(
+            phrase in content
+            for phrase in (
+                "type them below",
+                "type freely below",
+                "please type the other symptoms",
+            )
+        ):
+            return "list_more_symptoms"
         if any(
             phrase in content
             for phrase in (
@@ -247,8 +283,12 @@ def conversational_triage_turn(
     collected["questions_asked"] = asked
 
     pending_slot = _infer_pending_slot_from_history(history) or session.get("awaiting")
-    if tl in {"no", "nope", "none", "nah"} and pending_slot in {"more_symptoms", "pick_severity"}:
-        if pending_slot == "more_symptoms":
+    if tl in {"no", "nope", "none", "nah"} and pending_slot in {
+        "more_symptoms",
+        "list_more_symptoms",
+        "pick_severity",
+    }:
+        if pending_slot in {"more_symptoms", "list_more_symptoms"}:
             collected["more_symptoms_answered"] = True
             collected["ready_to_assess"] = True
             collected["more_symptoms_asked"] = True
@@ -271,7 +311,7 @@ def conversational_triage_turn(
             collected["duration"] = "unspecified"
         elif awaiting == "pick_severity" and not collected.get("severity"):
             collected["severity"] = "unspecified"
-        elif awaiting == "more_symptoms":
+        elif awaiting in {"more_symptoms", "list_more_symptoms"}:
             collected["more_symptoms_answered"] = True
             collected["ready_to_assess"] = True
 
@@ -279,13 +319,25 @@ def conversational_triage_turn(
         collected["symptoms"] = list(session["detected_symptoms"])
     symptoms = collected.get("symptoms") or session.get("detected_symptoms") or []
 
-    if "yes, i have more" in tl or (tl == "yes" and session.get("awaiting") == "more_symptoms"):
+    awaiting_slot = session.get("awaiting")
+    if _is_affirmative_more_symptoms(text) and awaiting_slot in {"more_symptoms", "list_more_symptoms"}:
+        if collected.get("more_symptoms_list_prompted"):
+            return {
+                "reply": _format_more_symptoms_nudge(),
+                "ui": build_no_more_symptoms_ui(),
+                "session_patch": {
+                    "triage_collected": collected,
+                    "care_goal": "symptom_assessment",
+                    "awaiting": "list_more_symptoms",
+                },
+            }
+        collected["more_symptoms_list_prompted"] = True
         return {
-            "reply": f"What other symptoms are you experiencing, {pname}? You can type freely below.",
+            "reply": _format_list_more_symptoms_prompt(pname),
             "session_patch": {
                 "triage_collected": collected,
                 "care_goal": "symptom_assessment",
-                "awaiting": "more_symptoms",
+                "awaiting": "list_more_symptoms",
             },
         }
 
@@ -361,12 +413,12 @@ def conversational_triage_turn(
         }
 
     if collected.get("more_symptoms_asked") and not collected.get("ready_to_assess"):
-        if session.get("awaiting") == "more_symptoms" and tl not in {
+        if session.get("awaiting") in {"more_symptoms", "list_more_symptoms"} and tl not in {
             "no",
             "no other symptoms",
             "not sure about other symptoms",
             "none",
-        }:
+        } and not _is_affirmative_more_symptoms(text):
             collected["ready_to_assess"] = True
         else:
             return {

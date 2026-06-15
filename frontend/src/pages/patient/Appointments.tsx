@@ -6,7 +6,6 @@ import AppointmentCard, { AppointmentItem } from "../../components/AppointmentCa
 export default function PatientAppointments() {
   const [appts, setAppts] = useState<AppointmentItem[]>([]);
   const [loading, setLoading] = useState(true);
-  const [cancellingId, setCancellingId] = useState<string | null>(null);
 
   const userName = localStorage.getItem("user_name") || "you";
 
@@ -31,21 +30,6 @@ export default function PatientAppointments() {
       document.removeEventListener("visibilitychange", refresh);
     };
   }, [load]);
-
-  const cancel = async (id: string) => {
-    if (!window.confirm("Cancel this appointment?")) return;
-    setCancellingId(id);
-    try {
-      await api(`/api/v1/appointments/${id}/cancel`, {
-        method: "PATCH",
-        body: JSON.stringify({ reason: "Patient requested" }),
-      });
-      load();
-    } catch (err) {
-      console.error(err);
-    }
-    setCancellingId(null);
-  };
 
   return (
     <div className="patient-dashboard">
@@ -72,13 +56,7 @@ export default function PatientAppointments() {
 
         <div className="pd-appt-list">
           {appts.map((a) => (
-            <AppointmentCard
-              key={a.id}
-              appointment={a}
-              showStatus
-              onCancel={cancel}
-              cancelling={cancellingId === a.id}
-            />
+            <AppointmentCard key={a.id} appointment={a} showStatus />
           ))}
         </div>
       </section>

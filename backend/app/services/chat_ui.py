@@ -274,6 +274,15 @@ def infer_triage_quick_actions(reply: str, session: dict) -> tuple[dict | None, 
             "noticed any other",
         )
     ):
+        if any(
+            hint in lower
+            for hint in (
+                "type them below",
+                "type freely below",
+                "please type the other symptoms",
+            )
+        ):
+            return None, {}
         return build_more_symptoms_ui(), {
             "awaiting": "more_symptoms",
             "care_goal": "symptom_assessment",
@@ -310,6 +319,17 @@ def build_more_symptoms_ui() -> dict:
     ui["type"] = "more_symptoms"
     ui["variant"] = "stack"
     return ui
+
+
+def build_no_more_symptoms_ui() -> dict:
+    """After patient confirmed more symptoms — only offer to finish (no Yes loop)."""
+    return {
+        "type": "more_symptoms",
+        "variant": "stack",
+        "options": _choice_options([
+            ("No, that's all", "No other symptoms"),
+        ]),
+    }
 
 
 def build_post_assessment_ui() -> dict:
