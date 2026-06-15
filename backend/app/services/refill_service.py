@@ -255,19 +255,3 @@ async def deny_refill_request(
     return {"success": True, "status": "denied", "reason": req.denial_reason}
 
 
-async def list_notifications_for_user(db: AsyncSession, user_id: UUID, limit: int = 30) -> list[dict]:
-    rows = await db.execute(
-        select(Notification)
-        .where(Notification.user_id == user_id)
-        .order_by(Notification.sent_at.desc())
-        .limit(limit)
-    )
-    return [
-        {
-            "id": str(n.id),
-            "type": n.type.value if hasattr(n.type, "value") else str(n.type),
-            "message": n.message,
-            "sent_at": n.sent_at.isoformat() if n.sent_at else None,
-        }
-        for n in rows.scalars().all()
-    ]

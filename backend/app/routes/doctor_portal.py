@@ -27,10 +27,19 @@ from app.models import DoctorAvailability
 from app.models.enums import AppointmentStatus
 from app.schemas.common import ResponseEnvelope
 from app.services.doctor_service import create_default_availability, get_availability
+from app.schemas.notifications import (
+    MarkNotificationsReadRequest,
+    MarkNotificationsReadResponse,
+    NotificationUnreadCountResponse,
+)
+from app.services.notification_service import (
+    count_unread_notifications,
+    list_notifications_for_user,
+    mark_notifications_read,
+)
 from app.services.refill_service import (
     approve_refill_request,
     deny_refill_request,
-    list_notifications_for_user,
     list_refills_for_doctor,
 )
 from app.services.vitals_service import extract_health_vitals_from_reports
@@ -445,8 +454,24 @@ async def doctor_notifications(
     doctor: Doctor = Depends(get_doctor_profile),
     db: AsyncSession = Depends(get_db),
 ):
-    user = await db.get(User, doctor.user_id)
-    if not user:
-        raise HTTPException(status_code=404, detail="Doctor user not found")
-    data = await list_notifications_for_user(db, user.id)
+    data = await list_notifications_for_user(db, doctor.user_id)
     return ResponseEnvelope(data=data)
+
+
+@router.get("/notifications/unread-count", response_model=ResponseEnvelope[NotificationUnreadCountResponse])
+async def doctor_notifications_unread_count(
+    doctor: Doctor = Depends(get_doctor_profile),
+    db: AsyncSession = Depends(get_db),
+):
+    count = await count_unread_notifications(db, doctor.user_id)
+    return ResponseEnvelope(data=NotificationUnreadCountResponse(count=count))
+
+
+@router.post("/notifications/mark-read", response_model=ResponseEnvelope[MarkNotificationsReadResponse])
+async def doctor_notifications_mark_read(
+    data: MarkNotificationsReadRequest,
+    doctor: Doctor = Depends(get_doctor_profile),
+    db: AsyncSession = Depends(get_db),
+):
+    marked = await mark_notifications_read(db, doctor.user_id, data.ids)
+    return ResponseEnvelope(data=MarkNotificationsReadResponse(marked=marked))

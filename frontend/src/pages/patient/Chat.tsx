@@ -599,7 +599,11 @@ export default function PatientChat() {
           )}
         </div>
         <div className="consult-topbar-right">
-          <NotificationDropdown variant="icon" />
+          <NotificationDropdown
+            apiPrefix="/api/v1/patients/me"
+            viewAllPath="/notifications"
+            variant="icon"
+          />
           <div className="consult-topbar-user">
             <span className="consult-topbar-user-name">{patientName}</span>
             <div className="consult-topbar-avatar">{userInitials(patientName)}</div>

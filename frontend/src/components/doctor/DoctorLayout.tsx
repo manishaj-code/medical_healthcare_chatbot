@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { Link, Outlet, useLocation, useNavigate } from "react-router-dom";
 import { clearTokens } from "../../api/client";
+import NotificationDropdown from "../NotificationDropdown";
 import "../../styles/doctor-portal.css";
 
 export type DoctorTab = "overview" | "refills" | "patients" | "appointments" | "slots";
@@ -169,10 +170,11 @@ export default function DoctorLayout() {
             )}
           </div>
           <div className="dp-topbar-actions">
-            <button type="button" className="dp-icon-btn" aria-label="Notifications">
-              <span className="material-symbols-outlined">notifications</span>
-              <span className="dp-notify-dot" />
-            </button>
+            <NotificationDropdown
+              apiPrefix="/api/v1/doctor"
+              viewAllPath="/doctor/notifications"
+              variant="doctor"
+            />
             <div className="dp-profile">
               <div className="dp-profile-text">
                 <p className="dp-profile-name">{displayName}</p>

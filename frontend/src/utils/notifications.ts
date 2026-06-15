@@ -3,6 +3,8 @@ export interface NotificationItem {
   type: string;
   message: string;
   sent_at: string | null;
+  read_at?: string | null;
+  is_read?: boolean;
 }
 
 export function typeLabel(type: string): string {
@@ -10,6 +12,10 @@ export function typeLabel(type: string): string {
   if (type === "refill_denied") return "Refill denied";
   if (type === "refill_request") return "Refill request";
   if (type === "booking_confirmation") return "Appointment";
+  if (type === "reminder" || type === "reminder_scheduled") return "Reminder";
+  if (type === "video_consultation") return "Video consult";
+  if (type === "cancellation") return "Cancelled";
+  if (type === "system") return "System";
   return "Update";
 }
 
@@ -18,6 +24,10 @@ export function typeIcon(type: string): string {
   if (type === "refill_denied") return "cancel";
   if (type === "refill_request") return "medication";
   if (type === "booking_confirmation") return "event";
+  if (type === "reminder" || type === "reminder_scheduled") return "alarm";
+  if (type === "video_consultation") return "videocam";
+  if (type === "cancellation") return "event_busy";
+  if (type === "system") return "info";
   return "notifications";
 }
 

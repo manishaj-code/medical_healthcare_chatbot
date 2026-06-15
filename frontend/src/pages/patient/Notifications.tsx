@@ -34,6 +34,10 @@ export default function PatientNotifications() {
       ]);
       setNotifications(notes);
       setRefills(refillRows);
+      await api("/api/v1/patients/me/notifications/mark-read", {
+        method: "POST",
+        body: JSON.stringify({ ids: null }),
+      });
     } catch {
       setNotifications([]);
       setRefills([]);

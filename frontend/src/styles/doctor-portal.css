@@ -281,15 +281,49 @@
   color: var(--dp-primary);
 }
 
-.dp-notify-dot {
-  position: absolute;
-  top: 8px;
-  right: 8px;
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-  background: var(--dp-error);
-  border: 2px solid #fff;
+.notify-dropdown--doctor .notify-dropdown-panel {
+  right: 0;
+  z-index: 60;
+}
+
+.notify-dropdown--doctor .notify-dropdown-badge {
+  top: 4px;
+  right: 4px;
+}
+
+.dp-page-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-bottom: 1.25rem;
+}
+
+.dp-page-title {
+  margin: 0.35rem 0 0.25rem;
+  font-size: 1.5rem;
+  font-weight: 700;
+  color: var(--dp-on-surface);
+}
+
+.dp-page-sub {
+  margin: 0;
+  color: var(--dp-on-surface-variant);
+  font-size: 0.92rem;
+}
+
+.dp-back-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  color: var(--dp-primary);
+  text-decoration: none;
+  font-size: 0.88rem;
+  font-weight: 600;
+}
+
+.dp-notifications-card {
+  padding: 1.25rem;
 }
 
 .dp-profile {
