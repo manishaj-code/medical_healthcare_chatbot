@@ -1,5 +1,6 @@
 import { useMemo, useState } from "react";
 import {
+  consultationModeLabel,
   formatDisplayDate,
   formatDoctorTime,
   isActiveAppointmentStatus,
@@ -26,10 +27,12 @@ export interface ConsultationHistoryRecord {
   risk_level?: string | null;
   recommended_specialty?: string | null;
   duration?: string | null;
-  medications: { name: string; dosage?: string | null; frequency?: string | null }[];
+  medications: { name: string; dosage?: string | null; frequency?: string | null; duration?: string | null }[];
+  appointment_reason?: string | null;
   treatment_plan?: string | null;
   soap_assessment?: string | null;
   has_soap_note: boolean;
+  follow_up_date?: string | null;
   summary_excerpt?: string | null;
 }
 
@@ -80,6 +83,248 @@ function matchesFilter(record: ConsultationHistoryRecord, filter: StatusFilter):
   if (filter === "upcoming") return recordIsUpcoming(record);
   if (filter === "overdue") return recordIsOverdue(record);
   return false;
+}
+
+function collapseSnippet(record: ConsultationHistoryRecord): string {
+  const parts: string[] = [];
+  if (record.appointment_reason) parts.push(record.appointment_reason);
+  if (record.symptoms.length) parts.push(record.symptoms.slice(0, 3).join(", "));
+  if (record.medications.length) {
+    parts.push(
+      `Rx: ${record.medications
+        .slice(0, 2)
+        .map((m) => m.name)
+        .join(", ")}${record.medications.length > 2 ? "…" : ""}`,
+    );
+  }
+  if (record.soap_assessment) parts.push(record.soap_assessment);
+  else if (record.treatment_plan) {
+    const line = record.treatment_plan.split("\n")[0]?.trim();
+    if (line) parts.push(line.replace(/^\d+\.\s*/, ""));
+  }
+  if (record.follow_up_date) parts.push(`Follow-up ${formatDisplayDate(record.follow_up_date)}`);
+  return parts.join(" · ");
+}
+
+function ConsultationHistoryCard({
+  record,
+  busy,
+  onOpenPatient,
+  onMarkCompleted,
+  onMarkCancelled,
+  onAction,
+}: {
+  record: ConsultationHistoryRecord;
+  busy: boolean;
+  onOpenPatient: (patientId: string) => void;
+  onMarkCompleted?: (appointmentId: string) => Promise<void>;
+  onMarkCancelled?: (appointmentId: string) => Promise<void>;
+  onAction: (appointmentId: string, action: "complete" | "cancel") => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const overdue = recordIsOverdue(record);
+  const snippet = collapseSnippet(record);
+  const hasExpandableContent =
+    record.symptoms.length > 0 ||
+    record.medications.length > 0 ||
+    Boolean(record.treatment_plan) ||
+    Boolean(record.soap_assessment) ||
+    Boolean(record.summary_excerpt) ||
+    Boolean(record.follow_up_date) ||
+    Boolean(record.duration || record.risk_level || record.recommended_specialty);
+
+  return (
+    <article
+      className={`dp-consult-history-card${open ? " dp-consult-history-card--open" : ""}${
+        overdue ? " dp-consult-history-card--overdue" : ""
+      }`}
+    >
+      <div className="dp-consult-history-card-head">
+        <button
+          type="button"
+          className="dp-consult-patient-btn"
+          onClick={() => onOpenPatient(record.patient_id)}
+          title="Open patient chart"
+        >
+          <span className="dp-avatar dp-avatar--sm">{patientInitials(record.patient_name)}</span>
+          <span className="dp-consult-patient-text">
+            <strong>{record.patient_name}</strong>
+            <span className="dp-consult-apt">{record.apt_id}</span>
+          </span>
+        </button>
+
+        {hasExpandableContent ? (
+          <button
+            type="button"
+            className="dp-consult-history-expand"
+            onClick={() => setOpen((v) => !v)}
+            aria-expanded={open}
+            aria-label={open ? "Hide visit details" : "Show visit details"}
+          >
+            {!open && (
+              <span className="dp-consult-history-snippet" title={snippet || "View visit details"}>
+                {snippet || "View details"}
+              </span>
+            )}
+            <span className="dp-consult-history-expand-trail">
+              <span className="dp-consult-history-meta">
+                <span className="dp-consult-date">
+                  {formatDisplayDate(record.date)} · {formatDoctorTime(record.time)}
+                </span>
+                <span className="dp-consult-mode-pill">
+                  {consultationModeLabel(record.consultation_mode, record.is_video)}
+                </span>
+                <span className={`dp-visit-status dp-visit-status--${statusTone(record)}`}>
+                  {statusLabel(record)}
+                </span>
+              </span>
+              <span
+                className={`material-symbols-outlined dp-consult-history-chevron${open ? " dp-consult-history-chevron--open" : ""}`}
+                aria-hidden
+              >
+                expand_more
+              </span>
+            </span>
+          </button>
+        ) : (
+          <div className="dp-consult-history-meta dp-consult-history-meta--static">
+            <span className="dp-consult-date">
+              {formatDisplayDate(record.date)} · {formatDoctorTime(record.time)}
+            </span>
+            <span className={`dp-visit-status dp-visit-status--${statusTone(record)}`}>
+              {statusLabel(record)}
+            </span>
+          </div>
+        )}
+      </div>
+
+      {open && (
+        <>
+          <div className="dp-consult-history-card-body">
+            <div className="dp-consult-history-col">
+              <h4>
+                <span className="material-symbols-outlined">healing</span>
+                Symptoms
+              </h4>
+              {record.symptoms.length > 0 ? (
+                <div className="dp-visit-chips">
+                  {record.symptoms.map((s) => (
+                    <span key={s} className="dp-visit-chip">
+                      {s}
+                    </span>
+                  ))}
+                </div>
+              ) : (
+                <p className="dp-consult-muted">No triage symptoms recorded</p>
+              )}
+              {(record.duration || record.risk_level || record.recommended_specialty) && (
+                <div className="dp-visit-meta-row">
+                  {record.duration && (
+                    <span className="dp-visit-meta-pill">
+                      <span className="material-symbols-outlined">schedule</span>
+                      {record.duration}
+                    </span>
+                  )}
+                  {record.risk_level && (
+                    <span
+                      className={`dp-clinical-risk-badge dp-clinical-risk-badge--${riskLevelCssVariant(record.risk_level)}`}
+                    >
+                      {formatRiskLevelLabel(record.risk_level)}
+                    </span>
+                  )}
+                  {record.recommended_specialty && (
+                    <span className="dp-visit-meta-pill">
+                      <span className="material-symbols-outlined">medical_services</span>
+                      {record.recommended_specialty}
+                    </span>
+                  )}
+                </div>
+              )}
+            </div>
+
+            <div className="dp-consult-history-col">
+              <h4>
+                <span className="material-symbols-outlined">medication</span>
+                Prescribed this visit
+              </h4>
+              {record.medications.length > 0 ? (
+                <ul className="dp-consult-med-list">
+                  {record.medications.map((m) => (
+                    <li key={`${m.name}-${m.dosage ?? ""}-${m.frequency ?? ""}`}>
+                      <strong>{m.name}</strong>
+                      <span>
+                        {[m.dosage, m.frequency, m.duration].filter(Boolean).join(" · ")}
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              ) : (
+                <p className="dp-consult-muted">No prescriptions recorded for this appointment</p>
+              )}
+              {record.treatment_plan && (
+                <div className="dp-consult-plan">
+                  <span className="dp-consult-plan-label">Treatment plan</span>
+                  <p>{record.treatment_plan}</p>
+                </div>
+              )}
+              {record.soap_assessment && (
+                <div className="dp-consult-plan">
+                  <span className="dp-consult-plan-label">Clinical assessment</span>
+                  <p>{record.soap_assessment}</p>
+                </div>
+              )}
+            </div>
+          </div>
+
+          {record.follow_up_date && (
+            <div className="dp-visit-followup">
+              <span className="material-symbols-outlined">event</span>
+              <span>
+                Follow-up scheduled for <strong>{formatDisplayDate(record.follow_up_date)}</strong>
+              </span>
+            </div>
+          )}
+
+          {record.summary_excerpt && (
+            <p className="dp-consult-summary-excerpt">
+              <span className="material-symbols-outlined">auto_awesome</span>
+              {record.summary_excerpt}
+            </p>
+          )}
+
+          <div className="dp-consult-history-card-foot">
+            <button
+              type="button"
+              className="dp-btn dp-btn--outline dp-btn--sm"
+              onClick={() => onOpenPatient(record.patient_id)}
+            >
+              Open patient chart
+            </button>
+            {overdue && onMarkCompleted && onMarkCancelled && (
+              <>
+                <button
+                  type="button"
+                  className="dp-btn dp-btn--primary dp-btn--sm"
+                  disabled={busy}
+                  onClick={() => onAction(record.appointment_id, "complete")}
+                >
+                  {busy ? "Saving…" : "Mark completed"}
+                </button>
+                <button
+                  type="button"
+                  className="dp-btn dp-btn--ghost dp-btn--sm"
+                  disabled={busy}
+                  onClick={() => onAction(record.appointment_id, "cancel")}
+                >
+                  Mark cancelled
+                </button>
+              </>
+            )}
+          </div>
+        </>
+      )}
+    </article>
+  );
 }
 
 export default function DoctorConsultationHistory({
@@ -217,151 +462,17 @@ export default function DoctorConsultationHistory({
         </div>
       ) : (
         <div className="dp-consult-history-list">
-          {filtered.map((record) => {
-            const overdue = recordIsOverdue(record);
-            const busy = actionId === record.appointment_id;
-            return (
-              <article
-                key={record.appointment_id}
-                className={`dp-consult-history-card${overdue ? " dp-consult-history-card--overdue" : ""}`}
-              >
-                <div className="dp-consult-history-card-head">
-                  <button
-                    type="button"
-                    className="dp-consult-patient-btn"
-                    onClick={() => onOpenPatient(record.patient_id)}
-                  >
-                    <span className="dp-avatar dp-avatar--sm">{patientInitials(record.patient_name)}</span>
-                    <span>
-                      <strong>{record.patient_name}</strong>
-                      <span className="dp-consult-apt">{record.apt_id}</span>
-                    </span>
-                  </button>
-                  <div className="dp-consult-history-meta">
-                    <span className="dp-consult-date">
-                      {formatDisplayDate(record.date)} · {formatDoctorTime(record.time)}
-                    </span>
-                    <span className={`dp-visit-status dp-visit-status--${statusTone(record)}`}>
-                      {statusLabel(record)}
-                    </span>
-                  </div>
-                </div>
-
-                <div className="dp-consult-history-card-body">
-                  <div className="dp-consult-history-col">
-                    <h4>
-                      <span className="material-symbols-outlined">healing</span>
-                      Symptoms
-                    </h4>
-                    {record.symptoms.length > 0 ? (
-                      <div className="dp-visit-chips">
-                        {record.symptoms.map((s) => (
-                          <span key={s} className="dp-visit-chip">
-                            {s}
-                          </span>
-                        ))}
-                      </div>
-                    ) : (
-                      <p className="dp-consult-muted">No triage symptoms recorded</p>
-                    )}
-                    {(record.duration || record.risk_level || record.recommended_specialty) && (
-                      <div className="dp-visit-meta-row">
-                        {record.duration && (
-                          <span className="dp-visit-meta-pill">
-                            <span className="material-symbols-outlined">schedule</span>
-                            {record.duration}
-                          </span>
-                        )}
-                        {record.risk_level && (
-                          <span
-                            className={`dp-clinical-risk-badge dp-clinical-risk-badge--${riskLevelCssVariant(record.risk_level)}`}
-                          >
-                            {formatRiskLevelLabel(record.risk_level)}
-                          </span>
-                        )}
-                        {record.recommended_specialty && (
-                          <span className="dp-visit-meta-pill">
-                            <span className="material-symbols-outlined">medical_services</span>
-                            {record.recommended_specialty}
-                          </span>
-                        )}
-                      </div>
-                    )}
-                  </div>
-
-                  <div className="dp-consult-history-col">
-                    <h4>
-                      <span className="material-symbols-outlined">medication</span>
-                      Medications
-                    </h4>
-                    {record.medications.length > 0 ? (
-                      <ul className="dp-consult-med-list">
-                        {record.medications.map((m) => (
-                          <li key={m.name}>
-                            <strong>{m.name}</strong>
-                            <span>
-                              {[m.dosage, m.frequency].filter(Boolean).join(" · ") || "Active on profile"}
-                            </span>
-                          </li>
-                        ))}
-                      </ul>
-                    ) : (
-                      <p className="dp-consult-muted">No medications on patient profile</p>
-                    )}
-                    {record.treatment_plan && (
-                      <div className="dp-consult-plan">
-                        <span className="dp-consult-plan-label">Treatment plan</span>
-                        <p>{record.treatment_plan}</p>
-                      </div>
-                    )}
-                    {record.soap_assessment && (
-                      <div className="dp-consult-plan">
-                        <span className="dp-consult-plan-label">Clinical assessment</span>
-                        <p>{record.soap_assessment}</p>
-                      </div>
-                    )}
-                  </div>
-                </div>
-
-                {record.summary_excerpt && (
-                  <p className="dp-consult-summary">
-                    <span className="material-symbols-outlined">auto_awesome</span>
-                    {record.summary_excerpt}
-                  </p>
-                )}
-
-                <div className="dp-consult-history-card-foot">
-                  <button
-                    type="button"
-                    className="dp-btn dp-btn--outline dp-btn--sm"
-                    onClick={() => onOpenPatient(record.patient_id)}
-                  >
-                    Open patient chart
-                  </button>
-                  {overdue && onMarkCompleted && onMarkCancelled && (
-                    <>
-                      <button
-                        type="button"
-                        className="dp-btn dp-btn--primary dp-btn--sm"
-                        disabled={busy}
-                        onClick={() => void runAction(record.appointment_id, "complete")}
-                      >
-                        {busy ? "Saving…" : "Mark completed"}
-                      </button>
-                      <button
-                        type="button"
-                        className="dp-btn dp-btn--ghost dp-btn--sm"
-                        disabled={busy}
-                        onClick={() => void runAction(record.appointment_id, "cancel")}
-                      >
-                        Mark cancelled
-                      </button>
-                    </>
-                  )}
-                </div>
-              </article>
-            );
-          })}
+          {filtered.map((record) => (
+            <ConsultationHistoryCard
+              key={record.appointment_id}
+              record={record}
+              busy={actionId === record.appointment_id}
+              onOpenPatient={onOpenPatient}
+              onMarkCompleted={onMarkCompleted}
+              onMarkCancelled={onMarkCancelled}
+              onAction={(id, action) => void runAction(id, action)}
+            />
+          ))}
         </div>
       )}
     </div>

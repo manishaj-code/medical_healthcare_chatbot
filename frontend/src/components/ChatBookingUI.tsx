@@ -51,6 +51,8 @@ const CHOICE_MENU_TYPES = new Set([
   "specialty_picker",
   "report_upload_menu",
   "report_followup",
+  "consultation_mode",
+  "report_doctor_choice",
   "nav_menu",
 ]);
 
@@ -75,6 +77,8 @@ export interface ChatUiPayload {
     | "specialty_picker"
     | "report_upload_menu"
     | "report_followup"
+    | "consultation_mode"
+    | "report_doctor_choice"
     | "nav_menu"
     | "video_consultation"
     | "symptom_image_hint"
@@ -97,7 +101,7 @@ export interface ChatUiPayload {
   current_time?: string;
   specialty?: string;
   hospital_name?: string;
-  status?: "confirmed" | "rescheduled" | "cancelled";
+  status?: "confirmed" | "rescheduled" | "cancelled" | "completed";
   reminder_set?: boolean;
   actions_disabled?: boolean;
   request_id?: string;
@@ -503,6 +507,7 @@ function AppointmentPicker({
 
 function appointmentStatusLabel(status?: ChatUiPayload["status"]): string {
   if (status === "cancelled") return "Cancelled";
+  if (status === "completed") return "Completed";
   if (status === "rescheduled") return "Rescheduled";
   return "Confirmed";
 }
@@ -522,8 +527,10 @@ function AppointmentConfirmedCard({
   const [reminderPending, setReminderPending] = useState(false);
   const status = ui.status ?? "confirmed";
   const isCancelled = status === "cancelled";
-  const isSuperseded = Boolean(ui.actions_disabled);
-  const actionsOff = Boolean(disabled || isSuperseded);
+  const isCompleted = status === "completed";
+  const isTerminal = isCancelled || isCompleted;
+  const isSuperseded = Boolean(ui.actions_disabled) && !isTerminal;
+  const actionsOff = Boolean(disabled || ui.actions_disabled || isTerminal);
 
   useEffect(() => {
     setReminderSet(Boolean(ui.reminder_set));
@@ -531,7 +538,7 @@ function AppointmentConfirmedCard({
   }, [ui.reminder_set, ui.appointment_id]);
 
   async function handleReminder() {
-    if (reminderSet || isCancelled || actionsOff || reminderPending) return;
+    if (reminderSet || isTerminal || actionsOff || reminderPending) return;
     const message = buildSetReminderMessage(aptId, ui.appointment_id);
     setReminderPending(true);
     try {
@@ -544,21 +551,24 @@ function AppointmentConfirmedCard({
   const headerTitle =
     status === "cancelled"
       ? "Appointment Cancelled"
-      : status === "rescheduled"
-        ? "Appointment Rescheduled"
-        : "Booking Confirmed";
+      : status === "completed"
+        ? "Consultation Completed"
+        : status === "rescheduled"
+          ? "Appointment Rescheduled"
+          : "Booking Confirmed";
 
   return (
     <div
       className={[
         "appt-confirmed-card",
         isCancelled ? "appt-confirmed-card--cancelled" : "",
+        isCompleted ? "appt-confirmed-card--completed" : "",
         isSuperseded ? "appt-confirmed-card--superseded" : "",
       ].filter(Boolean).join(" ")}
     >
       <div className="appt-confirmed-header">
         <span className={`appt-confirmed-check appt-confirmed-check--${status}`}>
-          {isCancelled ? "✕" : "✓"}
+          {isCancelled ? "✕" : isCompleted ? "✓" : "✓"}
         </span>
         <div className="appt-confirmed-header-text">
           <span className="appt-confirmed-header-title">{headerTitle}</span>
@@ -600,7 +610,7 @@ function AppointmentConfirmedCard({
         </div>
       </div>
 
-      {!isCancelled && (
+      {!isTerminal && (
         <div className="appt-confirmed-actions">
           <button
             type="button"
@@ -646,9 +656,11 @@ function AppointmentConfirmedCard({
       <p className="appt-confirmed-note">
         {isCancelled
           ? "This appointment is cancelled. The record is kept here for your reference."
-          : isSuperseded
-            ? "This is a previous version of your appointment. Use the latest card below to manage it."
-            : "Use the buttons above to manage your appointment anytime."}
+          : isCompleted
+            ? "Your doctor has completed this visit. Check Health Records for diagnosis, prescription, and follow-up details."
+            : isSuperseded
+              ? "This is a previous version of your appointment. Use the latest card below to manage it."
+              : "Use the buttons above to manage your appointment anytime."}
       </p>
     </div>
   );
@@ -1308,7 +1320,10 @@ export function ChatBookingUI({ ui, disabled, onPick }: Props) {
 
   // ── follow-up action menus (self-care, book, report) ──
   if (
-    (ui.type === "post_assessment" || ui.type === "report_followup") &&
+    (ui.type === "post_assessment" ||
+      ui.type === "report_followup" ||
+      ui.type === "consultation_mode" ||
+      ui.type === "report_doctor_choice") &&
     ui.options?.length
   ) {
     return (
@@ -1344,18 +1359,46 @@ export function ChatBookingUI({ ui, disabled, onPick }: Props) {
     return <AppointmentConfirmedCard aptId={aptId} ui={ui} disabled={disabled} onPick={onPick} />;
   }
 
-  // ── slot_list (single doctor, slot chips only) ──
+  // ── slot_list (single doctor) — same calendar UI as doctor_list ──
   if (ui.type === "slot_list" && ui.slots?.length) {
+    const bookableSlots = filterChatBookableSlots(ui.slots);
+    const doctor: DoctorUi = {
+      id: ui.doctor_id ?? "",
+      name: ui.doctor_name ?? "Doctor",
+      specialty: "General Physician",
+      experience_years: 0,
+      rating: null,
+      slots: bookableSlots,
+    };
+
     return (
-      <div className="chat-booking-panel">
-        <div className="chat-booking-header">
-          <div className="chat-booking-header-text">
-            <span className="chat-booking-title">{ui.doctor_name ?? "Doctor"}</span>
-            <span className="chat-booking-subtitle">Tap a time to book</span>
+      <div className="medai-booking-panel">
+        <div className="medai-doctor-col">
+          <div className="medai-section-label">Selected Doctor</div>
+          <div className="medai-doc-card medai-doc-card--active medai-doc-card--static">
+            <div className="medai-doc-avatar-wrap">
+              <DoctorAvatar
+                name={doctor.name}
+                profileImageUrl={doctor.profile_image_url}
+                className="medai-doc-avatar medai-doc-avatar--photo"
+                initialsClassName="medai-doc-avatar"
+              />
+            </div>
+            <div className="medai-doc-info">
+              <span className="medai-doc-name">{doctor.name}</span>
+              <span className="medai-doc-meta">{doctor.specialty}</span>
+            </div>
           </div>
-          <span className="chat-booking-badge">{ui.slots.length} open</span>
         </div>
-        <SlotButtons slots={ui.slots} disabled={disabled} onPick={onPick} />
+        <div className="medai-picker-col">
+          <AppointmentPicker
+            key={doctor.id}
+            doctor={doctor}
+            slots={bookableSlots}
+            disabled={disabled}
+            onPick={onPick}
+          />
+        </div>
       </div>
     );
   }

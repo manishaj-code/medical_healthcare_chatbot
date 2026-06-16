@@ -1,4 +1,10 @@
-import { DoctorAppointment, formatDisplayDate, formatDoctorTime } from "../../utils/doctorPortal";
+import { Link } from "react-router-dom";
+import {
+  canStartConsultation,
+  DoctorAppointment,
+  formatDisplayDate,
+  formatDoctorTime,
+} from "../../utils/doctorPortal";
 
 export interface AppointmentRow {
   appointment_id: string;
@@ -7,6 +13,15 @@ export interface AppointmentRow {
   date: string;
   time: string;
   status: string;
+  consultation_mode?: string;
+  is_video?: boolean;
+  appointment_reason?: string | null;
+  linked_report?: {
+    report_id: string;
+    filename: string;
+    summary?: string;
+    abnormal?: { test?: string; value?: string; flag?: string }[];
+  } | null;
 }
 
 const STATUS_SECTIONS: {
@@ -106,6 +121,7 @@ export default function DoctorAppointmentsSections({ appointments, showPatient =
                   <th>Date</th>
                   <th>Time</th>
                   <th>Status</th>
+                  <th>Actions</th>
                   {onViewPatient && <th></th>}
                 </tr>
               </thead>
@@ -121,6 +137,21 @@ export default function DoctorAppointmentsSections({ appointments, showPatient =
                       <span className={`dp-tag dp-tag--${statusTagClass(a.status)}`}>
                         {formatStatusLabel(a.status)}
                       </span>
+                      {a.appointment_reason ? (
+                        <div className="dp-muted-note dp-appt-reason">{a.appointment_reason}</div>
+                      ) : null}
+                    </td>
+                    <td>
+                      {canStartConsultation(a.date, a.status) ? (
+                        <Link
+                          to={`/doctor/consultation/${a.appointment_id}`}
+                          className="dp-btn dp-btn--primary dp-btn--sm"
+                        >
+                          Start consultation
+                        </Link>
+                      ) : (
+                        <span className="dp-muted-note">—</span>
+                      )}
                     </td>
                     {onViewPatient && a.patient_id && (
                       <td>

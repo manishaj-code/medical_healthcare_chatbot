@@ -7,8 +7,12 @@ from uuid import UUID
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.models import Appointment, DoctorNote, Medication, Patient, PatientSummary, Report, SymptomAssessment, User
+from app.models import Appointment, Consultation, DoctorNote, Patient, PatientSummary, Report, SymptomAssessment, User
 from app.services.appointment_service import format_apt_id, is_active_appointment_status, is_slot_past
+from app.services.medication_timeline_service import (
+    build_patient_medication_timeline,
+    load_prescription_items_by_appointment,
+)
 from app.services.patient_context import load_patient_context
 from app.services.symptom_service import assessment_payload_from_row
 
@@ -30,6 +34,20 @@ def _pick_assessment_for_visit(
     return assessments[0]
 
 
+def _linked_report_payload(report: Report | None) -> dict | None:
+    if not report:
+        return None
+    meta = (report.analysis_json or {}).get("_meta") or {}
+    analysis = report.analysis_json or {}
+    return {
+        "report_id": str(report.id),
+        "filename": meta.get("filename") or "Medical report",
+        "summary": (analysis.get("summary") or "").strip(),
+        "abnormal": analysis.get("abnormal") or [],
+        "created_at": report.created_at.isoformat() if report.created_at else None,
+    }
+
+
 async def list_visit_records_for_doctor(
     db: AsyncSession,
     doctor_id: UUID,
@@ -37,7 +55,18 @@ async def list_visit_records_for_doctor(
 ) -> dict:
     patient = await db.get(Patient, patient_id)
     if not patient:
-        return {"visits": [], "medications": [], "conditions": [], "allergies": [], "reports": []}
+        return {"visits": [], "medications": [], "medication_timeline": {
+            "medications": [],
+            "active_medications": [],
+            "ended_medications": [],
+            "pending_refills": [],
+            "summary": {
+                "total_prescribed": 0,
+                "active_count": 0,
+                "ended_count": 0,
+                "pending_refill_count": 0,
+            },
+        }, "conditions": [], "allergies": [], "reports": []}
 
     ctx = await load_patient_context(db, patient)
 
@@ -87,6 +116,22 @@ async def list_visit_records_for_doctor(
     )
     assessments = list(assessment_rows.scalars().all())
 
+    consultations_by_appt: dict[str, Consultation] = {}
+    if appt_ids:
+        consultation_rows = await db.execute(
+            select(Consultation).where(Consultation.appointment_id.in_(appt_ids))
+        )
+        for row in consultation_rows.scalars().all():
+            consultations_by_appt[str(row.appointment_id)] = row
+
+    linked_report_ids = {a.linked_report_id for a in appointments if a.linked_report_id}
+    reports_by_id: dict = {}
+    if linked_report_ids:
+        linked_rows = await db.execute(select(Report).where(Report.id.in_(linked_report_ids)))
+        reports_by_id = {r.id: r for r in linked_rows.scalars().all()}
+
+    prescription_items_by_appt = await load_prescription_items_by_appointment(db, consultations_by_appt)
+
     report_rows = await db.execute(
         select(Report)
         .where(Report.patient_id == patient_id)
@@ -106,6 +151,12 @@ async def list_visit_records_for_doctor(
         appt_key = str(appt.id)
         status = appt.status.value if hasattr(appt.status, "value") else str(appt.status)
         matched = _pick_assessment_for_visit(appt, assessments)
+        consultation = consultations_by_appt.get(appt_key)
+        linked_report = (
+            _linked_report_payload(reports_by_id.get(appt.linked_report_id))
+            if appt.linked_report_id
+            else None
+        )
         visits.append({
             "appointment_id": appt_key,
             "apt_id": format_apt_id(appt.id),
@@ -115,16 +166,29 @@ async def list_visit_records_for_doctor(
             "completed_at": appt.completed_at.isoformat() if appt.completed_at else None,
             "consultation_mode": appt.consultation_mode or "in_person",
             "is_video": bool(appt.video_room_id),
+            "appointment_reason": appt.appointment_reason,
+            "visit_type": "report_discussion" if appt.linked_report_id else "symptom",
+            "linked_report": linked_report,
+            "chief_complaint": consultation.chief_complaint if consultation else None,
+            "follow_up_date": (
+                str(consultation.follow_up_date)
+                if consultation and consultation.follow_up_date
+                else None
+            ),
             "summary": summaries_by_appt.get(appt_key) or (
                 summaries_by_appt.get("__latest__") if status == "completed" else None
             ),
             "soap_note": notes_by_appt.get(appt_key),
             "assessment": assessment_payload_from_row(matched) if matched else None,
+            "prescription_items": prescription_items_by_appt.get(appt_key, []),
         })
+
+    medication_timeline = await build_patient_medication_timeline(db, doctor_id, patient_id)
 
     return {
         "visits": visits,
         "medications": ctx.get("medications") or [],
+        "medication_timeline": medication_timeline,
         "conditions": ctx.get("conditions") or [],
         "allergies": ctx.get("allergies") or [],
         "reports": reports,
@@ -174,6 +238,17 @@ async def list_consultation_history_for_doctor(
             if note.appointment_id:
                 notes_by_appt[str(note.appointment_id)] = note
 
+    consultations_by_appt: dict[str, Consultation] = {}
+    if appt_ids:
+        consultation_rows = await db.execute(
+            select(Consultation).where(
+                Consultation.doctor_id == doctor_id,
+                Consultation.appointment_id.in_(appt_ids),
+            )
+        )
+        for row in consultation_rows.scalars().all():
+            consultations_by_appt[str(row.appointment_id)] = row
+
     summaries_by_appt: dict[str, str] = {}
     summary_rows = await db.execute(
         select(PatientSummary).where(PatientSummary.patient_id.in_(patient_ids))
@@ -194,19 +269,7 @@ async def list_consultation_history_for_doctor(
     for assessment in assessment_rows.scalars().all():
         assessments_by_patient.setdefault(str(assessment.patient_id), []).append(assessment)
 
-    meds_by_patient: dict[str, list[dict]] = {}
-    med_rows = await db.execute(
-        select(Medication).where(
-            Medication.patient_id.in_(patient_ids),
-            Medication.is_active.is_(True),
-        )
-    )
-    for med in med_rows.scalars().all():
-        meds_by_patient.setdefault(str(med.patient_id), []).append({
-            "name": med.name,
-            "dosage": med.dosage,
-            "frequency": med.frequency,
-        })
+    prescription_items_by_appt = await load_prescription_items_by_appointment(db, consultations_by_appt)
 
     records: list[dict] = []
     for appt, patient, user in rows:
@@ -216,8 +279,19 @@ async def list_consultation_history_for_doctor(
         matched = _pick_assessment_for_visit(appt, assessments_by_patient.get(pid, []))
         assessment = assessment_payload_from_row(matched) if matched else None
         note = notes_by_appt.get(appt_key)
+        consultation = consultations_by_appt.get(appt_key)
         symptoms = assessment.get("symptoms", []) if assessment else []
         slot_past = is_slot_past(appt.slot_date, appt.slot_time)
+        visit_rx = prescription_items_by_appt.get(appt_key, [])
+        visit_medications = [
+            {
+                "name": item["medicine_name"],
+                "dosage": item["strength"],
+                "frequency": item["frequency"],
+                "duration": item["duration"],
+            }
+            for item in visit_rx
+        ]
 
         records.append({
             "appointment_id": appt_key,
@@ -232,14 +306,21 @@ async def list_consultation_history_for_doctor(
             "completed_at": appt.completed_at.isoformat() if appt.completed_at else None,
             "consultation_mode": appt.consultation_mode or "in_person",
             "is_video": bool(appt.video_room_id),
+            "appointment_reason": appt.appointment_reason,
             "symptoms": symptoms,
             "risk_level": assessment.get("risk_level") if assessment else None,
             "recommended_specialty": assessment.get("recommended_specialty") if assessment else None,
             "duration": assessment.get("duration") if assessment else None,
-            "medications": meds_by_patient.get(pid, []),
+            "medications": visit_medications,
+            "prescription_items": visit_rx,
             "treatment_plan": note.plan if note else None,
             "soap_assessment": note.assessment if note else None,
             "has_soap_note": note is not None,
+            "follow_up_date": (
+                str(consultation.follow_up_date)
+                if consultation and consultation.follow_up_date
+                else None
+            ),
             "summary_excerpt": _summary_excerpt(summaries_by_appt.get(appt_key)),
         })
 

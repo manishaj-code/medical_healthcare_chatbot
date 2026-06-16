@@ -36,7 +36,7 @@ from app.multi_agent.booking_actions import (
     should_skip_booking_resolution,
     synthesize_tool_result,
 )
-from app.services.self_care_service import wants_self_care_advice
+from app.services.symptom_extraction import _MID_TRIAGE_AWAITING
 from app.multi_agent.llm import llm
 from app.multi_agent.offline_fallback import (
     conversational_triage_turn,
@@ -277,6 +277,17 @@ class TriageAgent(BaseSpecialist):
 
     async def run(self, ctx: AgentContext) -> AgentResponse:
         from app.services.patient_context import resolve_patient_first_name
+        from app.services.report_discussion_service import (
+            is_in_report_discussion_flow,
+            is_report_consultation_mode_turn,
+        )
+
+        if is_in_report_discussion_flow(ctx.session, ctx.history) or is_report_consultation_mode_turn(
+            ctx.history, ctx.text
+        ):
+            booking = await resolve_booking_session(ctx)
+            if booking:
+                return booking
 
         pname = await resolve_patient_first_name(ctx.db, ctx.patient_ctx, ctx.patient)
         ctx.session["_patient_first_name"] = pname
@@ -301,14 +312,12 @@ class TriageAgent(BaseSpecialist):
 
         if (
             not ctx.session.get("triage_assessed")
-            and not ctx.session.get("skip_triage")
-            and ctx.session.get("care_goal") != "urgent_consult"
-            and (
+            or ctx.session.get("awaiting") in _MID_TRIAGE_AWAITING
+        ) and not ctx.session.get("skip_triage") and ctx.session.get("care_goal") != "urgent_consult" and (
                 has_symptoms
                 or is_active_care_flow(ctx.session)
                 or ctx.session.get("care_goal") == "symptom_assessment"
-            )
-        ):
+            ):
             decision = conversational_triage_turn(ctx.text, ctx.session, ctx.history)
             return await self._response_from_decision(decision, ctx)
 
@@ -399,6 +408,7 @@ class SchedulingAgent(BaseSpecialist):
             "Never push booking unsolicited — wait for patient request. "
             "When patient wants to book, call search_doctors using recommended_specialty from session "
             "or 'General Physician' — do NOT ask what type of doctor first. "
+            "Show the doctor list first; only call get_doctor_slots after the patient picks a doctor."
             "Use tools for all live data. Always confirm appointment details before calling book_slot."
         )
 
@@ -441,8 +451,19 @@ class ReportAgent(BaseSpecialist):
                     ctx.patient_ctx,
                 )
             if result.get("success") and result.get("analysis"):
-                reply = format_report_reply(result["analysis"], ctx.text)
-                return AgentResponse(reply=reply, agent="report_agent")
+                from app.services.chat_ui import build_report_followup_ui
+                from app.services.report_discussion_service import (
+                    compose_report_discussion_reply,
+                    report_followup_session_patch,
+                )
+
+                reply = compose_report_discussion_reply(result["analysis"])
+                return AgentResponse(
+                    reply=reply,
+                    agent="report_agent",
+                    ui=build_report_followup_ui(),
+                    session_patch=report_followup_session_patch(ctx.report_id, result["analysis"]),
+                )
         return await super().run(ctx)
 
 

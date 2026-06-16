@@ -45,9 +45,15 @@ export default function AppointmentCard({
 }: Props) {
   const navigate = useNavigate();
   const { month, day } = apptDateParts(a.date);
-  const isConfirmed = a.status === "confirmed";
+  const normalizedStatus = a.status.toLowerCase();
+  const isActive = normalizedStatus === "confirmed" || normalizedStatus === "pending";
+  const isCompleted = normalizedStatus === "completed";
+  const isCancelled = normalizedStatus === "cancelled" || normalizedStatus === "canceled";
   const isVideoConsultation = a.consultation_mode === "video";
-  const statusLabel = a.status.charAt(0).toUpperCase() + a.status.slice(1);
+  const statusLabel =
+    normalizedStatus === "cancelled" || normalizedStatus === "canceled"
+      ? "Cancelled"
+      : normalizedStatus.charAt(0).toUpperCase() + normalizedStatus.slice(1);
   const aptId = appointmentDisplayId(a);
 
   function openChatWithAction(message: string) {
@@ -65,7 +71,7 @@ export default function AppointmentCard({
         <div className="pd-appt-title-row">
           <p className="pd-appt-doctor">{a.doctor_name || "Doctor"}</p>
           {showStatus && (
-            <span className={`pd-appt-status pd-appt-status--${a.status}`}>{statusLabel}</span>
+            <span className={`pd-appt-status pd-appt-status--${normalizedStatus}`}>{statusLabel}</span>
           )}
         </div>
         <p className="pd-appt-meta">Consultation · MediAI Clinic</p>
@@ -84,7 +90,7 @@ export default function AppointmentCard({
       </div>
 
       <div className="pd-appt-actions">
-        {isConfirmed && (
+        {isActive && (
           <>
             {isVideoConsultation ? (
               <Link
@@ -118,6 +124,14 @@ export default function AppointmentCard({
               Cancel
             </button>
           </>
+        )}
+        {isCompleted && (
+          <Link to="/health-records" className="pd-appt-btn pd-appt-btn--reschedule">
+            View records
+          </Link>
+        )}
+        {isCancelled && (
+          <span className="pd-muted">Cancelled by clinic</span>
         )}
       </div>
     </article>

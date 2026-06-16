@@ -33,7 +33,9 @@ _REPORT_OR_ACTION_RE = re.compile(
     r"please (analyze|summarize|explain)|health risk assessment|medical report|uploaded report|"
     r"out-of-range|abnormal values|book an appointment|find a (doctor|specialist)|want to book|"
     r"show doctors|sign in|log ?in|verification code|upload (your |my )?report|"
-    r"reminder|reschedule|cancel.*appointment",
+    r"reminder|reschedule|cancel.*appointment|"
+    r"in[- ]person consultation|video consultation|report review|choose another doctor|"
+    r"book with .+ again",
     re.I,
 )
 
@@ -69,6 +71,11 @@ _SKIP_EXACT = frozenset(
         "yes, i have more symptoms",
         "no other symptoms",
         "not sure about other symptoms",
+        "yes, schedule an appointment",
+        "no, not right now",
+        "in-person consultation",
+        "video consultation",
+        "choose another doctor for report review",
     }
 )
 

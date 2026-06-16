@@ -14,7 +14,7 @@ export default defineConfig({
     },
     proxy: {
       "/api": proxyTarget,
-      "/health": proxyTarget,
+      "^/health$": proxyTarget,
     },
   },
 });

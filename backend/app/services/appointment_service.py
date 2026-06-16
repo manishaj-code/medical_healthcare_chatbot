@@ -39,6 +39,10 @@ async def book_appointment(
     slot_date: date,
     slot_time: time,
     user_id: UUID,
+    *,
+    consultation_mode: str = "in_person",
+    appointment_reason: str | None = None,
+    linked_report_id: UUID | None = None,
 ) -> Appointment:
     if datetime.combine(slot_date, slot_time) < datetime.now():
         raise HTTPException(status_code=400, detail="Cannot book a past time slot")
@@ -84,7 +88,14 @@ async def book_appointment(
         slot_date=slot_date,
         slot_time=slot_time,
         status=AppointmentStatus.confirmed,
+        consultation_mode=consultation_mode,
+        appointment_reason=appointment_reason,
+        linked_report_id=linked_report_id,
     )
+    if consultation_mode == "video":
+        from app.services.video_consultation_service import video_room_id_for_appointment
+
+        appt.video_room_id = video_room_id_for_appointment(appt.id)
     db.add(appt)
     when_time = slot_time.strftime("%I:%M %p").lstrip("0")
     db.add(

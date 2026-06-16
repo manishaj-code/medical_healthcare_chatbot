@@ -7,6 +7,15 @@ from app.models.doctor_ops import (
     DoctorSpecialization,
     Specialization,
 )
+from app.models.consultation import (
+    Consultation,
+    ConsultationAiAudit,
+    ConsultationIntake,
+    LabOrder,
+    LabTestCatalog,
+    Prescription,
+    PrescriptionItem,
+)
 from app.models.urgent_consult import UrgentConsultOffer, UrgentConsultRequest
 from app.models.enums import (
     AppointmentStatus,
@@ -42,6 +51,13 @@ __all__ = [
     "Report",
     "PatientSummary",
     "DoctorNote",
+    "Consultation",
+    "ConsultationIntake",
+    "ConsultationAiAudit",
+    "Prescription",
+    "PrescriptionItem",
+    "LabOrder",
+    "LabTestCatalog",
     "RefreshToken",
     "Notification",
     "AuditLog",

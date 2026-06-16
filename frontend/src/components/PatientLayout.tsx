@@ -14,6 +14,7 @@ const NAV = [
   { to: "/doctors", label: "Find Doctors", icon: "medical_services" },
   { to: "/appointments", label: "Appointments", icon: "event" },
   { to: "/reports", label: "My Reports", icon: "description" },
+  { to: "/health-records", label: "Health Records", icon: "medical_information" },
   { to: "/notifications", label: "Notifications", icon: "notifications" },
 ];
 
@@ -22,6 +23,7 @@ const PAGE_TITLES: Record<string, string> = {
   "/doctors": "Find Doctors",
   "/appointments": "Appointments",
   "/reports": "My Reports",
+  "/health-records": "Health Records",
   "/notifications": "Notifications",
 };
 

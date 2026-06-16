@@ -2,6 +2,51 @@ import { buildConsultationInsights } from "../../utils/consultationInsights";
 import { buildMergedClinicalFields, isEmptyClinicalValue } from "../../utils/clinicalSummaryFormat";
 import { toDetectedSymptoms } from "../../utils/symptomDetection";
 import ClinicalSummaryPanel from "./ClinicalSummaryPanel";
+import DoctorPatientCareOverview from "./DoctorPatientCareOverview";
+
+export interface PatientConsultOverview {
+  rollup: {
+    completed_visits: number;
+    reports_count: number;
+    upcoming_visits: number;
+    chief_complaints: string[];
+    diagnoses: string[];
+    treatment_plans: string[];
+    report_summaries: string[];
+    latest_follow_up: string | null;
+  };
+  timeline: {
+    type: "visit_completed" | "visit_upcoming" | "report_uploaded";
+    title: string;
+    subtitle?: string | null;
+    apt_id?: string;
+    appointment_id?: string;
+    date?: string;
+    time?: string;
+    status?: string;
+    consultation_mode?: string;
+    appointment_reason?: string | null;
+    chief_complaint?: string | null;
+    diagnosis?: string | null;
+    treatment_plan?: string | null;
+    clinical_findings_excerpt?: string | null;
+    follow_up_date?: string | null;
+    linked_report?: {
+      report_id: string;
+      filename: string;
+      summary?: string;
+      abnormal?: { test?: string; value?: string; flag?: string }[];
+    } | null;
+    report?: {
+      report_id: string;
+      filename: string;
+      summary?: string;
+      abnormal?: { test?: string; value?: string; flag?: string }[];
+      created_at?: string | null;
+    };
+  }[];
+  narrative: string;
+}
 
 export interface ConsultationSummaryData {
   detected_symptoms: string[];
@@ -33,6 +78,7 @@ export interface ConsultationSummaryData {
   medications: { name: string; dosage: string | null; frequency: string | null }[];
   allergies: string[];
   memory_facts: string[];
+  patient_consult_overview?: PatientConsultOverview | null;
 }
 
 interface Props {
@@ -73,7 +119,11 @@ export default function DoctorPatientConsultSummary({
   );
 
   return (
-    <div className="dp-consult-summary">
+    <div className="dp-patient-consult-overview">
+      {consult.patient_consult_overview && (
+        <DoctorPatientCareOverview overview={consult.patient_consult_overview} />
+      )}
+
       <div className="dp-glass dp-glass--clinical-summary">
         <ClinicalSummaryPanel
           summaryText={aiSummary}
@@ -188,10 +238,7 @@ export default function DoctorPatientConsultSummary({
         )}
       </div>
 
-      {(consult.conditions.length > 0 ||
-        consult.medications.length > 0 ||
-        consult.allergies.length > 0 ||
-        consult.memory_facts.length > 0) && (
+      {(consult.conditions.length > 0 || consult.memory_facts.length > 0) && (
         <div className="dp-consult-clinical-grid">
           {consult.conditions.length > 0 && (
             <div className="dp-glass">
@@ -199,31 +246,6 @@ export default function DoctorPatientConsultSummary({
               <ul className="dp-consult-chip-list">
                 {consult.conditions.map((c) => (
                   <li key={c}>{c}</li>
-                ))}
-              </ul>
-            </div>
-          )}
-          {consult.medications.length > 0 && (
-            <div className="dp-glass">
-              <h3 className="dp-consult-card-title">Medications</h3>
-              <ul className="dp-info-list">
-                {consult.medications.map((m) => (
-                  <li key={m.name}>
-                    <strong>{m.name}</strong>
-                    <span>
-                      {[m.dosage, m.frequency].filter(Boolean).join(" · ") || "Active"}
-                    </span>
-                  </li>
-                ))}
-              </ul>
-            </div>
-          )}
-          {consult.allergies.length > 0 && (
-            <div className="dp-glass">
-              <h3 className="dp-consult-card-title">Allergies</h3>
-              <ul className="dp-consult-chip-list dp-consult-chip-list--alert">
-                {consult.allergies.map((a) => (
-                  <li key={a}>{a}</li>
                 ))}
               </ul>
             </div>

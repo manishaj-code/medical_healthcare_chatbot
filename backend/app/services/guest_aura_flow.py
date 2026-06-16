@@ -5,10 +5,7 @@ from typing import Any
 
 from app.multi_agent.booking_actions import format_report_reply
 from app.services.chat_ui import build_specialty_picker_ui
-from app.services.guest_report_service import (
-    clear_report_followup,
-    is_report_followup_action,
-)
+from app.services.guest_report_service import clear_report_followup
 
 # Internal tokens — mapped to friendly labels on the frontend.
 START_SYMPTOM_TRIAGE = "[start_symptom_triage]"
@@ -196,60 +193,47 @@ def process_aura_guest_turn(
         )
 
     analysis = session.get("last_report_analysis")
-    if analysis and session.get("awaiting") == "report_followup":
+    if session.get("awaiting") == "report_followup":
         if raw in _AURA_TOKENS:
             clear_report_followup(session, keep_analysis=False)
             return None
 
-        if tl == "book appointment":
+        from app.services.report_discussion_service import (
+            REPORT_DISCUSSION_DECLINE,
+            is_report_followup_no,
+            is_report_followup_yes,
+        )
+
+        if is_report_followup_no(text):
             clear_report_followup(session, keep_analysis=True)
             return _reply(
-                "I'll help you find a doctor and book an appointment.",
-                agent="scheduling_agent",
-                delegate=True,
-                map_to_message="I want to book an appointment",
+                REPORT_DISCUSSION_DECLINE,
+                agent="report_agent",
                 session_patch={
-                    "care_goal": "appointment",
-                    "active_specialist": "scheduling_agent",
                     "awaiting": None,
+                    "care_goal": None,
+                    "active_specialist": None,
                     "report_qa_open": None,
                 },
             )
 
-        if tl == "i have another question about my report":
+        if is_report_followup_yes(text):
             return _reply(
-                "Sure — type your question about the report below and I'll answer in plain language.",
+                text,
+                agent="scheduling_agent",
+                delegate=True,
+                map_to_message=text,
+            )
+
+        if session.get("report_qa_open") and analysis:
+            reply = format_report_reply(analysis, text)
+            return _reply(
+                reply,
                 agent="report_agent",
                 session_patch={
                     "report_qa_open": True,
                     "awaiting": "report_followup",
                     "care_goal": "guest_report_done",
-                },
-            )
-
-        if is_report_followup_action(text):
-            reply = format_report_reply(analysis, text)
-            clear_report_followup(session, keep_analysis=True)
-            return _reply(
-                reply,
-                agent="report_agent",
-                session_patch={
-                    "awaiting": None,
-                    "care_goal": None,
-                    "report_qa_open": None,
-                },
-            )
-
-        if session.get("report_qa_open"):
-            reply = format_report_reply(analysis, text)
-            clear_report_followup(session, keep_analysis=True)
-            return _reply(
-                reply,
-                agent="report_agent",
-                session_patch={
-                    "awaiting": None,
-                    "care_goal": None,
-                    "report_qa_open": None,
                 },
             )
 

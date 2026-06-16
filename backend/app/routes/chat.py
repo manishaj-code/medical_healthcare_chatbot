@@ -27,10 +27,6 @@ from app.schemas.common import ResponseEnvelope
 router = APIRouter(prefix="/chat", tags=["chat"])
 
 HEALTH_CHAT_TITLE = "Health Chat"
-REPORT_UPLOAD_ACK = (
-    "I've received the medical documents you shared. I'm analyzing the clinical data "
-    "from your recent reports to better understand your symptoms."
-)
 
 
 def _utc_now() -> datetime:
@@ -357,9 +353,18 @@ async def register_report_upload(
     patient: Patient = Depends(get_patient_profile),
     db: AsyncSession = Depends(get_db),
 ):
+    from app.models import Report
+    from app.services.flow_state import set_flow, get_flow
+    from app.services.report_discussion_service import build_report_discussion_followup_payload
+    from app.services.report_service import analyze_report_record
+
     conv = await db.get(Conversation, conversation_id)
     if not conv or conv.patient_id != patient.id:
         raise HTTPException(status_code=404, detail="Conversation not found")
+
+    report = await db.get(Report, data.report_id)
+    if not report or report.patient_id != patient.id:
+        raise HTTPException(status_code=404, detail="Report not found")
 
     attachment_json = {
         "type": "report",
@@ -369,6 +374,13 @@ async def register_report_upload(
     if data.size_bytes is not None:
         attachment_json["size_bytes"] = data.size_bytes
 
+    try:
+        analysis = await analyze_report_record(db, report)
+    except Exception as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    reply, followup_ui, session_patch = build_report_discussion_followup_payload(report.id, analysis)
+
     uploaded_at = await _next_message_timestamp(db, conversation_id)
     user_msg = Message(
         conversation_id=conversation_id,
@@ -377,18 +389,25 @@ async def register_report_upload(
         tool_calls_json={"attachment": attachment_json},
         created_at=uploaded_at,
     )
-    ack_msg = Message(
+    analysis_msg = Message(
         conversation_id=conversation_id,
         role=MessageRole.assistant,
-        content=REPORT_UPLOAD_ACK,
+        content=reply,
         agent_name="report_agent",
-        tool_calls_json={"report_ack": True, "attachment": attachment_json},
+        tool_calls_json={"ui": followup_ui, "attachment": attachment_json},
         created_at=_later_ts(uploaded_at),
     )
     db.add(user_msg)
-    db.add(ack_msg)
+    db.add(analysis_msg)
     await db.flush()
-    return ResponseEnvelope(data=[_message_to_response(user_msg), _message_to_response(ack_msg)])
+
+    flow = await get_flow(conversation_id)
+    session = dict(flow.get("session") or {})
+    session.update(session_patch)
+    flow["session"] = session
+    await set_flow(conversation_id, flow)
+
+    return ResponseEnvelope(data=[_message_to_response(user_msg), _message_to_response(analysis_msg)])
 
 
 @router.post("/conversations/{conversation_id}/messages", response_model=ResponseEnvelope[ChatReply])

@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
-import { useLocation, useNavigate, useOutletContext } from "react-router-dom";
+import { Link, useLocation, useNavigate, useOutletContext } from "react-router-dom";
 import { api } from "../../api/client";
 import DoctorConsultationHistory, {
   type ConsultationHistoryRecord,
@@ -13,6 +13,7 @@ import type { ConsultationSummaryData } from "../../components/doctor/DoctorPati
 import {
   DoctorAppointment,
   DoctorPatient,
+  canStartConsultation,
   filterBookableSlots,
   formatDisplayDate,
   formatDoctorTime,
@@ -471,8 +472,10 @@ export default function DoctorDashboard() {
             ) : (
               <div className="dp-timeline">
                 {scheduleAppts.map((a) => {
-                  const done = a.status === "completed" || isAppointmentPast(a.date, a.time);
-                  const isCurrent = scheduleIsToday && a.appointment_id === currentApptId && !done;
+                  const done = a.status === "completed";
+                  const isCurrent =
+                    scheduleIsToday && a.appointment_id === currentApptId && !done && !isAppointmentPast(a.date, a.time);
+                  const canConduct = canStartConsultation(a.date, a.status);
                   return (
                     <div key={a.appointment_id} className="dp-timeline-item">
                       <div
@@ -501,6 +504,15 @@ export default function DoctorDashboard() {
                             <>Status: {a.status} · Click to open chart</>
                           )}
                         </p>
+                        {canConduct && (
+                          <Link
+                            to={`/doctor/consultation/${a.appointment_id}`}
+                            className="dp-btn dp-btn--primary dp-btn--sm dp-timeline-consult-btn"
+                            onClick={(e) => e.stopPropagation()}
+                          >
+                            Start consultation
+                          </Link>
+                        )}
                       </div>
                     </div>
                   );

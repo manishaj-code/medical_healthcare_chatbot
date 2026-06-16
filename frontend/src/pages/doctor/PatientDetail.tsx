@@ -9,9 +9,12 @@ import DoctorChatHistory from "../../components/doctor/DoctorChatHistory";
 import DoctorPatientConsultSummary, {
   type ConsultationSummaryData,
 } from "../../components/doctor/DoctorPatientConsultSummary";
+import DoctorPatientLabSection from "../../components/doctor/DoctorPatientLabSection";
 import ClinicalSummaryPanel from "../../components/doctor/ClinicalSummaryPanel";
 import {
   ageFromDob,
+  canStartConsultation,
+  consultationModeLabel,
   formatDisplayDate,
   formatDoctorTime,
   isUpcomingAppointment,
@@ -30,7 +33,21 @@ interface PatientDetailData {
   dob: string | null;
   gender: string | null;
   blood_group: string | null;
-  appointments: { appointment_id: string; date: string; time: string; status: string }[];
+  appointments: {
+    appointment_id: string;
+    date: string;
+    time: string;
+    status: string;
+    consultation_mode?: string;
+    is_video?: boolean;
+    appointment_reason?: string | null;
+    linked_report?: {
+      report_id: string;
+      filename: string;
+      summary?: string;
+      abnormal?: { test?: string; value?: string; flag?: string }[];
+    } | null;
+  }[];
   summary: string;
 }
 
@@ -51,6 +68,7 @@ interface PatientConversation {
 interface ReportRow {
   id: string;
   analysis: Record<string, unknown> | null;
+  created_at?: string | null;
 }
 
 function parseTab(value: string | null): PatientTab {
@@ -161,6 +179,22 @@ export default function PatientDetail() {
     .filter((a) => isUpcomingAppointment(a.date, a.time, a.status))
     .sort((a, b) => `${a.date}${a.time}`.localeCompare(`${b.date}${b.time}`))[0];
 
+  const conductableVisit = (() => {
+    const pool =
+      visitRecords?.visits.filter((v) => canStartConsultation(v.date, v.status)) ??
+      detail.appointments.filter((a) => canStartConsultation(a.date, a.status));
+    return [...pool].sort((a, b) => {
+      const aUpcoming = isUpcomingAppointment(a.date, a.time, a.status) ? 0 : 1;
+      const bUpcoming = isUpcomingAppointment(b.date, b.time, b.status) ? 0 : 1;
+      if (aUpcoming !== bUpcoming) return aUpcoming - bUpcoming;
+      return `${a.date}${a.time}`.localeCompare(`${b.date}${b.time}`);
+    })[0];
+  })();
+
+  const showConsultBanner =
+    conductableVisit &&
+    isUpcomingAppointment(conductableVisit.date, conductableVisit.time, conductableVisit.status);
+
   const hasEmergency = consultSummary?.emergency_flag || conversations.some((c) => c.emergency_flag);
   const topCondition =
     consultSummary?.conditions[0] ||
@@ -169,11 +203,14 @@ export default function PatientDetail() {
   const conditionHint =
     topCondition || (detail.blood_group ? `Blood group ${detail.blood_group}` : "Under your care");
   const latestConversation = conversations[0];
+  const reportReviewVisit = detail.appointments.find(
+    (a) => a.linked_report && a.appointment_reason && canStartConsultation(a.date, a.status),
+  );
 
   const tabs: { id: PatientTab; label: string; icon: string }[] = [
     { id: "summary", label: "Overview", icon: "info" },
     { id: "chats", label: `Chat history (${conversations.length})`, icon: "forum" },
-    { id: "appointments", label: "Consultations", icon: "medical_services" },
+    { id: "appointments", label: "Visits & consultations", icon: "medical_services" },
   ];
 
   return (
@@ -231,7 +268,20 @@ export default function PatientDetail() {
             <span className="material-symbols-outlined">arrow_back</span>
             Dashboard
           </button>
-          <button type="button" className="dp-btn dp-btn--primary" onClick={() => setTab("chats")}>
+          {conductableVisit && (
+            <Link
+              to={`/doctor/consultation/${conductableVisit.appointment_id}`}
+              className="dp-btn dp-btn--primary"
+            >
+              <span className="material-symbols-outlined">stethoscope</span>
+              Start consultation
+            </Link>
+          )}
+          <button
+            type="button"
+            className={`dp-btn ${conductableVisit ? "dp-btn--outline" : "dp-btn--primary"}`}
+            onClick={() => setTab("chats")}
+          >
             <span className="material-symbols-outlined">forum</span>
             Chat history
           </button>
@@ -254,8 +304,8 @@ export default function PatientDetail() {
 
       <div ref={viewRef} className="dp-patient-view" id="patient-view">
         {tab === "summary" && (
-          <div className="dp-detail-grid">
-            <div>
+          <div className="dp-detail-grid dp-detail-grid--overview">
+            <div className="dp-detail-grid-main">
               {consultSummary ? (
                 <DoctorPatientConsultSummary
                   aiSummary={detail.summary}
@@ -273,63 +323,33 @@ export default function PatientDetail() {
                 </div>
               )}
 
-              {healthVitals.length > 0 && (
-                <div className="dp-glass">
-                  <div className="dp-panel-head">
-                    <h2 className="dp-panel-title">Vitals History</h2>
-                    <span className="dp-link dp-link--muted">From latest reports</span>
-                  </div>
-                  <div className="dp-vitals-grid">
-                    {healthVitals.map((vital) => (
-                      <div key={vital.key} className="dp-vital-card">
-                        <p className="dp-vital-label">{vital.label}</p>
-                        <p className="dp-vital-value">
-                          {vital.value_secondary ? (
-                            <>
-                              {vital.value}/{vital.value_secondary}
-                            </>
-                          ) : (
-                            vital.display
-                          )}{" "}
-                          <span className="dp-vital-unit">{vital.unit}</span>
-                        </p>
-                        {vital.source_filename && (
-                          <p className="dp-vital-source">{vital.source_filename}</p>
-                        )}
-                      </div>
-                    ))}
-                  </div>
+              {reportReviewVisit?.linked_report && (
+                <div className="dp-glass dp-report-review-card">
+                  <h2 className="dp-panel-title dp-panel-title--spaced">Report for upcoming visit</h2>
+                  <p className="dp-muted-note">{reportReviewVisit.appointment_reason}</p>
+                  <p>
+                    <strong>{reportReviewVisit.linked_report.filename}</strong>
+                  </p>
+                  {reportReviewVisit.linked_report.summary ? (
+                    <p className="dp-report-review-summary">{reportReviewVisit.linked_report.summary}</p>
+                  ) : null}
+                  {(reportReviewVisit.linked_report.abnormal ?? []).length > 0 && (
+                    <ul className="dp-report-review-abnormal">
+                      {reportReviewVisit.linked_report.abnormal.slice(0, 6).map((item) => (
+                        <li key={`${item.test}-${item.value}`}>
+                          {item.test}: {item.value}
+                          {item.flag ? ` (${item.flag})` : ""}
+                        </li>
+                      ))}
+                    </ul>
+                  )}
                 </div>
               )}
 
-              {reports.length > 0 && (
-                <div className="dp-glass">
-                  <h2 className="dp-panel-title dp-panel-title--spaced">Recent Lab Results</h2>
-                  <div className="dp-table-wrap">
-                    <table className="dp-table">
-                      <thead>
-                        <tr>
-                          <th>Report</th>
-                          <th>Details</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {reports.map((r) => (
-                          <tr key={r.id}>
-                            <td className="dp-cell-bold">Report {r.id.slice(0, 8)}</td>
-                            <td className="dp-cell-muted">
-                              {r.analysis ? JSON.stringify(r.analysis).slice(0, 120) : "—"}…
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-                </div>
-              )}
+              <DoctorPatientLabSection vitals={healthVitals} reports={reports} />
             </div>
 
-            <div>
+            <aside className="dp-detail-grid-aside">
               <div className="dp-glass">
                 <h2 className="dp-panel-title dp-panel-title--spaced">Patient Info</h2>
                 <ul className="dp-info-list">
@@ -364,6 +384,36 @@ export default function PatientDetail() {
                 </ul>
               </div>
 
+              {consultSummary && consultSummary.medications.length > 0 && (
+                <div className="dp-glass">
+                  <h2 className="dp-panel-title dp-panel-title--spaced">Medications</h2>
+                  <ul className="dp-overview-med-list">
+                    {consultSummary.medications.map((m) => (
+                      <li key={m.name}>
+                        <span className="material-symbols-outlined">medication</span>
+                        <div>
+                          <strong>{m.name}</strong>
+                          <span>
+                            {[m.dosage, m.frequency].filter(Boolean).join(" · ") || "Active"}
+                          </span>
+                        </div>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+
+              {consultSummary && consultSummary.allergies.length > 0 && (
+                <div className="dp-glass">
+                  <h2 className="dp-panel-title dp-panel-title--spaced">Allergies</h2>
+                  <ul className="dp-consult-chip-list dp-consult-chip-list--alert">
+                    {consultSummary.allergies.map((a) => (
+                      <li key={a}>{a}</li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+
               <div className="dp-glass">
                 <h2 className="dp-panel-title dp-panel-title--spaced">Quick Actions</h2>
                 <button type="button" className="dp-btn dp-btn--primary dp-btn--block dp-btn--spaced" onClick={() => setTab("chats")}>
@@ -378,7 +428,7 @@ export default function PatientDetail() {
                   Refill requests
                 </button>
               </div>
-            </div>
+            </aside>
           </div>
         )}
 
@@ -440,6 +490,30 @@ export default function PatientDetail() {
 
         {tab === "appointments" && (
           <section className="dp-panel dp-visit-panel">
+            {showConsultBanner && (
+              <div className="dp-consult-cta-banner">
+                <div>
+                  <strong>
+                    {consultationModeLabel(
+                      conductableVisit.consultation_mode,
+                      "is_video" in conductableVisit ? conductableVisit.is_video : undefined,
+                    )}{" "}
+                    visit ready
+                  </strong>
+                  <p>
+                    Open the consultation workflow to review the AI pre-visit summary, document findings,
+                    and complete the visit.
+                  </p>
+                </div>
+                <Link
+                  to={`/doctor/consultation/${conductableVisit.appointment_id}`}
+                  className="dp-btn dp-btn--primary"
+                >
+                  <span className="material-symbols-outlined">stethoscope</span>
+                  Start consultation
+                </Link>
+              </div>
+            )}
             <div className="dp-visit-panel-head">
               <div className="dp-visit-panel-intro">
                 <span className="dp-visit-panel-icon material-symbols-outlined">medical_services</span>
@@ -456,6 +530,7 @@ export default function PatientDetail() {
                 data={visitRecords}
                 onMarkCompleted={markAppointmentCompleted}
                 onMarkCancelled={markAppointmentCancelled}
+                onOpenRefills={() => navigate("/doctor", { state: { tab: "refills" } })}
               />
             ) : (
               <DoctorAppointmentsSections appointments={detail.appointments} showPatient={false} />

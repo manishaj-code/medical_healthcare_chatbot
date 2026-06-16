@@ -1,5 +1,12 @@
 import { useState, type ReactNode } from "react";
+import { Link } from "react-router-dom";
+import DoctorMedicationTimeline, {
+  type MedicationTimelinePayload,
+} from "./DoctorMedicationTimeline";
 import {
+  canStartConsultation,
+  consultationModeIcon,
+  consultationModeLabel,
   formatDisplayDate,
   formatDoctorTime,
   isOverdueAppointment,
@@ -10,6 +17,7 @@ import {
   formatRiskLevelLabel,
   parsePatientSummaryText,
   riskLevelCssVariant,
+  sanitizeClinicalFindingsForDisplay,
 } from "../../utils/clinicalSummaryFormat";
 
 export interface VisitAssessment {
@@ -29,6 +37,24 @@ export interface VisitSoapNote {
   created_at?: string | null;
 }
 
+export interface VisitLinkedReport {
+  report_id: string;
+  filename: string;
+  summary?: string;
+  abnormal?: { test?: string; value?: string; flag?: string }[];
+  created_at?: string | null;
+}
+
+export interface VisitPrescriptionItem {
+  id: string;
+  medicine_name: string;
+  strength?: string | null;
+  frequency?: string | null;
+  duration?: string | null;
+  instructions?: string | null;
+  source?: string | null;
+}
+
 export interface VisitRecord {
   appointment_id: string;
   apt_id: string;
@@ -38,14 +64,21 @@ export interface VisitRecord {
   completed_at?: string | null;
   consultation_mode: string;
   is_video: boolean;
+  appointment_reason?: string | null;
+  visit_type?: "symptom" | "report_discussion";
+  linked_report?: VisitLinkedReport | null;
+  chief_complaint?: string | null;
+  follow_up_date?: string | null;
   summary?: string | null;
   soap_note?: VisitSoapNote | null;
   assessment?: VisitAssessment | null;
+  prescription_items?: VisitPrescriptionItem[];
 }
 
 export interface VisitRecordsPayload {
   visits: VisitRecord[];
   medications: { name: string; dosage?: string | null; frequency?: string | null }[];
+  medication_timeline?: MedicationTimelinePayload;
   conditions: string[];
   allergies: string[];
   reports: { id: string; created_at?: string | null; analysis: Record<string, unknown> | null }[];
@@ -70,10 +103,76 @@ function statusTone(status: string): string {
 }
 
 function visitIcon(visit: VisitRecord): string {
+  if (visit.visit_type === "report_discussion") return "lab_profile";
   if (visit.is_video) return "videocam";
   if (visit.status === "completed") return "task_alt";
   if (visit.status === "cancelled") return "event_busy";
   return "calendar_month";
+}
+
+interface VisitConsultFor {
+  isReport: boolean;
+  text: string;
+  chips: string[];
+}
+
+function resolveVisitConsultFor(visit: VisitRecord): VisitConsultFor | null {
+  if (visit.visit_type === "report_discussion" || visit.linked_report || visit.appointment_reason) {
+    const reason =
+      visit.appointment_reason?.trim() ||
+      (visit.linked_report?.filename
+        ? `Medical Report Review — ${visit.linked_report.filename}`
+        : "Medical Report Review & Consultation");
+    return { isReport: true, text: reason, chips: [] };
+  }
+
+  const symptoms = visit.assessment?.symptoms ?? [];
+  if (symptoms.length > 0) {
+    return { isReport: false, text: "", chips: symptoms };
+  }
+
+  const complaint = visit.chief_complaint?.trim() || visit.soap_note?.subjective?.trim();
+  if (complaint) {
+    const chips = complaint
+      .split(/,\s*/)
+      .map((part) => part.trim())
+      .filter(Boolean);
+    return { isReport: false, text: "", chips: chips.length > 0 ? chips : [complaint] };
+  }
+
+  return null;
+}
+
+function VisitConsultForRow({
+  consultFor,
+  compact = false,
+}: {
+  consultFor: VisitConsultFor;
+  compact?: boolean;
+}) {
+  const chips = consultFor.isReport ? [consultFor.text] : consultFor.chips;
+  if (chips.length === 0) return null;
+
+  return (
+    <div className={`dp-visit-consult-for${compact ? " dp-visit-consult-for--compact" : ""}`}>
+      <span className="dp-visit-consult-for-label">Consult for:</span>
+      <div className="dp-visit-preview-chips">
+        {chips.slice(0, compact ? 3 : chips.length).map((chip) => (
+          <span
+            key={chip}
+            className={`dp-visit-preview-chip${
+              consultFor.isReport ? " dp-visit-preview-chip--report" : ""
+            }`}
+          >
+            {chip}
+          </span>
+        ))}
+        {compact && chips.length > 3 && (
+          <span className="dp-visit-preview-chip dp-visit-preview-chip--more">+{chips.length - 3}</span>
+        )}
+      </div>
+    </div>
+  );
 }
 
 function aiSummaryLines(summary: string, hasTriageBlock: boolean): string[] {
@@ -118,6 +217,329 @@ function aiSummaryLines(summary: string, hasTriageBlock: boolean): string[] {
     }
   }
   return lines;
+}
+
+const CONSULTATION_NOTE_FIELDS = [
+  {
+    key: "subjective" as const,
+    label: "Chief complaint",
+    icon: "record_voice_over",
+    variant: "complaint" as const,
+  },
+  {
+    key: "assessment" as const,
+    label: "Diagnosis",
+    icon: "diagnosis",
+    variant: "diagnosis" as const,
+  },
+  {
+    key: "objective" as const,
+    label: "Clinical findings",
+    icon: "stethoscope",
+    variant: "findings" as const,
+  },
+  {
+    key: "plan" as const,
+    label: "Treatment plan",
+    icon: "assignment",
+    variant: "plan" as const,
+  },
+] as const;
+
+const FINDING_LABEL_RE =
+  /(Presenting symptoms|Duration|Medical history|Current medications|Known allergies):\s*/gi;
+
+interface StructuredFindings {
+  symptoms: string[];
+  duration: string | null;
+  history: string[];
+  medications: string[];
+  allergies: string[];
+  notes: string[];
+}
+
+function listFromFieldValue(value: string): string[] {
+  return value
+    .replace(/\.\s*$/, "")
+    .split(/,\s*/)
+    .map((part) => part.trim())
+    .filter(Boolean);
+}
+
+function extractDurationValue(raw: string): { duration: string; extra: string } {
+  const value = raw.trim();
+  if (!value) return { duration: "", extra: "" };
+
+  const rangeMatch = value.match(/^([\w\d\s\-–]+(?:day|days|week|weeks|hour|hours|month|months))\.?\s*/i);
+  if (rangeMatch) {
+    return {
+      duration: rangeMatch[1].trim(),
+      extra: value.slice(rangeMatch[0].length).trim(),
+    };
+  }
+
+  const firstSentence = value.match(/^([^.!?]+[.!?])\s*/);
+  if (
+    firstSentence &&
+    firstSentence[1].length <= 42 &&
+    /day|week|hour|month|year/i.test(firstSentence[1]) &&
+    !/patient|rest |see a doctor|recommended/i.test(firstSentence[1])
+  ) {
+    return {
+      duration: firstSentence[1].replace(/\.\s*$/, "").trim(),
+      extra: value.slice(firstSentence[0].length).trim(),
+    };
+  }
+
+  if (value.length <= 32 && !/patient|rest |see a doctor/i.test(value)) {
+    return { duration: value.replace(/\.\s*$/, "").trim(), extra: "" };
+  }
+
+  return { duration: "", extra: value };
+}
+
+function splitNarrative(text: string): string[] {
+  const trimmed = text.trim();
+  if (!trimmed) return [];
+  const sentences = splitSentences(trimmed);
+  return sentences.length > 0 ? sentences : [trimmed];
+}
+
+function parseClinicalFindingsStructured(text: string): StructuredFindings {
+  const result: StructuredFindings = {
+    symptoms: [],
+    duration: null,
+    history: [],
+    medications: [],
+    allergies: [],
+    notes: [],
+  };
+
+  const matches = [...text.matchAll(FINDING_LABEL_RE)];
+  if (!matches.length) {
+    result.notes = splitNarrative(text);
+    return result;
+  }
+
+  const firstIndex = matches[0].index ?? 0;
+  if (firstIndex > 0) {
+    const lead = text.slice(0, firstIndex).trim();
+    if (lead) result.notes.push(...splitNarrative(lead));
+  }
+
+  for (let i = 0; i < matches.length; i += 1) {
+    const match = matches[i];
+    const label = match[1].toLowerCase();
+    const valueStart = (match.index ?? 0) + match[0].length;
+    const valueEnd = i + 1 < matches.length ? (matches[i + 1].index ?? text.length) : text.length;
+    const value = text.slice(valueStart, valueEnd).trim();
+    if (!value) continue;
+
+    if (label === "presenting symptoms") {
+      result.symptoms = listFromFieldValue(value);
+    } else if (label === "duration") {
+      const { duration, extra } = extractDurationValue(value);
+      if (duration) result.duration = duration;
+      if (extra) result.notes.push(...splitNarrative(extra));
+    } else if (label === "medical history") {
+      result.history = listFromFieldValue(value);
+    } else if (label === "current medications") {
+      result.medications = listFromFieldValue(value);
+    } else if (label === "known allergies") {
+      result.allergies = listFromFieldValue(value);
+    }
+  }
+
+  return result;
+}
+
+function ClinicalFindingsDisplay({ text }: { text: string }) {
+  const data = parseClinicalFindingsStructured(text);
+  const hasStructured =
+    data.symptoms.length > 0 ||
+    Boolean(data.duration) ||
+    data.history.length > 0 ||
+    data.medications.length > 0 ||
+    data.allergies.length > 0;
+
+  if (!hasStructured) {
+    const lines = text.includes("\n")
+      ? text.split(/\n+/).map((line) => line.trim()).filter(Boolean)
+      : splitNarrative(text);
+    return (
+      <ul className="dp-visit-clinical-bullets">
+        {lines.map((line) => (
+          <li key={line}>{line}</li>
+        ))}
+      </ul>
+    );
+  }
+
+  return (
+    <div className="dp-visit-findings-layout">
+      {data.symptoms.length > 0 && (
+        <div className="dp-visit-findings-section">
+          <span className="dp-visit-findings-label">Symptoms</span>
+          <div className="dp-visit-chips">
+            {data.symptoms.map((symptom) => (
+              <span key={symptom} className="dp-visit-chip">
+                {symptom}
+              </span>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {(data.duration || data.history.length > 0 || data.medications.length > 0 || data.allergies.length > 0) && (
+        <div className="dp-visit-findings-meta">
+          {data.duration && (
+            <span className="dp-visit-meta-pill">
+              <span className="material-symbols-outlined">schedule</span>
+              {data.duration}
+            </span>
+          )}
+          {data.history.map((item) => (
+            <span key={`history-${item}`} className="dp-visit-meta-pill">
+              <span className="material-symbols-outlined">history</span>
+              {item}
+            </span>
+          ))}
+          {data.medications.map((item) => (
+            <span key={`med-${item}`} className="dp-visit-meta-pill">
+              <span className="material-symbols-outlined">medication</span>
+              {item}
+            </span>
+          ))}
+          {data.allergies.map((item) => (
+            <span key={`allergy-${item}`} className="dp-visit-meta-pill dp-visit-meta-pill--alert">
+              <span className="material-symbols-outlined">warning</span>
+              {item}
+            </span>
+          ))}
+        </div>
+      )}
+
+      {data.notes.length > 0 && (
+        <div className="dp-visit-findings-notes">
+          <span className="dp-visit-findings-label">Clinical notes</span>
+          <ul className="dp-visit-clinical-bullets">
+            {data.notes.map((note) => (
+              <li key={note}>{note}</li>
+            ))}
+          </ul>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function splitSentences(text: string): string[] {
+  return text
+    .split(/(?<=[.!?])\s+/)
+    .map((part) => part.trim())
+    .filter((part) => part.length > 12);
+}
+
+function clinicalTextContent(text: string, variant: "complaint" | "diagnosis" | "findings" | "plan"): ReactNode {
+  const trimmed = text.trim();
+  if (!trimmed) return null;
+
+  const lines = trimmed
+    .split(/\n+/)
+    .map((line) => line.trim())
+    .filter(Boolean);
+
+  const numbered =
+    lines.length > 1 && lines.every((line) => /^\d+[\.)]\s+/.test(line));
+
+  if (numbered || variant === "plan") {
+    const planLines = numbered
+      ? lines
+      : lines.length > 1
+        ? lines
+        : splitSentences(trimmed);
+    const listItems = planLines.map((line) => line.replace(/^\d+[\.)]\s+/, "").trim()).filter(Boolean);
+    if (listItems.length > 1) {
+      return (
+        <ol className="dp-visit-clinical-list">
+          {listItems.map((line) => (
+            <li key={line}>{line}</li>
+          ))}
+        </ol>
+      );
+    }
+  }
+
+  if (variant === "findings") {
+    return <ClinicalFindingsDisplay text={trimmed} />;
+  }
+
+  if (variant === "complaint") {
+    return <p className="dp-visit-clinical-complaint">{trimmed}</p>;
+  }
+
+  if (variant === "diagnosis") {
+    return <p className="dp-visit-clinical-diagnosis">{trimmed}</p>;
+  }
+
+  return <p className="dp-visit-clinical-text">{trimmed}</p>;
+}
+
+function VisitConsultationRecord({
+  soap,
+  isCompleted,
+  assessment,
+}: {
+  soap: VisitSoapNote;
+  isCompleted: boolean;
+  assessment?: VisitAssessment | null;
+}) {
+  const displaySoap: VisitSoapNote = { ...soap };
+  if (isCompleted && soap.objective) {
+    const cleaned = sanitizeClinicalFindingsForDisplay(soap.objective, assessment);
+    displaySoap.objective = cleaned || null;
+  }
+
+  const fields = CONSULTATION_NOTE_FIELDS.filter((field) => {
+    const value = displaySoap[field.key];
+    return typeof value === "string" && value.trim().length > 0;
+  });
+
+  if (!fields.length) return null;
+
+  const planText = displaySoap.plan ?? "";
+  const planLines = planText
+    .split(/\n+/)
+    .map((line) => line.trim())
+    .filter(Boolean);
+  const planIsDifferential =
+    planLines.length > 0 && planLines.every((line) => /^\d+[\.)]\s+Consider\b/i.test(line));
+
+  return (
+    <section className="dp-visit-block dp-visit-block--primary">
+      <div className="dp-visit-block-head">
+        <span className="material-symbols-outlined">clinical_notes</span>
+        <h4>{isCompleted ? "Consultation record" : "Draft consultation notes"}</h4>
+      </div>
+      <div className="dp-visit-clinical-stack">
+        {fields.map((field) => (
+          <section
+            key={field.key}
+            className={`dp-visit-clinical-block dp-visit-clinical-block--${field.variant}`}
+          >
+            <h5>
+              <span className="material-symbols-outlined">{field.icon}</span>
+              {field.variant === "plan" && planIsDifferential ? "Differential considerations" : field.label}
+            </h5>
+            {clinicalTextContent(displaySoap[field.key] ?? "", field.variant)}
+            {field.variant === "plan" && planIsDifferential && (
+              <p className="dp-visit-clinical-hint">Working diagnoses considered during the visit.</p>
+            )}
+          </section>
+        ))}
+      </div>
+    </section>
+  );
 }
 
 function VisitAiSummary({ summary, hasTriageBlock }: { summary: string; hasTriageBlock: boolean }) {
@@ -177,32 +599,63 @@ function AsidePanel({
   );
 }
 
+function VisitPrescriptionBlock({ items }: { items: VisitPrescriptionItem[] }) {
+  if (items.length === 0) return null;
+  return (
+    <section className="dp-visit-block dp-visit-block--rx">
+      <div className="dp-visit-block-head">
+        <span className="material-symbols-outlined">medication</span>
+        <h4>Prescribed this visit</h4>
+      </div>
+      <ul className="dp-visit-rx-list">
+        {items.map((item) => (
+          <li key={item.id}>
+            <strong>{item.medicine_name}</strong>
+            <span>
+              {[item.strength, item.frequency, item.duration].filter(Boolean).join(" · ")}
+            </span>
+            {item.instructions ? <p className="dp-visit-note">{item.instructions}</p> : null}
+          </li>
+        ))}
+      </ul>
+    </section>
+  );
+}
+
 function VisitCard({
   visit,
   defaultOpen,
+  highlight,
   onMarkCompleted,
   onMarkCancelled,
 }: {
   visit: VisitRecord;
   defaultOpen?: boolean;
+  highlight?: boolean;
   onMarkCompleted?: (appointmentId: string) => Promise<void>;
   onMarkCancelled?: (appointmentId: string) => Promise<void>;
 }) {
-  const [open, setOpen] = useState(defaultOpen ?? visit.status === "completed");
+  const [open, setOpen] = useState(defaultOpen ?? false);
   const [busy, setBusy] = useState(false);
   const overdue = isOverdueAppointment(visit.date, visit.time, visit.status);
+  const canConduct = canStartConsultation(visit.date, visit.status);
+  const isCompleted = visit.status.toLowerCase() === "completed";
   const risk = visit.assessment?.risk_level;
   const symptoms = visit.assessment?.symptoms ?? [];
+  const consultFor = resolveVisitConsultFor(visit);
+  const prescriptionItems = visit.prescription_items ?? [];
+  const hasSoap = Boolean(visit.soap_note);
+  const hasAiSummary = Boolean(visit.summary && !/no (ai )?summary yet/i.test(visit.summary));
+  const showAiSummary = hasAiSummary && !hasSoap;
   const hasDetails =
-    symptoms.length > 0 ||
-    (visit.summary && !/no (ai )?summary yet/i.test(visit.summary)) ||
-    Boolean(visit.soap_note);
+    symptoms.length > 0 || showAiSummary || hasSoap || prescriptionItems.length > 0;
 
   return (
     <article
+      id={`visit-${visit.appointment_id}`}
       className={`dp-visit-card dp-visit-card--${visit.status}${open ? " dp-visit-card--open" : ""}${
         visit.is_video ? " dp-visit-card--video" : ""
-      }${overdue ? " dp-visit-card--overdue" : ""}`}
+      }${overdue ? " dp-visit-card--overdue" : ""}${highlight ? " dp-visit-card--highlight" : ""}`}
     >
       <button
         type="button"
@@ -224,28 +677,20 @@ function VisitCard({
           </div>
           <div className="dp-visit-card-sub">
             <span className="dp-visit-apt">{visit.apt_id}</span>
-            {visit.is_video && (
+            {visit.consultation_mode && (
               <span className="dp-visit-mode">
-                <span className="material-symbols-outlined">videocam</span>
-                Video consult
+                <span className="material-symbols-outlined">
+                  {consultationModeIcon(visit.consultation_mode, visit.is_video)}
+                </span>
+                {consultationModeLabel(visit.consultation_mode, visit.is_video)} consult
               </span>
             )}
-            {!visit.is_video && visit.consultation_mode !== "in_person" && (
-              <span className="dp-visit-mode">{visit.consultation_mode}</span>
-            )}
           </div>
-          {!open && symptoms.length > 0 && (
-            <div className="dp-visit-preview-chips">
-              {symptoms.slice(0, 3).map((s) => (
-                <span key={s} className="dp-visit-preview-chip">
-                  {s}
-                </span>
-              ))}
-              {symptoms.length > 3 && (
-                <span className="dp-visit-preview-chip dp-visit-preview-chip--more">
-                  +{symptoms.length - 3}
-                </span>
-              )}
+          {!open && consultFor && <VisitConsultForRow consultFor={consultFor} compact />}
+          {!open && prescriptionItems.length > 0 && (
+            <div className="dp-visit-rx-preview">
+              <span className="material-symbols-outlined">medication</span>
+              {prescriptionItems.length} medication{prescriptionItems.length !== 1 ? "s" : ""} prescribed
             </div>
           )}
         </div>
@@ -255,8 +700,38 @@ function VisitCard({
         </span>
       </button>
 
+      {canConduct && (
+        <div className="dp-visit-card-actions">
+          <Link
+            to={`/doctor/consultation/${visit.appointment_id}`}
+            className="dp-btn dp-btn--primary dp-btn--sm"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <span className="material-symbols-outlined">stethoscope</span>
+            Start consultation
+          </Link>
+        </div>
+      )}
+
       {open && (
         <div className="dp-visit-card-body">
+          {consultFor && <VisitConsultForRow consultFor={consultFor} />}
+
+          {consultFor?.isReport && visit.linked_report && (
+            <section className="dp-visit-block dp-visit-block--report">
+              <div className="dp-visit-block-head">
+                <span className="material-symbols-outlined">description</span>
+                <h4>Linked report</h4>
+              </div>
+              <p className="dp-visit-report-name">
+                <strong>{visit.linked_report.filename}</strong>
+              </p>
+              {visit.linked_report.summary ? (
+                <p className="dp-visit-note">{visit.linked_report.summary}</p>
+              ) : null}
+            </section>
+          )}
+
           {!hasDetails && visit.status !== "completed" && (
             <div className="dp-visit-pending-note">
               <span className="material-symbols-outlined">info</span>
@@ -267,11 +742,11 @@ function VisitCard({
             </div>
           )}
 
-          {symptoms.length > 0 && (
+          {symptoms.length > 0 && (!hasSoap || isCompleted) && (
             <section className="dp-visit-block">
               <div className="dp-visit-block-head">
                 <span className="material-symbols-outlined">healing</span>
-                <h4>Symptoms &amp; triage</h4>
+                <h4>{hasSoap && isCompleted ? "Pre-visit triage" : "Symptoms & triage"}</h4>
               </div>
               <div className="dp-visit-chips">
                 {symptoms.map((s) => (
@@ -305,59 +780,31 @@ function VisitCard({
             </section>
           )}
 
-          {visit.summary && !/no (ai )?summary yet/i.test(visit.summary) && (
-            <VisitAiSummary summary={visit.summary} hasTriageBlock={symptoms.length > 0} />
+          {showAiSummary && (
+            <VisitAiSummary summary={visit.summary!} hasTriageBlock={symptoms.length > 0} />
           )}
 
           {visit.soap_note && (
-            <section className="dp-visit-block">
-              <div className="dp-visit-block-head">
-                <span className="material-symbols-outlined">clinical_notes</span>
-                <h4>Doctor notes (SOAP)</h4>
-              </div>
-              <div className="dp-visit-soap-grid">
-                {visit.soap_note.subjective && (
-                  <div className="dp-visit-soap-item">
-                    <span>S</span>
-                    <div>
-                      <strong>Subjective</strong>
-                      <p>{visit.soap_note.subjective}</p>
-                    </div>
-                  </div>
-                )}
-                {visit.soap_note.objective && (
-                  <div className="dp-visit-soap-item">
-                    <span>O</span>
-                    <div>
-                      <strong>Objective</strong>
-                      <p>{visit.soap_note.objective}</p>
-                    </div>
-                  </div>
-                )}
-                {visit.soap_note.assessment && (
-                  <div className="dp-visit-soap-item">
-                    <span>A</span>
-                    <div>
-                      <strong>Assessment</strong>
-                      <p>{visit.soap_note.assessment}</p>
-                    </div>
-                  </div>
-                )}
-                {visit.soap_note.plan && (
-                  <div className="dp-visit-soap-item">
-                    <span>P</span>
-                    <div>
-                      <strong>Plan</strong>
-                      <p>{visit.soap_note.plan}</p>
-                    </div>
-                  </div>
-                )}
-              </div>
-            </section>
+            <VisitConsultationRecord
+              soap={visit.soap_note}
+              isCompleted={isCompleted}
+              assessment={visit.assessment}
+            />
           )}
 
-          {visit.status === "completed" && !visit.soap_note && !visit.summary && symptoms.length === 0 && (
+          <VisitPrescriptionBlock items={prescriptionItems} />
+
+          {visit.status === "completed" && !visit.soap_note && !visit.summary && symptoms.length === 0 && prescriptionItems.length === 0 && (
             <p className="dp-visit-empty-detail">No structured notes captured for this visit yet.</p>
+          )}
+
+          {visit.follow_up_date && (
+            <div className="dp-visit-followup">
+              <span className="material-symbols-outlined">event</span>
+              <span>
+                Follow-up scheduled for <strong>{formatDisplayDate(visit.follow_up_date)}</strong>
+              </span>
+            </div>
           )}
 
           {visit.completed_at && (
@@ -414,15 +861,51 @@ export default function DoctorPatientVisitRecords({
   data,
   onMarkCompleted,
   onMarkCancelled,
+  onOpenRefills,
 }: {
   data: VisitRecordsPayload;
   onMarkCompleted?: (appointmentId: string) => Promise<void>;
   onMarkCancelled?: (appointmentId: string) => Promise<void>;
+  onOpenRefills?: () => void;
 }) {
-  const completed = data.visits.filter((v) => v.status === "completed");
-  const upcoming = data.visits.filter((v) => isUpcomingAppointment(v.date, v.time, v.status));
-  const overdue = data.visits.filter((v) => isOverdueAppointment(v.date, v.time, v.status));
-  const cancelled = data.visits.filter((v) => v.status === "cancelled");
+  const [highlightVisitId, setHighlightVisitId] = useState<string | null>(null);
+
+  const scrollToVisit = (appointmentId: string) => {
+    const el = document.getElementById(`visit-${appointmentId}`);
+    if (!el) return;
+    el.scrollIntoView({ behavior: "smooth", block: "center" });
+    setHighlightVisitId(appointmentId);
+    window.setTimeout(() => setHighlightVisitId(null), 2400);
+  };
+
+  const visitCardProps = (visit: VisitRecord, defaultOpen?: boolean) => ({
+    visit,
+    defaultOpen,
+    highlight: highlightVisitId === visit.appointment_id,
+    onMarkCompleted,
+    onMarkCancelled,
+  });
+
+  const normStatus = (status: string) => status.toLowerCase();
+  const completed = data.visits.filter((v) => normStatus(v.status) === "completed");
+  const cancelled = data.visits.filter((v) => {
+    const s = normStatus(v.status);
+    return s === "cancelled" || s === "canceled";
+  });
+  const completedIds = new Set(completed.map((v) => v.appointment_id));
+  const cancelledIds = new Set(cancelled.map((v) => v.appointment_id));
+  const overdue = data.visits.filter(
+    (v) =>
+      !completedIds.has(v.appointment_id) &&
+      !cancelledIds.has(v.appointment_id) &&
+      isOverdueAppointment(v.date, v.time, v.status),
+  );
+  const upcoming = data.visits.filter(
+    (v) =>
+      !completedIds.has(v.appointment_id) &&
+      !cancelledIds.has(v.appointment_id) &&
+      isUpcomingAppointment(v.date, v.time, v.status),
+  );
 
   return (
     <div className="dp-visit-records">
@@ -455,19 +938,13 @@ export default function DoctorPatientVisitRecords({
             <section className="dp-visit-group-card dp-visit-group-card--overdue">
               <header className="dp-visit-section-head">
                 <span className="material-symbols-outlined">schedule</span>
-                <h3>Past due — needs status</h3>
+                <h3>Needs attention</h3>
                 <span className="dp-visit-section-count">{overdue.length}</span>
               </header>
               <div className="dp-visit-group-body">
                 <div className="dp-visit-timeline">
                   {overdue.map((visit) => (
-                    <VisitCard
-                      key={visit.appointment_id}
-                      visit={visit}
-                      defaultOpen
-                      onMarkCompleted={onMarkCompleted}
-                      onMarkCancelled={onMarkCancelled}
-                    />
+                    <VisitCard key={visit.appointment_id} {...visitCardProps(visit)} />
                   ))}
                 </div>
               </div>
@@ -484,7 +961,7 @@ export default function DoctorPatientVisitRecords({
               <div className="dp-visit-group-body">
                 <div className="dp-visit-timeline">
                   {upcoming.map((visit) => (
-                    <VisitCard key={visit.appointment_id} visit={visit} defaultOpen />
+                    <VisitCard key={visit.appointment_id} {...visitCardProps(visit)} />
                   ))}
                 </div>
               </div>
@@ -495,13 +972,13 @@ export default function DoctorPatientVisitRecords({
             <section className="dp-visit-group-card">
               <header className="dp-visit-section-head">
                 <span className="material-symbols-outlined">history</span>
-                <h3>Past consultations</h3>
+                <h3>Completed visits</h3>
                 <span className="dp-visit-section-count">{completed.length}</span>
               </header>
               <div className="dp-visit-group-body">
                 <div className="dp-visit-timeline">
                   {completed.map((visit) => (
-                    <VisitCard key={visit.appointment_id} visit={visit} />
+                    <VisitCard key={visit.appointment_id} {...visitCardProps(visit)} />
                   ))}
                 </div>
               </div>
@@ -518,7 +995,7 @@ export default function DoctorPatientVisitRecords({
               <div className="dp-visit-group-body">
                 <div className="dp-visit-timeline">
                   {cancelled.map((visit) => (
-                    <VisitCard key={visit.appointment_id} visit={visit} />
+                    <VisitCard key={visit.appointment_id} {...visitCardProps(visit)} />
                   ))}
                 </div>
               </div>
@@ -537,12 +1014,18 @@ export default function DoctorPatientVisitRecords({
         <aside className="dp-visit-records-aside">
           <AsidePanel
             icon="medication"
-            title="Medications"
-            count={data.medications.length}
+            title="Medication plan"
+            count={data.medication_timeline?.summary.active_count ?? data.medications.length}
             emptyIcon="medication"
-            emptyText="No medications on file for this patient."
+            emptyText="No prescriptions linked to visits yet."
           >
-            {data.medications.length > 0 ? (
+            {data.medication_timeline ? (
+              <DoctorMedicationTimeline
+                timeline={data.medication_timeline}
+                onViewVisit={scrollToVisit}
+                onOpenRefills={onOpenRefills}
+              />
+            ) : data.medications.length > 0 ? (
               <ul className="dp-visit-med-list">
                 {data.medications.map((m) => (
                   <li key={m.name}>

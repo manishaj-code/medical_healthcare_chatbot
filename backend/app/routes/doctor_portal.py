@@ -52,6 +52,7 @@ from app.services.urgent_consult_service import (
     list_pending_for_doctor,
     list_urgent_consult_history_for_doctor,
 )
+from app.services.patient_consult_summary_service import build_patient_consult_overview
 from app.services.visit_records_service import (
     list_consultation_history_for_doctor,
     list_visit_records_for_doctor,
@@ -103,15 +104,42 @@ async def _verify_access(db: AsyncSession, doctor_id: UUID, patient_id: UUID) ->
     return urgent.scalar_one_or_none() is not None
 
 
-def _format_appt_row(a: Appointment, patient_id: UUID, patient_name: str) -> dict:
+def _format_appt_row(
+    a: Appointment,
+    patient_id: UUID,
+    patient_name: str,
+    *,
+    linked_report: dict | None = None,
+) -> dict:
     status = a.status.value if hasattr(a.status, "value") else str(a.status)
-    return {
+    row = {
         "appointment_id": str(a.id),
         "patient_id": str(patient_id),
         "patient_name": patient_name,
         "date": str(a.slot_date),
         "time": str(a.slot_time),
         "status": status,
+        "consultation_mode": a.consultation_mode or "in_person",
+        "is_video": bool(a.video_room_id),
+        "appointment_reason": a.appointment_reason,
+        "linked_report_id": str(a.linked_report_id) if a.linked_report_id else None,
+    }
+    if linked_report:
+        row["linked_report"] = linked_report
+    return row
+
+
+def _linked_report_payload(report: Report | None) -> dict | None:
+    if not report:
+        return None
+    meta = (report.analysis_json or {}).get("_meta") or {}
+    analysis = report.analysis_json or {}
+    return {
+        "report_id": str(report.id),
+        "filename": meta.get("filename") or "Medical report",
+        "summary": (analysis.get("summary") or "").strip(),
+        "abnormal": analysis.get("abnormal") or [],
+        "created_at": report.created_at.isoformat() if report.created_at else None,
     }
 
 
@@ -125,8 +153,25 @@ async def all_appointments(doctor: Doctor = Depends(get_doctor_profile), db: Asy
         .where(Appointment.doctor_id == doctor.id)
         .order_by(Appointment.slot_date.desc(), Appointment.slot_time.desc())
     )
+    rows = result.all()
+    report_ids = {a.linked_report_id for a, _, _ in rows if a.linked_report_id}
+    reports_by_id: dict[UUID, Report] = {}
+    if report_ids:
+        report_rows = await db.execute(select(Report).where(Report.id.in_(report_ids)))
+        reports_by_id = {r.id: r for r in report_rows.scalars().all()}
+
     return ResponseEnvelope(
-        data=[_format_appt_row(a, p.id, u.name) for a, p, u in result.all()]
+        data=[
+            _format_appt_row(
+                a,
+                p.id,
+                u.name,
+                linked_report=_linked_report_payload(reports_by_id.get(a.linked_report_id))
+                if a.linked_report_id
+                else None,
+            )
+            for a, p, u in rows
+        ]
     )
 
 
@@ -213,6 +258,13 @@ async def patient_detail(
         .where(Appointment.doctor_id == doctor.id, Appointment.patient_id == patient_id)
         .order_by(Appointment.slot_date.desc(), Appointment.slot_time.desc())
     )
+    appt_list = list(appt_rows.scalars().all())
+    report_ids = {a.linked_report_id for a in appt_list if a.linked_report_id}
+    reports_by_id: dict[UUID, Report] = {}
+    if report_ids:
+        report_rows = await db.execute(select(Report).where(Report.id.in_(report_ids)))
+        reports_by_id = {r.id: r for r in report_rows.scalars().all()}
+
     appointments = [
         {
             "appointment_id": str(a.id),
@@ -223,8 +275,13 @@ async def patient_detail(
             "completed_at": a.completed_at.isoformat() if a.completed_at else None,
             "consultation_mode": a.consultation_mode or "in_person",
             "is_video": bool(a.video_room_id),
+            "appointment_reason": a.appointment_reason,
+            "linked_report_id": str(a.linked_report_id) if a.linked_report_id else None,
+            "linked_report": _linked_report_payload(reports_by_id.get(a.linked_report_id))
+            if a.linked_report_id
+            else None,
         }
-        for a in appt_rows.scalars().all()
+        for a in appt_list
     ]
 
     summary_row = await db.execute(
@@ -367,6 +424,7 @@ async def patient_consultation_summary(
         })
 
     latest = assessments[0] if assessments else None
+    patient_consult_overview = await build_patient_consult_overview(db, doctor.id, patient_id)
     return ResponseEnvelope(
         data={
             "detected_symptoms": detected_symptoms,
@@ -383,6 +441,7 @@ async def patient_consultation_summary(
             "medications": ctx.get("medications") or [],
             "allergies": ctx.get("allergies") or [],
             "memory_facts": ctx.get("memory_facts") or [],
+            "patient_consult_overview": patient_consult_overview,
         }
     )
 
@@ -428,8 +487,19 @@ async def patient_reports(
 ):
     if not await _verify_access(db, doctor.id, patient_id):
         raise HTTPException(status_code=403)
-    result = await db.execute(select(Report).where(Report.patient_id == patient_id))
-    return ResponseEnvelope(data=[{"id": str(r.id), "analysis": r.analysis_json} for r in result.scalars().all()])
+    result = await db.execute(
+        select(Report).where(Report.patient_id == patient_id).order_by(Report.created_at.desc())
+    )
+    return ResponseEnvelope(
+        data=[
+            {
+                "id": str(r.id),
+                "analysis": r.analysis_json,
+                "created_at": r.created_at.isoformat() if r.created_at else None,
+            }
+            for r in result.scalars().all()
+        ]
+    )
 
 
 @router.get("/patients/{patient_id}/health-vitals")
@@ -472,6 +542,9 @@ async def complete_appointment(
     # DB column is TIMESTAMP WITHOUT TIME ZONE — store naive UTC
     appt.completed_at = datetime.now(timezone.utc).replace(tzinfo=None)
     await db.flush()
+    from app.services.appointment_card_service import sync_appointment_status_on_patient_cards
+
+    await sync_appointment_status_on_patient_cards(db, appointment_id)
     return ResponseEnvelope(
         data={
             "status": "completed",
@@ -489,6 +562,9 @@ async def cancel_appointment_doctor(
     db: AsyncSession = Depends(get_db),
 ):
     appt = await cancel_appointment_by_doctor(db, appointment_id, doctor.id, data.reason)
+    from app.services.appointment_card_service import sync_appointment_status_on_patient_cards
+
+    await sync_appointment_status_on_patient_cards(db, appointment_id)
     return ResponseEnvelope(
         data={
             "status": "cancelled",

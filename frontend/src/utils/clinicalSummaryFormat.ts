@@ -325,3 +325,33 @@ export function isStructuredClinicalSummaryText(text: string): boolean {
   }
   return /PATIENT SUMMARY|Chief Complaint:/i.test(text);
 }
+
+const PREVISIT_STRUCTURED_RE =
+  /(?:^|\n)(?:Presenting symptoms|Duration|Medical history|Current medications|Known allergies):\s*[^\n]+/gi;
+
+const PREVISIT_NARRATIVE_RE =
+  /The patient (?:presents with|has no known|is recommended to)[^.!?\n]+[.!?]\s*/gi;
+
+/** Strip pre-consultation triage/self-care text from saved examination findings. */
+export function sanitizeClinicalFindingsForDisplay(
+  text: string | null | undefined,
+  assessment?: { recommendation_text?: string | null } | null,
+): string {
+  let result = (text ?? "").trim();
+  if (!result) return "";
+
+  const rec = assessment?.recommendation_text?.trim();
+  if (rec) {
+    result = result.replace(rec, "").trim();
+    for (const sentence of rec.split(/(?<=[.!?])\s+/)) {
+      const part = sentence.trim();
+      if (part.length > 12) {
+        result = result.replace(part, "").trim();
+      }
+    }
+  }
+
+  result = result.replace(PREVISIT_STRUCTURED_RE, "").trim();
+  result = result.replace(PREVISIT_NARRATIVE_RE, "").trim();
+  return result.replace(/\n{3,}/g, "\n\n").trim();
+}

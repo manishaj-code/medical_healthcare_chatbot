@@ -388,6 +388,24 @@ export default function PatientChat() {
   }, [loadConversations, location.state, location.pathname, navigate, fetchResumeContext]);
 
   useEffect(() => {
+    if (!conversationId) return;
+    const refresh = () => {
+      void refreshMessages(conversationId);
+    };
+    const onVisibility = () => {
+      if (document.visibilityState === "visible") refresh();
+    };
+    window.addEventListener("focus", refresh);
+    document.addEventListener("visibilitychange", onVisibility);
+    const timer = window.setInterval(refresh, 30000);
+    return () => {
+      window.removeEventListener("focus", refresh);
+      document.removeEventListener("visibilitychange", onVisibility);
+      window.clearInterval(timer);
+    };
+  }, [conversationId]);
+
+  useEffect(() => {
     bottom.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages, loading]);
 

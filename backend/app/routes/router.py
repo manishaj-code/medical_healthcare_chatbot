@@ -5,6 +5,7 @@ from app.routes import (
     appointments,
     auth,
     chat,
+    consultations,
     doctor_portal,
     doctors,
     guest,
@@ -25,4 +26,5 @@ api_router.include_router(appointments.router)
 api_router.include_router(urgent_consult.router)
 api_router.include_router(reports.router)
 api_router.include_router(doctor_portal.router)
+api_router.include_router(consultations.router)
 api_router.include_router(admin.router)

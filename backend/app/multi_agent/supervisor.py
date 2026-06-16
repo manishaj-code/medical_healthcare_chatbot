@@ -92,6 +92,12 @@ class MultiAgentSupervisor:
 
         self._migrate_legacy_flow(flow, session, history)
 
+        if patient is not None:
+            from app.services.report_discussion_service import rehydrate_report_discussion_session
+
+            await rehydrate_report_discussion_session(db, session, history, patient.id, user_text=text)
+            await set_flow(conv_id, {"session": session})
+
         if should_reset_to_greeting(text, session):
             self._reset_stale_flow_on_greeting(session)
             await set_flow(conv_id, {"session": session})
@@ -196,8 +202,11 @@ class MultiAgentSupervisor:
             )
         )
         if not in_refill_flow and _booking_intent(text, history) and not session.get("resume_after_auth"):
-            session.setdefault("recommended_specialty", infer_recommended_specialty(session, history))
-            session["care_goal"] = "appointment"
+            from app.services.report_discussion_service import is_in_report_discussion_flow
+
+            if not is_in_report_discussion_flow(session, history):
+                session.setdefault("recommended_specialty", infer_recommended_specialty(session, history))
+                session["care_goal"] = "appointment"
 
         if detect_mental_health_crisis(text):
             safety = await SafetyAgent().evaluate(ctx)
@@ -398,6 +407,8 @@ class MultiAgentSupervisor:
             session.pop(key, None)
 
     def _migrate_legacy_flow(self, flow: dict, session: dict, history: list[dict]) -> None:
+        from app.services.report_discussion_service import history_has_report_discussion_offer
+
         if flow.get("task") == "triage" and flow.get("step") == "offer":
             data = flow.get("data") or {}
             session.setdefault("awaiting", "offer_booking")
@@ -410,17 +421,22 @@ class MultiAgentSupervisor:
                 "all_slots": (flow.get("data") or {}).get("all_slots", []),
             })
         if not session.get("awaiting"):
-            for msg in reversed(history[-8:]):
-                if msg.get("role") not in ("assistant", "Assistant"):
-                    continue
-                content = (msg.get("content") or "").lower()
-                if "would you like me to show available doctors" in content:
-                    session["awaiting"] = "offer_booking"
-                    session.setdefault("active_specialist", "scheduling_agent")
-                    spec = re.search(r"recommend(?:ed)? seeing a ([^.]+)\.", msg.get("content") or "", re.I)
-                    if spec:
-                        session.setdefault("recommended_specialty", spec.group(1).strip())
-                break
+            if history_has_report_discussion_offer(history):
+                session["awaiting"] = "report_followup"
+                session["care_goal"] = "report_discussion"
+                session.setdefault("active_specialist", "report_agent")
+            else:
+                for msg in reversed(history[-8:]):
+                    if msg.get("role") not in ("assistant", "Assistant"):
+                        continue
+                    content = (msg.get("content") or "").lower()
+                    if "would you like me to show available doctors" in content:
+                        session["awaiting"] = "offer_booking"
+                        session.setdefault("active_specialist", "scheduling_agent")
+                        spec = re.search(r"recommend(?:ed)? seeing a ([^.]+)\.", msg.get("content") or "", re.I)
+                        if spec:
+                            session.setdefault("recommended_specialty", spec.group(1).strip())
+                    break
 
     def _finalize(
         self,

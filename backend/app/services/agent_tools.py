@@ -233,10 +233,28 @@ async def tool_list_appointments(db: AsyncSession, patient_id: UUID) -> dict:
 
 
 async def tool_book_slot(
-    db: AsyncSession, patient: Patient, user_id: UUID, slot: dict, conversation_id: UUID | None = None
+    db: AsyncSession,
+    patient: Patient,
+    user_id: UUID,
+    slot: dict,
+    conversation_id: UUID | None = None,
+    *,
+    booking_context: dict | None = None,
 ) -> dict:
     s = deserialize_slot(slot) if isinstance(slot.get("slot_date"), str) else slot
-    appt = await book_appointment(db, patient.id, s["doctor_id"], s["slot_date"], s["slot_time"], user_id)
+    ctx = booking_context or {}
+    linked_report_id = ctx.get("linked_report_id")
+    appt = await book_appointment(
+        db,
+        patient.id,
+        s["doctor_id"],
+        s["slot_date"],
+        s["slot_time"],
+        user_id,
+        consultation_mode=ctx.get("pending_consultation_mode", "in_person"),
+        appointment_reason=ctx.get("appointment_reason"),
+        linked_report_id=UUID(str(linked_report_id)) if linked_report_id else None,
+    )
     try:
         await prepare_appointment_summary(db, appt.id, conversation_id)
     except Exception:

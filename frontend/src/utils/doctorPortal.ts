@@ -5,7 +5,18 @@ export interface DoctorAppointment {
   date: string;
   time: string;
   status: string;
+  consultation_mode?: string;
+  is_video?: boolean;
 }
+
+export {
+  canConductConsultation,
+  canStartConsultation,
+  consultationModeIcon,
+  consultationModeLabel,
+  isVideoConsultation,
+  normalizeConsultationMode,
+} from "./consultationMode";
 
 export interface DoctorPatient {
   patient_id: string;
@@ -20,6 +31,13 @@ export function formatDoctorTime(t: string): string {
   const ampm = h >= 12 ? "PM" : "AM";
   const hour = h % 12 || 12;
   return `${hour}:${m.slice(0, 2)} ${ampm}`;
+}
+
+/** Avoid double "Dr." when the stored name already includes the prefix. */
+export function formatDoctorDisplayName(name: string): string {
+  const trimmed = name.trim();
+  if (!trimmed) return "Doctor";
+  return /^dr\.?\s/i.test(trimmed) ? trimmed : `Dr. ${trimmed}`;
 }
 
 export function patientInitials(name: string): string {
@@ -73,7 +91,7 @@ export function scheduleHeadingForDate(iso: string, today = todayIso()): string 
 
 export function isActiveAppointmentStatus(status: string): boolean {
   const s = status.toLowerCase();
-  return s !== "cancelled" && s !== "canceled";
+  return s !== "cancelled" && s !== "canceled" && s !== "completed";
 }
 
 /** Future slot with a non-terminal status (confirmed, pending, etc.). */

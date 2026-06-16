@@ -125,6 +125,15 @@ async def process_patient_message(
     session = flow.get("session") or {}
     resuming = bool(session.get("resume_after_auth"))
 
+    from app.services.report_discussion_service import rehydrate_report_discussion_session
+
+    await rehydrate_report_discussion_session(db, session, history, patient.id, user_text=message)
+    await set_flow(conversation.id, {"session": session})
+
+    if should_leave_report_followup(message, session):
+        clear_report_followup(session, keep_analysis=True)
+        await set_flow(conversation.id, {"session": session})
+
     if resuming and session.get("pending_slot"):
         completed = await complete_guest_resume_booking(
             db, patient, conversation.id, session

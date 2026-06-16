@@ -3,28 +3,29 @@ from __future__ import annotations
 
 from typing import Any
 
-from app.multi_agent.booking_actions import format_report_reply
-from app.services.chat_ui import build_report_followup_ui
-
-REPORT_FOLLOWUP_PHRASES = frozenset({
-    "explain my report in simple language",
-    "book appointment",
-})
+from app.services.flow_state import set_flow
+from app.services.guest_flow import guest_flow_conversation_id
+from app.services.guest_session_store import load_guest_session, save_guest_session
+from app.services.report_discussion_service import (
+    build_report_discussion_followup_payload,
+    clear_report_discussion_session,
+    is_report_followup_action as _is_report_followup_action,
+)
+from app.services.report_service import (
+    SUPPORTED_FORMATS_LABEL,
+    analyze_ocr_text,
+    extract_report_text,
+    validate_report_file,
+)
 
 
 def is_report_followup_action(text: str) -> bool:
-    return text.strip().lower() in REPORT_FOLLOWUP_PHRASES
+    return _is_report_followup_action(text)
 
 
 def clear_report_followup(session: dict, *, keep_analysis: bool = True) -> None:
     """Exit report button mode so later consultations are not hijacked."""
-    if session.get("awaiting") == "report_followup":
-        session.pop("awaiting", None)
-    if session.get("care_goal") in ("guest_report_done", "guest_report"):
-        session.pop("care_goal", None)
-    session.pop("report_qa_open", None)
-    if not keep_analysis:
-        session.pop("last_report_analysis", None)
+    clear_report_discussion_session(session, keep_analysis=keep_analysis)
 
 
 def should_leave_report_followup(text: str, session: dict) -> bool:
@@ -36,15 +37,6 @@ def should_leave_report_followup(text: str, session: dict) -> bool:
     if session.get("report_qa_open"):
         return False
     return True
-from app.services.flow_state import set_flow
-from app.services.guest_flow import guest_flow_conversation_id
-from app.services.guest_session_store import load_guest_session, save_guest_session
-from app.services.report_service import (
-    SUPPORTED_FORMATS_LABEL,
-    analyze_ocr_text,
-    extract_report_text,
-    validate_report_file,
-)
 
 
 def report_upload_prompt() -> str:
@@ -79,10 +71,9 @@ async def process_guest_report_upload(
         raise ValueError("Could not read text from this file. Try a PDF or clearer image.")
 
     analysis = await analyze_ocr_text(ocr)
-    reply = format_report_reply(analysis, "summarize this report in simple terms")
+    reply, followup_ui, session_patch = build_report_discussion_followup_payload("guest-upload", analysis)
 
     history.append({"role": "user", "content": f"Uploaded: {filename}"})
-    followup_ui = build_report_followup_ui()
     history.append(
         {
             "role": "assistant",
@@ -92,9 +83,8 @@ async def process_guest_report_upload(
         }
     )
 
-    session["awaiting"] = "report_followup"
+    session.update(session_patch)
     session["care_goal"] = "guest_report_done"
-    session["last_report_analysis"] = analysis
     payload["messages"] = history[-40:]
     payload["session"] = session
     await save_guest_session(session_id, payload)

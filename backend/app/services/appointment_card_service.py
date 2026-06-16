@@ -40,16 +40,29 @@ async def enrich_stored_appointment_ui(
     ui: dict | None,
     user_id: UUID | None,
 ) -> dict | None:
-    """Refresh reminder_set on persisted appointment cards from live DB state."""
+    """Refresh reminder_set and live appointment status on persisted cards."""
     if not ui or ui.get("type") != "appointment_confirmed" or not user_id:
         return ui
     appt_id = ui.get("appointment_id")
     if not appt_id:
         return ui
-    reminder_set = await _has_reminder(db, UUID(str(appt_id)), user_id)
-    if ui.get("reminder_set") == reminder_set:
+
+    appt = await db.get(Appointment, UUID(str(appt_id)))
+    if not appt:
         return ui
-    return {**ui, "reminder_set": reminder_set}
+
+    status = _display_status(appt)
+    reminder_set = await _has_reminder(db, appt.id, user_id)
+    updates: dict = {}
+    if ui.get("status") != status:
+        updates["status"] = status
+    if ui.get("reminder_set") != reminder_set:
+        updates["reminder_set"] = reminder_set
+    if status in ("cancelled", "completed") and not ui.get("actions_disabled"):
+        updates["actions_disabled"] = True
+    if not updates:
+        return ui
+    return {**ui, **updates}
 
 
 async def mark_appointment_reminder_on_cards(
@@ -78,12 +91,53 @@ async def mark_appointment_reminder_on_cards(
         message.tool_calls_json = {**payload, "ui": {**ui, "reminder_set": True}}
 
 
+async def sync_appointment_status_on_patient_cards(
+    db: AsyncSession,
+    appointment_id: UUID,
+) -> None:
+    """Persist completed/cancelled status on in-chat appointment cards for the patient."""
+    from app.models import Conversation, Message
+
+    appt = await db.get(Appointment, appointment_id)
+    if not appt:
+        return
+
+    status = _display_status(appt)
+    terminal = status in ("cancelled", "completed")
+    appt_key = str(appointment_id)
+
+    result = await db.execute(
+        select(Message)
+        .join(Conversation, Message.conversation_id == Conversation.id)
+        .where(Conversation.patient_id == appt.patient_id)
+    )
+    for message in result.scalars().all():
+        payload = message.tool_calls_json
+        if not isinstance(payload, dict):
+            continue
+        ui = payload.get("ui")
+        if not isinstance(ui, dict) or ui.get("type") != "appointment_confirmed":
+            continue
+        if str(ui.get("appointment_id") or "") != appt_key:
+            continue
+        updates: dict = {}
+        if ui.get("status") != status:
+            updates["status"] = status
+        if terminal and not ui.get("actions_disabled"):
+            updates["actions_disabled"] = True
+        if not updates:
+            continue
+        message.tool_calls_json = {**payload, "ui": {**ui, **updates}}
+
+
 def _display_status(appt: Appointment, override: str | None = None) -> str:
     if override:
         return override
     status = appt.status.value if hasattr(appt.status, "value") else str(appt.status)
     if status == AppointmentStatus.cancelled.value:
         return "cancelled"
+    if status == AppointmentStatus.completed.value:
+        return "completed"
     if status == AppointmentStatus.rescheduled.value:
         return "rescheduled"
     return "confirmed"
@@ -195,8 +249,20 @@ async def complete_guest_resume_booking(
     from app.services.agent_tools import slot_for_storage, tool_book_slot
 
     stored = slot_for_storage(pending) if not pending.get("slot_date") else pending
+    booking_context = {
+        "pending_consultation_mode": session.get("pending_consultation_mode", "in_person"),
+        "appointment_reason": session.get("appointment_reason"),
+        "linked_report_id": session.get("linked_report_id"),
+    }
     try:
-        result = await tool_book_slot(db, patient, patient.user_id, stored, conversation_id)
+        result = await tool_book_slot(
+            db,
+            patient,
+            patient.user_id,
+            stored,
+            conversation_id,
+            booking_context=booking_context,
+        )
     except Exception:
         return None
 

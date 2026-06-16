@@ -10,7 +10,9 @@ import PatientNotifications from "./pages/patient/Notifications";
 import VideoConsultation from "./pages/patient/VideoConsultation";
 import DoctorDashboard from "./pages/doctor/Dashboard";
 import DoctorPatientDetail from "./pages/doctor/PatientDetail";
+import DoctorConsultationSession from "./pages/doctor/ConsultationSession";
 import DoctorNotifications from "./pages/doctor/Notifications";
+import HealthRecords from "./pages/patient/HealthRecords";
 import AdminPanel from "./pages/admin/Panel";
 import Layout from "./components/Layout";
 
@@ -48,10 +50,12 @@ export default function App() {
         <Route path="/appointments" element={<Protected roles={["patient"]}><PatientAppointments /></Protected>} />
         <Route path="/video/:appointmentId" element={<Protected roles={["patient"]}><VideoConsultation /></Protected>} />
         <Route path="/reports" element={<Protected roles={["patient"]}><PatientReports /></Protected>} />
+        <Route path="/health-records" element={<Protected roles={["patient"]}><HealthRecords /></Protected>} />
         <Route path="/notifications" element={<Protected roles={["patient"]}><PatientNotifications /></Protected>} />
         <Route path="/doctor" element={<Protected roles={["doctor"]}><DoctorDashboard /></Protected>} />
         <Route path="/doctor/notifications" element={<Protected roles={["doctor"]}><DoctorNotifications /></Protected>} />
         <Route path="/doctor/patients/:patientId" element={<Protected roles={["doctor"]}><DoctorPatientDetail /></Protected>} />
+        <Route path="/doctor/consultation/:appointmentId" element={<Protected roles={["doctor"]}><DoctorConsultationSession /></Protected>} />
         <Route path="/admin" element={<Protected roles={["admin"]}><AdminPanel /></Protected>} />
       </Route>
     </Routes>

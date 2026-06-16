@@ -28,6 +28,7 @@ from app.services.agent_tools import (
 )
 from app.services.chat_ui import (
     build_appointment_confirmed_ui,
+    build_consultation_mode_ui,
     build_post_assessment_ui,
     build_post_self_care_ui,
     build_video_consultation_ui,
@@ -35,6 +36,7 @@ from app.services.chat_ui import (
     build_confirm_reschedule_ui,
     build_reschedule_slots_ui,
     build_doctor_list_ui,
+    build_report_doctor_choice_ui,
     build_slot_list_ui,
     build_specialty_picker_ui,
     build_yes_no_ui,
@@ -871,6 +873,29 @@ async def start_find_doctor_flow(
     }
 
 
+def _patient_picked_doctor_for_slots(session: dict, doctor_id: str) -> bool:
+    """True only when the patient explicitly chose this doctor before slot picking."""
+    if session.get("awaiting") == "pick_slot":
+        return True
+    selected = session.get("selected_doctor") or {}
+    return bool(selected and str(selected.get("id")) == str(doctor_id))
+
+
+async def _show_symptom_doctor_list(
+    ctx: AgentContext,
+    *,
+    intro: str | None = None,
+) -> AgentResponse:
+    """Symptom-based booking — always show the multi-doctor picker first."""
+    specialty = infer_recommended_specialty(ctx.session, ctx.history)
+    pname = await resolve_patient_first_name(ctx.db, ctx.patient_ctx, ctx.patient)
+    return await _show_doctor_list(
+        ctx,
+        specialty,
+        intro=intro or build_booking_offer_intro(pname, specialty, basis="symptoms"),
+    )
+
+
 async def _show_doctor_list(
     ctx: AgentContext,
     specialty: str,
@@ -911,7 +936,303 @@ _BOOKING_FLOW_AWAITING = frozenset({
     "guest_otp",
     "confirm_reschedule",
     "reschedule_pick_slot",
+    "report_discussion_mode",
+    "report_discussion_doctor",
 })
+
+
+def _booking_context_from_session(session: dict) -> dict:
+    return {
+        "pending_consultation_mode": session.get("pending_consultation_mode", "in_person"),
+        "appointment_reason": session.get("appointment_reason"),
+        "linked_report_id": session.get("linked_report_id") or session.get("last_report_id"),
+    }
+
+
+async def _show_previous_consultant_slots(
+    ctx: AgentContext,
+    doctor_id: str,
+    consultation_mode: str,
+) -> AgentResponse:
+    from app.services.doctor_service import _fetch_doctor_slots, list_doctors
+    from app.services.report_discussion_service import REPORT_DISCUSSION_REASON
+
+    session = ctx.session
+    doc_meta = None
+    for doc in await list_doctors(ctx.db):
+        if str(doc["id"]) == doctor_id:
+            doc_meta = doc
+            break
+
+    doc_name = doc_meta["name"] if doc_meta else "your doctor"
+    slots = await _fetch_doctor_slots(ctx.db, UUID(doctor_id), doc_name, limit=30)
+    mode_label = "video" if consultation_mode == "video" else "in-person"
+
+    if not slots:
+        specialty = _specialty_from_report(session.get("last_report_analysis") or {})
+        pname = await resolve_patient_first_name(ctx.db, ctx.patient_ctx, ctx.patient)
+        return await _show_report_discussion_doctors(
+            ctx,
+            specialty,
+            consultation_mode,
+            intro=(
+                f"{pname}, **{doc_name}** has no open slots right now. "
+                f"Here are other doctors available for a **{mode_label}** report review."
+            ),
+        )
+
+    spec = (
+        doc_meta["specializations"][0]
+        if doc_meta and doc_meta.get("specializations")
+        else "General Physician"
+    )
+    doctor_entry = {
+        "id": doctor_id,
+        "name": doc_name,
+        "specialty": spec,
+        "specializations": doc_meta.get("specializations", [spec]) if doc_meta else [spec],
+        "experience_years": doc_meta.get("experience_years", 0) if doc_meta else 0,
+        "rating": doc_meta.get("rating") if doc_meta else None,
+        "profile_image_url": doc_meta.get("profile_image_url") if doc_meta else None,
+        "consultation_fee": doc_meta.get("consultation_fee") if doc_meta else None,
+        "hospital_name": doc_meta.get("hospital_name") if doc_meta else None,
+        "professional_summary": (
+            (doc_meta.get("professional_summary") or doc_meta.get("bio")) if doc_meta else None
+        ),
+        "slots": slots,
+        "next_available": slots[0]["label"],
+    }
+    search = {"doctors": [doctor_entry], "all_slots": slots, "total": 1}
+
+    pname = await resolve_patient_first_name(ctx.db, ctx.patient_ctx, ctx.patient)
+    return AgentResponse(
+        reply=(
+            f"Perfect, {pname}! Here are available **{mode_label}** slots with "
+            f"**{doc_name}** for your **{REPORT_DISCUSSION_REASON}**."
+        ),
+        agent="scheduling_agent",
+        ui=build_doctor_list_ui(search),
+        session_patch={
+            "last_doctor_search": search,
+            "awaiting": "pick_doctor",
+            "selected_doctor": {"id": doctor_id, "name": doc_name},
+            "care_goal": "report_discussion",
+            "active_specialist": "scheduling_agent",
+            "pending_consultation_mode": consultation_mode,
+            "appointment_reason": REPORT_DISCUSSION_REASON,
+            "linked_report_id": session.get("linked_report_id") or session.get("last_report_id"),
+            "report_doctor_preference": "previous",
+        },
+    )
+
+
+async def _show_report_discussion_doctors(
+    ctx: AgentContext,
+    specialty: str,
+    consultation_mode: str,
+    *,
+    intro: str | None = None,
+) -> AgentResponse:
+    from app.services.report_discussion_service import REPORT_DISCUSSION_REASON
+
+    search = await tool_search_doctors(ctx.db, specialty)
+    doctors = search.get("doctors", [])
+    if not doctors:
+        return AgentResponse(
+            reply="I couldn't find doctors with open slots right now. Please try again later.",
+            agent="scheduling_agent",
+        )
+
+    mode_label = "video" if consultation_mode == "video" else "in-person"
+    pname = await resolve_patient_first_name(ctx.db, ctx.patient_ctx, ctx.patient)
+    reply = intro or (
+        f"Great, {pname}! Let's schedule your **{REPORT_DISCUSSION_REASON}** as a "
+        f"**{mode_label}** visit. {doctor_list_intro(len(doctors))}"
+    )
+    return AgentResponse(
+        reply=reply,
+        agent="scheduling_agent",
+        ui=build_doctor_list_ui(search),
+        session_patch={
+            "last_doctor_search": search,
+            "awaiting": "pick_doctor",
+            "care_goal": "report_discussion",
+            "recommended_specialty": specialty,
+            "active_specialist": "scheduling_agent",
+            "pending_consultation_mode": consultation_mode,
+            "appointment_reason": REPORT_DISCUSSION_REASON,
+            "linked_report_id": ctx.session.get("linked_report_id"),
+            "report_doctor_preference": "another",
+        },
+    )
+
+
+def _report_discussion_base_patch(session: dict) -> dict[str, Any]:
+    from app.services.report_discussion_service import REPORT_DISCUSSION_REASON
+
+    return {
+        "care_goal": "report_discussion",
+        "appointment_reason": REPORT_DISCUSSION_REASON,
+        "linked_report_id": session.get("last_report_id"),
+        "last_report_analysis": session.get("last_report_analysis"),
+        "active_specialist": "scheduling_agent",
+    }
+
+
+def _consultation_mode_response(
+    ctx: AgentContext,
+    session: dict,
+    *,
+    extra_reply: str = "",
+) -> AgentResponse:
+    from app.services.report_discussion_service import consultation_mode_prompt
+
+    reply = consultation_mode_prompt()
+    if extra_reply:
+        reply = f"{reply}\n\n{extra_reply}"
+    patch = {
+        **_report_discussion_base_patch(session),
+        "awaiting": "report_discussion_mode",
+    }
+    return AgentResponse(
+        reply=reply,
+        agent="scheduling_agent",
+        ui=build_consultation_mode_ui(),
+        session_patch=patch,
+    )
+
+
+async def _offer_report_doctor_choice(
+    ctx: AgentContext,
+    session: dict,
+    previous: dict[str, str],
+    *,
+    guest_extra: str = "",
+) -> AgentResponse:
+    from app.services.report_discussion_service import report_doctor_choice_prompt
+
+    doctor_name = previous["doctor_name"]
+    reply = report_doctor_choice_prompt(doctor_name)
+    if guest_extra:
+        reply = f"{reply}\n\n{guest_extra}"
+    patch = {
+        **_report_discussion_base_patch(session),
+        "awaiting": "report_discussion_doctor",
+        "previous_consultant": previous,
+    }
+    return AgentResponse(
+        reply=reply,
+        agent="scheduling_agent",
+        ui=build_report_doctor_choice_ui(doctor_name),
+        session_patch=patch,
+    )
+
+
+async def _handle_report_discussion_followup(ctx: AgentContext) -> AgentResponse | None:
+    from app.services.report_discussion_service import (
+        REPORT_DISCUSSION_DECLINE,
+        _REPORT_BOOKING_AWAITING,
+        clear_report_discussion_session,
+        get_previous_consultant,
+        is_report_consultation_mode_turn,
+        is_report_doctor_another_choice,
+        is_report_doctor_choice_turn,
+        is_report_doctor_previous_choice,
+        is_report_followup_no,
+        is_report_followup_yes,
+        is_slot_booking_message,
+        parse_consultation_mode,
+        rehydrate_report_discussion_session,
+    )
+
+    session = ctx.session
+    patient_id = ctx.patient.id if ctx.patient else None
+    await rehydrate_report_discussion_session(ctx.db, session, ctx.history, patient_id, user_text=ctx.text)
+    awaiting = session.get("awaiting")
+
+    if awaiting in _REPORT_BOOKING_AWAITING or is_slot_booking_message(ctx.text):
+        return None
+
+    if awaiting == "report_followup":
+        if is_report_followup_no(ctx.text):
+            clear_report_discussion_session(session, keep_analysis=True)
+            await set_flow(ctx.conv_id, {"session": session})
+            return AgentResponse(
+                reply=REPORT_DISCUSSION_DECLINE,
+                agent="report_agent",
+                session_patch={
+                    "awaiting": None,
+                    "care_goal": None,
+                    "active_specialist": None,
+                },
+            )
+
+        if is_report_followup_yes(ctx.text):
+            previous = None
+            if ctx.patient is not None:
+                previous = await get_previous_consultant(ctx.db, ctx.patient.id)
+
+            if previous:
+                if ctx.is_guest and ctx.patient is None:
+                    await set_flow(ctx.conv_id, {"session": session})
+                    gate = guest_auth_gate(ctx, "book", "Medical Report Review & Consultation")
+                    return await _offer_report_doctor_choice(
+                        ctx,
+                        session,
+                        previous,
+                        guest_extra=gate.reply,
+                    )
+
+                clear_report_discussion_session(session, keep_analysis=True)
+                session.update(_report_discussion_base_patch(session))
+                await set_flow(ctx.conv_id, {"session": session})
+                return await _offer_report_doctor_choice(ctx, session, previous)
+
+            if ctx.is_guest and ctx.patient is None:
+                await set_flow(ctx.conv_id, {"session": session})
+                gate = guest_auth_gate(ctx, "book", "Medical Report Review & Consultation")
+                return _consultation_mode_response(ctx, session, extra_reply=gate.reply)
+
+            clear_report_discussion_session(session, keep_analysis=True)
+            session.update(_report_discussion_base_patch(session))
+            await set_flow(ctx.conv_id, {"session": session})
+            return _consultation_mode_response(ctx, session)
+
+    if awaiting == "report_discussion_doctor" or is_report_doctor_choice_turn(ctx.history, ctx.text):
+        previous = session.get("previous_consultant") or {}
+        if is_report_doctor_previous_choice(ctx.text):
+            session["report_doctor_preference"] = "previous"
+            await set_flow(ctx.conv_id, {"session": session})
+            return _consultation_mode_response(ctx, session)
+        if is_report_doctor_another_choice(ctx.text):
+            session["report_doctor_preference"] = "another"
+            session.pop("selected_doctor", None)
+            await set_flow(ctx.conv_id, {"session": session})
+            return _consultation_mode_response(ctx, session)
+
+    if awaiting == "report_discussion_mode" or (
+        is_report_consultation_mode_turn(ctx.history, ctx.text)
+        and awaiting not in _REPORT_BOOKING_AWAITING
+    ):
+        mode = parse_consultation_mode(ctx.text)
+        if mode:
+            session["pending_consultation_mode"] = mode
+            await set_flow(ctx.conv_id, {"session": session})
+            if session.get("report_doctor_preference") == "previous":
+                previous = session.get("previous_consultant") or {}
+                doctor_id = previous.get("doctor_id")
+                if not doctor_id and ctx.patient is not None:
+                    previous = await get_previous_consultant(ctx.db, ctx.patient.id)
+                    if previous:
+                        session["previous_consultant"] = previous
+                        doctor_id = previous.get("doctor_id")
+                        await set_flow(ctx.conv_id, {"session": session})
+                if doctor_id:
+                    return await _show_previous_consultant_slots(ctx, doctor_id, mode)
+            specialty = _specialty_from_report(session.get("last_report_analysis") or {})
+            return await _show_report_discussion_doctors(ctx, specialty, mode)
+
+    return None
 
 
 def should_skip_booking_resolution(ctx: AgentContext) -> bool:
@@ -927,6 +1248,8 @@ def should_skip_booking_resolution(ctx: AgentContext) -> bool:
     ):
         return True
     if awaiting in _BOOKING_FLOW_AWAITING or ctx.session.get("pending_slot"):
+        return False
+    if awaiting in ("report_followup", "report_discussion_mode", "report_discussion_doctor"):
         return False
     if (
         ctx.session.get("care_goal") in ("post_booking_reminder", "manage_appointment", "appointment", "guest_verify")
@@ -962,6 +1285,10 @@ async def resolve_booking_session(ctx: AgentContext) -> AgentResponse | None:
     awaiting = session.get("awaiting")
     pname = await resolve_patient_first_name(ctx.db, ctx.patient_ctx, ctx.patient)
     t = ctx.text.strip().lower()
+
+    report_resp = await _handle_report_discussion_followup(ctx)
+    if report_resp:
+        return report_resp
 
     if (
         session.get("resume_after_auth")
@@ -1010,12 +1337,12 @@ async def resolve_booking_session(ctx: AgentContext) -> AgentResponse | None:
 
     if awaiting == "post_assessment":
         specialty = infer_recommended_specialty(session, ctx.history)
-        if "book" in t or _booking_intent(ctx.text, ctx.history):
-            return await _show_doctor_list(
-                ctx,
-                specialty,
-                intro=build_booking_offer_intro(pname, specialty),
-            )
+        if (
+            "book" in t
+            or _booking_intent(ctx.text, ctx.history)
+            or (_yes(ctx.text) and _last_assistant_was_booking_offer(ctx.history))
+        ):
+            return await _show_symptom_doctor_list(ctx)
         if "recommend" in t and "doctor" in t:
             return AgentResponse(
                 reply=(
@@ -1073,16 +1400,28 @@ async def resolve_booking_session(ctx: AgentContext) -> AgentResponse | None:
     if specialty_input and awaiting not in ("confirm_booking", "pick_slot"):
         return await _show_doctor_list(ctx, specialty_input)
 
+    from app.services.report_discussion_service import is_in_report_discussion_flow
+
     if (
         _booking_intent(ctx.text, ctx.history)
         and awaiting not in ("confirm_booking", "pick_slot")
         and not session.get("resume_after_auth")
+        and not is_in_report_discussion_flow(session, ctx.history)
+        and session.get("care_goal") not in ("report_discussion",)
+        and session.get("awaiting") not in (
+            "report_followup",
+            "report_discussion_doctor",
+            "report_discussion_mode",
+        )
+        and not (
+            session.get("care_goal") == "appointment"
+            and session.get("awaiting") in ("pick_doctor", "pick_slot", "confirm_booking")
+        )
     ):
         if has_identified_symptoms(session, ctx.history):
             specialty = infer_recommended_specialty(session, ctx.history)
-            return await _show_doctor_list(
+            return await _show_symptom_doctor_list(
                 ctx,
-                specialty,
                 intro=build_booking_offer_intro(pname, specialty, basis="symptoms"),
             )
         return AgentResponse(
@@ -1116,7 +1455,14 @@ async def resolve_booking_session(ctx: AgentContext) -> AgentResponse | None:
             return guest_auth_gate(ctx, "book", detail)
         if pending:
             try:
-                result = await tool_book_slot(ctx.db, ctx.patient, ctx.patient.user_id, pending, ctx.conv_id)
+                result = await tool_book_slot(
+                    ctx.db,
+                    ctx.patient,
+                    ctx.patient.user_id,
+                    pending,
+                    ctx.conv_id,
+                    booking_context=_booking_context_from_session(session),
+                )
             except HTTPException as exc:
                 return AgentResponse(
                     reply=(
@@ -1149,11 +1495,19 @@ async def resolve_booking_session(ctx: AgentContext) -> AgentResponse | None:
             stored = slot_for_storage(chosen)
             doc_name = stored.get("doctor_name", doc["name"])
             display_name = patient_display_name(ctx.patient_ctx.get("name"))
+            reason_line = ""
+            if session.get("appointment_reason"):
+                reason_line = f"\nReason: {session['appointment_reason']}"
+            mode_line = ""
+            if session.get("pending_consultation_mode") == "video":
+                mode_line = "\nConsultation: Video"
+            elif session.get("pending_consultation_mode") == "in_person":
+                mode_line = "\nConsultation: In-person"
             return AgentResponse(
                 reply=(
                     f"Before booking, please confirm:\n\nPatient Name: {display_name}\n"
                     f"Doctor: {doc_name}\n"
-                    f"Date & Time: {stored['label']}"
+                    f"Date & Time: {stored['label']}{reason_line}{mode_line}"
                 ),
                 agent="scheduling_agent",
                 ui=build_confirm_booking_ui(display_name, doc_name, stored["label"]),
@@ -1191,10 +1545,16 @@ async def resolve_booking_session(ctx: AgentContext) -> AgentResponse | None:
             await set_flow(ctx.conv_id, {"session": session})
             doc_name = stored.get("doctor_name", "")
             display_name = patient_display_name(ctx.patient_ctx.get("name"))
+            reason_line = f"\nReason: {session['appointment_reason']}" if session.get("appointment_reason") else ""
+            mode_line = ""
+            if session.get("pending_consultation_mode") == "video":
+                mode_line = "\nConsultation: Video"
+            elif session.get("pending_consultation_mode") == "in_person":
+                mode_line = "\nConsultation: In-person"
             return AgentResponse(
                 reply=(
                     f"Before booking, please confirm:\n\nPatient Name: {display_name}\n"
-                    f"Doctor: {doc_name}\nDate & Time: {stored['label']}"
+                    f"Doctor: {doc_name}\nDate & Time: {stored['label']}{reason_line}{mode_line}"
                 ),
                 agent="scheduling_agent",
                 ui=build_confirm_booking_ui(display_name, doc_name, stored["label"]),
@@ -1218,9 +1578,8 @@ async def resolve_booking_session(ctx: AgentContext) -> AgentResponse | None:
             )
 
         if (_yes(ctx.text) or _affirmative_booking(ctx.text, ctx.history)) and awaiting == "offer_booking":
-            return await _show_doctor_list(
+            return await _show_symptom_doctor_list(
                 ctx,
-                specialty,
                 intro=(
                     f"Great, {pname}! Based on your symptoms, here are available "
                     f"**{specialty}** doctors. {doctor_list_intro(len(doctors))}"
@@ -1595,6 +1954,11 @@ async def _build_booking_confirmed_response(ctx: AgentContext, result: dict) -> 
             "last_appointment_id": enriched.get("appointment_id"),
             "awaiting": None,
             "pending_slot": None,
+            "appointment_reason": None,
+            "linked_report_id": None,
+            "pending_consultation_mode": None,
+            "last_report_analysis": None,
+            "last_report_id": None,
         },
     )
 
@@ -1616,11 +1980,17 @@ async def synthesize_tool_result(tool_result: dict, ctx: AgentContext) -> AgentR
 
     if tool_result.get("slots") is not None and tool_result.get("doctor_name"):
         doc_name = tool_result["doctor_name"]
+        doctor_id = str(tool_result.get("doctor_id", ""))
+        if not _patient_picked_doctor_for_slots(ctx.session, doctor_id):
+            return await _show_symptom_doctor_list(ctx)
         return AgentResponse(
             reply=slot_list_intro(doc_name),
             agent="scheduling_agent",
-            ui=build_slot_list_ui(doc_name, str(tool_result.get("doctor_id", "")), tool_result.get("slots", [])),
-            session_patch={"awaiting": "pick_slot"},
+            ui=build_slot_list_ui(doc_name, doctor_id, tool_result.get("slots", [])),
+            session_patch={
+                "awaiting": "pick_slot",
+                "selected_doctor": {"id": doctor_id, "name": doc_name},
+            },
         )
 
     if tool_result.get("recommended_specialty"):
@@ -1646,7 +2016,20 @@ async def synthesize_tool_result(tool_result: dict, ctx: AgentContext) -> AgentR
 
     if tool_result.get("analysis") is not None or (tool_result.get("success") and tool_result.get("analysis")):
         analysis = tool_result.get("analysis") or {}
-        return AgentResponse(reply=format_report_reply(analysis, ctx.text), agent="report_agent")
+        from app.services.chat_ui import build_report_followup_ui
+        from app.services.report_discussion_service import (
+            compose_report_discussion_reply,
+            report_followup_session_patch,
+        )
+
+        report_id = ctx.report_id or ctx.session.get("last_report_id") or "uploaded-report"
+        reply = compose_report_discussion_reply(analysis)
+        return AgentResponse(
+            reply=reply,
+            agent="report_agent",
+            ui=build_report_followup_ui(),
+            session_patch=report_followup_session_patch(report_id, analysis),
+        )
 
     if tool_result.get("success") and tool_result.get("apt_id"):
         return await _build_booking_confirmed_response(ctx, tool_result)

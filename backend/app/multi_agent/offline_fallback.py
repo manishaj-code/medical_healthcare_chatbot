@@ -242,6 +242,14 @@ def conversational_triage_turn(
     history: list[dict] | None = None,
 ) -> dict[str, Any]:
     """Adaptive triage: one question at a time, free-text + optional quick buttons."""
+    from app.services.report_discussion_service import is_report_consultation_mode_turn
+
+    if is_report_consultation_mode_turn(history or [], text):
+        return {
+            "reply": "Please continue with your report review booking using the options above.",
+            "session_patch": {"care_goal": "report_discussion"},
+        }
+
     tl = text.strip().lower()
     pname = patient_first_name(session.get("_patient_first_name"))
     asked: list[str] = list((session.get("triage_collected") or {}).get("questions_asked") or [])

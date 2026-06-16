@@ -45,7 +45,7 @@ def _slot_entries(doctor_name: str, doctor_id: str, slots: list[dict]) -> list[d
             "doctor_name": s.get("doctor_name", doctor_name),
             "slot_date": s.get("slot_date"),
             "slot_time": s.get("slot_time"),
-            "message": s["label"],
+            "message": f"{doctor_name} {s['label']}",
         }
         for s in slots
     ]
@@ -437,12 +437,41 @@ def build_report_upload_menu_ui() -> dict:
 
 
 def build_report_followup_ui() -> dict:
+    from app.services.report_discussion_service import REPORT_FOLLOWUP_NO, REPORT_FOLLOWUP_YES
+
     return build_action_menu_ui(
         [
-            ("Explain in simple language", "Explain my report in simple language"),
-            ("Book appointment", "Book appointment"),
+            (REPORT_FOLLOWUP_YES, REPORT_FOLLOWUP_YES),
+            (REPORT_FOLLOWUP_NO, REPORT_FOLLOWUP_NO),
         ],
         menu_type="report_followup",
+        variant="stack",
+    )
+
+
+def build_consultation_mode_ui() -> dict:
+    return build_action_menu_ui(
+        [
+            ("In-Person Consultation", "In-person consultation"),
+            ("Video Consultation", "Video consultation"),
+        ],
+        menu_type="consultation_mode",
+        variant="stack",
+    )
+
+
+def build_report_doctor_choice_ui(doctor_name: str) -> dict:
+    from app.services.report_discussion_service import (
+        REPORT_DOCTOR_ANOTHER_MESSAGE,
+        report_doctor_previous_message,
+    )
+
+    return build_action_menu_ui(
+        [
+            (f"Book with {doctor_name} again", report_doctor_previous_message(doctor_name)),
+            ("Choose another doctor", REPORT_DOCTOR_ANOTHER_MESSAGE),
+        ],
+        menu_type="report_doctor_choice",
         variant="stack",
     )
 
