@@ -31,11 +31,12 @@ _TRIAGE_META_RE = re.compile(
 )
 _REPORT_OR_ACTION_RE = re.compile(
     r"please (analyze|summarize|explain)|health risk assessment|medical report|uploaded report|"
-    r"out-of-range|abnormal values|book an appointment|find a (doctor|specialist)|want to book|"
+    r"out-of-range|abnormal values|book(?:\s+an)?\s+appointment|schedule(?:\s+an)?\s+appointment|"
+    r"find a (doctor|specialist)|want to book|"
     r"show doctors|sign in|log ?in|verification code|upload (your |my )?report|"
     r"reminder|reschedule|cancel.*appointment|"
     r"in[- ]person consultation|video consultation|report review|choose another doctor|"
-    r"book with .+ again",
+    r"book with .+ again|self[- ]care|recommend a doctor",
     re.I,
 )
 
@@ -61,6 +62,11 @@ _SKIP_EXACT = frozenset(
         "thank you",
         "i'd like to book an appointment with a doctor.",
         "i want to book appointment",
+        "book appointment",
+        "book an appointment",
+        "tell me self-care advice for my symptoms",
+        "tell me more",
+        "recommend a doctor",
         "check my symptoms",
         "check symptoms",
         "find a specialist doctor",
@@ -212,7 +218,7 @@ def merge_symptom_lists(prior: list[str] | None, new_items: list[str]) -> list[s
     seen: set[str] = set()
     for item in [*(prior or []), *new_items]:
         label = _clean_symptom_phrase(item)
-        if not label:
+        if not label or is_non_symptom_message(label):
             continue
         key = label.lower()
         if key in seen:
@@ -220,6 +226,18 @@ def merge_symptom_lists(prior: list[str] | None, new_items: list[str]) -> list[s
         seen.add(key)
         merged.append(label)
     return _collapse_redundant_symptoms(merged)
+
+
+def filter_symptom_labels(labels: list[str] | None) -> list[str]:
+    """Drop booking/UI action phrases mistakenly stored as symptoms."""
+    if not labels:
+        return []
+    cleaned = [
+        label
+        for label in labels
+        if isinstance(label, str) and label.strip() and not is_non_symptom_message(label.strip())
+    ]
+    return _collapse_redundant_symptoms(cleaned)
 
 def looks_like_health_complaint(text: str) -> bool:
     if is_non_symptom_message(text):
@@ -372,6 +390,7 @@ async def update_session_symptoms(session: dict, text: str) -> list[str]:
         prior = merge_symptom_lists(prior, list(triage["symptoms"]))
 
     merged = await extract_symptoms_from_message(text, prior)
+    merged = filter_symptom_labels(merged)
     session["detected_symptoms"] = merged
     if isinstance(triage, dict):
         triage["symptoms"] = merged
@@ -388,8 +407,8 @@ async def resolve_detected_symptoms(session: dict, messages: list[dict]) -> list
     """Prefer live session symptoms; fall back to LLM scan of message history."""
     from_session = session.get("detected_symptoms")
     if isinstance(from_session, list) and from_session:
-        return list(from_session)
+        return filter_symptom_labels(from_session)
     triage = session.get("triage_collected")
     if isinstance(triage, dict) and triage.get("symptoms"):
-        return list(triage["symptoms"])
-    return await extract_symptoms_from_history(messages)
+        return filter_symptom_labels(list(triage["symptoms"]))
+    return filter_symptom_labels(await extract_symptoms_from_history(messages))

@@ -46,12 +46,37 @@ export function collapseRedundantSymptomLabels(labels: string[]): string[] {
   });
 }
 
+/** UI / booking phrases that must never appear as detected symptoms. */
+const NON_SYMPTOM_LABELS = new Set([
+  "book appointment",
+  "book an appointment",
+  "tell me self-care advice for my symptoms",
+  "tell me more",
+  "recommend a doctor",
+  "schedule an appointment",
+  "find a doctor",
+  "find a specialist",
+  "show available doctors",
+  "self-care tips",
+  "in-person consultation",
+  "video consultation",
+]);
+
+function isNonSymptomLabel(label: string): boolean {
+  const key = label.trim().toLowerCase();
+  if (!key) return true;
+  if (NON_SYMPTOM_LABELS.has(key)) return true;
+  return /^(book|schedule)(?:\s+an)?\s+appointment$/.test(key)
+    || /^find a (doctor|specialist)$/.test(key)
+    || /self[- ]care/.test(key);
+}
+
 export function toDetectedSymptoms(labels: string[]): DetectedSymptom[] {
   const seen = new Set<string>();
   const found: DetectedSymptom[] = [];
   for (const raw of collapseRedundantSymptomLabels(labels)) {
     const label = raw.trim();
-    if (!label) continue;
+    if (!label || isNonSymptomLabel(label)) continue;
     const key = label.toLowerCase();
     if (seen.has(key)) continue;
     seen.add(key);

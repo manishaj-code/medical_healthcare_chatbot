@@ -34,7 +34,7 @@ class AgentLLM:
     def __init__(self) -> None:
         self._gemini = None
         self._groq_client = None
-        if settings.gemini_api_key and settings.llm_provider != "groq":
+        if settings.gemini_api_key:
             try:
                 import google.generativeai as genai
 
