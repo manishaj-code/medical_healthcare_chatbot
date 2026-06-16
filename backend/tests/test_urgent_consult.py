@@ -42,3 +42,10 @@ def test_routine_headache_not_urgent_consult():
 
 def test_fever_and_headache_without_severity_not_urgent_consult():
     assert detect_urgent_consult("I have fever and headache") is None
+
+
+def test_stomach_pain_and_breathing_problem_triggers_urgent_consult():
+    result = detect_urgent_consult("I have stomach pain and having breathing problem")
+    assert result is not None
+    assert result["risk_level"] in ("high", "emergency")
+    assert "breath" in " ".join(result["symptoms"]).lower() or "stomach" in " ".join(result["symptoms"]).lower()

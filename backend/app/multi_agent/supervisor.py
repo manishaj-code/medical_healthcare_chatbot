@@ -99,9 +99,18 @@ class MultiAgentSupervisor:
             conversation.active_agent = "health_education"
             return build_greeting_reply(pname), "health_education", False, None
 
+        urgent_info = detect_urgent_consult(text)
+        if urgent_info:
+            session["skip_triage"] = True
+            session["care_goal"] = "urgent_consult"
+            session["active_specialist"] = "scheduling_agent"
+            session["detected_symptoms"] = urgent_info.get("symptoms") or []
+            session["recommended_specialty"] = urgent_info["specialty"]
+            await set_flow(conv_id, {"session": session})
+
         contextual = (
             get_contextual_reply(text, history)
-            if should_use_legacy_contextual_reply(session)
+            if should_use_legacy_contextual_reply(session) and not urgent_info
             else None
         )
         if contextual:
@@ -148,18 +157,11 @@ class MultiAgentSupervisor:
             conversation.active_agent = "health_education"
             return build_thanks_reply(pname), "health_education", False, None
 
-        if session.get("detected_symptoms") and not session.get("care_goal"):
+        if session.get("detected_symptoms") and not session.get("care_goal") and not urgent_info:
             session["care_goal"] = "symptom_assessment"
             session.setdefault("active_specialist", "triage_agent")
 
-        urgent_info = detect_urgent_consult(text)
-        if urgent_info:
-            session["skip_triage"] = True
-            session["care_goal"] = "urgent_consult"
-            session["active_specialist"] = "scheduling_agent"
-            session["detected_symptoms"] = urgent_info.get("symptoms") or []
-            session["recommended_specialty"] = urgent_info["specialty"]
-        else:
+        if not urgent_info:
             await update_session_symptoms(session, text)
         await set_flow(conv_id, {"session": session})
 

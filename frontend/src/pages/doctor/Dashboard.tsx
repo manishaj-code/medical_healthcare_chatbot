@@ -1,6 +1,9 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { useLocation, useNavigate, useOutletContext } from "react-router-dom";
 import { api } from "../../api/client";
+import DoctorConsultationHistory, {
+  type ConsultationHistoryRecord,
+} from "../../components/doctor/DoctorConsultationHistory";
 import DoctorAppointmentsSections from "../../components/doctor/DoctorAppointmentsSections";
 import DoctorAvailabilityGrid from "../../components/doctor/DoctorAvailabilityGrid";
 import DoctorUrgentConsultPanel from "../../components/doctor/DoctorUrgentConsultPanel";
@@ -63,6 +66,8 @@ export default function DoctorDashboard() {
   const navigate = useNavigate();
   const location = useLocation();
   const { search, activeTab, setActiveTab } = useOutletContext<DoctorOutletContext>();
+  const [consultationHistory, setConsultationHistory] = useState<ConsultationHistoryRecord[]>([]);
+  const [historyLoading, setHistoryLoading] = useState(false);
   const [appointments, setAppointments] = useState<DoctorAppointment[]>([]);
   const [patients, setPatients] = useState<DoctorPatient[]>([]);
   const [mySlots, setMySlots] = useState<{ date: string; time: string }[]>([]);
@@ -96,6 +101,39 @@ export default function DoctorDashboard() {
     setRefillLoading(false);
   };
 
+  const loadConsultationHistory = async (silent = false) => {
+    if (!silent) setHistoryLoading(true);
+    try {
+      const data = await api<{ records: ConsultationHistoryRecord[]; total: number }>(
+        "/api/v1/doctor/consultation-history",
+      );
+      setConsultationHistory(data.records ?? []);
+    } catch (err) {
+      console.error(err);
+      if (!silent) setConsultationHistory([]);
+    }
+    if (!silent) setHistoryLoading(false);
+  };
+
+  const markAppointmentCompleted = async (appointmentId: string) => {
+    await api(`/api/v1/doctor/appointments/${appointmentId}/complete`, { method: "POST" });
+    await Promise.all([
+      loadConsultationHistory(true),
+      api<DoctorAppointment[]>("/api/v1/doctor/appointments").then(setAppointments),
+    ]);
+  };
+
+  const markAppointmentCancelled = async (appointmentId: string) => {
+    await api(`/api/v1/doctor/appointments/${appointmentId}/cancel`, {
+      method: "POST",
+      body: JSON.stringify({ reason: "Cancelled by doctor — patient did not attend or visit closed." }),
+    });
+    await Promise.all([
+      loadConsultationHistory(true),
+      api<DoctorAppointment[]>("/api/v1/doctor/appointments").then(setAppointments),
+    ]);
+  };
+
   useEffect(() => {
     const tabFromNav = (location.state as { tab?: DoctorTab } | null)?.tab;
     if (tabFromNav) activateTab(tabFromNav);
@@ -114,6 +152,10 @@ export default function DoctorDashboard() {
     api<{ date: string; time: string }[]>("/api/v1/doctor/availability").then(setMySlots).catch(console.error);
     void loadRefills();
   }, []);
+
+  useEffect(() => {
+    if (activeTab === "history") void loadConsultationHistory();
+  }, [activeTab]);
 
   const today = todayIso();
   const todayLabel = new Date().toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric" });
@@ -274,6 +316,7 @@ export default function DoctorDashboard() {
     { id: "refills", label: "Refills", icon: "medication", badge: pendingRefills.length || undefined },
     { id: "patients", label: "Patients", icon: "group", badge: patients.length || undefined },
     { id: "appointments", label: "Appointments", icon: "event" },
+    { id: "history", label: "Consultation history", icon: "history" },
     { id: "slots", label: "Availability", icon: "schedule" },
   ];
 
@@ -636,6 +679,29 @@ export default function DoctorDashboard() {
               </table>
             </div>
           )}
+        </section>
+      )}
+
+      {activeTab === "history" && (
+        <section className="dp-panel dp-consult-history-panel">
+          <div className="dp-panel-head">
+            <div>
+              <h2 className="dp-panel-title">Consultation history</h2>
+              <p className="dp-panel-desc" style={{ margin: "8px 0 0" }}>
+                All patients you have seen — symptoms at triage, medications on file, and treatment notes.
+              </p>
+            </div>
+            <span style={{ fontSize: "0.85rem", color: "var(--dp-on-surface-variant)" }}>
+              {consultationHistory.length} visit{consultationHistory.length !== 1 ? "s" : ""}
+            </span>
+          </div>
+          <DoctorConsultationHistory
+            records={consultationHistory}
+            loading={historyLoading}
+            onOpenPatient={openPatient}
+            onMarkCompleted={markAppointmentCompleted}
+            onMarkCancelled={markAppointmentCancelled}
+          />
         </section>
       )}
 

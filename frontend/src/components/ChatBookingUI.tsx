@@ -105,6 +105,10 @@ export interface ChatUiPayload {
   symptoms?: string[];
   expires_at?: string;
   join_url?: string;
+  awaiting_count?: number;
+  all_declined?: boolean;
+  availability_exhausted?: boolean;
+  can_retry?: boolean;
   options?: ChoiceOption[];
 }
 
@@ -659,9 +663,34 @@ interface UrgentDoctorRow {
   offer_status?: string;
 }
 
-function UrgentConsultCard({ ui }: { ui: ChatUiPayload }) {
+function formatDoctorOfferStatus(status?: string): { label: string; className: string } {
+  switch (status) {
+    case "declined":
+      return { label: "Declined", className: "patient-urgent-doctor-status--declined" };
+    case "accepted":
+      return { label: "Approved", className: "patient-urgent-doctor-status--approved" };
+    case "superseded":
+      return {
+        label: "Attended by another doctor",
+        className: "patient-urgent-doctor-status--superseded",
+      };
+    case "expired":
+      return { label: "Unavailable", className: "patient-urgent-doctor-status--declined" };
+    default:
+      return { label: "Awaiting approval", className: "patient-urgent-doctor-status--awaiting" };
+  }
+}
+
+function UrgentConsultCard({
+  ui,
+  onPick,
+}: {
+  ui: ChatUiPayload;
+  onPick?: (message: string) => void | Promise<void>;
+}) {
   const [live, setLive] = useState(ui);
   const [waitSeconds, setWaitSeconds] = useState(0);
+  const [retrying, setRetrying] = useState(false);
 
   useEffect(() => {
     setLive(ui);
@@ -687,8 +716,23 @@ function UrgentConsultCard({ ui }: { ui: ChatUiPayload }) {
           join_url?: string;
           specialty?: string;
           symptoms?: string[];
+          doctors?: UrgentDoctorRow[];
+          awaiting_count?: number;
+          all_declined?: boolean;
+          availability_exhausted?: boolean;
+          can_retry?: boolean;
         }>(`/api/v1/urgent-consult/requests/${live.request_id}`);
         if (!active) return;
+        setLive((prev) => ({
+          ...prev,
+          doctors: data.doctors ?? prev.doctors,
+          specialty: data.specialty ?? prev.specialty,
+          symptoms: data.symptoms ?? prev.symptoms,
+          awaiting_count: data.awaiting_count,
+          all_declined: data.all_declined,
+          availability_exhausted: data.availability_exhausted,
+          can_retry: data.can_retry,
+        }));
         if (data.status === "assigned") {
           setLive((prev) => ({
             ...prev,
@@ -698,6 +742,7 @@ function UrgentConsultCard({ ui }: { ui: ChatUiPayload }) {
             join_url: data.join_url,
             specialty: data.specialty,
             symptoms: data.symptoms,
+            doctors: data.doctors ?? prev.doctors,
           }));
         }
       } catch {
@@ -713,31 +758,81 @@ function UrgentConsultCard({ ui }: { ui: ChatUiPayload }) {
   }, [live.request_id, live.type, live.join_url]);
 
   const accepted = live.type === "urgent_consult_accepted" || Boolean(live.join_url);
+  const exhausted = Boolean(live.availability_exhausted) && !accepted;
+  const canRetry = Boolean(live.can_retry) && !accepted && !retrying;
   const doctors = (live.doctors ?? []) as UrgentDoctorRow[];
   const symptoms = (live.symptoms ?? []).filter(Boolean);
   const specialty = live.specialty || "General Physician";
+  const isEmergency = live.risk_level === "emergency";
   const waitLabel =
     waitSeconds < 60
       ? `${waitSeconds}s`
       : `${Math.floor(waitSeconds / 60)}m ${waitSeconds % 60}s`;
 
+  const handleRetry = async () => {
+    if (!live.request_id || retrying) return;
+    setRetrying(true);
+    try {
+      const data = await api<ChatUiPayload>(
+        `/api/v1/urgent-consult/requests/${live.request_id}/retry`,
+        { method: "POST" },
+      );
+      setLive((prev) => ({
+        ...prev,
+        doctors: data.doctors ?? prev.doctors,
+        awaiting_count: data.awaiting_count,
+        all_declined: data.all_declined,
+        availability_exhausted: data.availability_exhausted,
+        can_retry: data.can_retry,
+      }));
+    } catch {
+      /* poll will refresh state */
+    } finally {
+      setRetrying(false);
+    }
+  };
+
   const steps = [
-    { label: "Request sent", done: true },
-    { label: "Doctors notified", done: doctors.length > 0 || accepted },
-    { label: "Doctor accepts", done: accepted },
-    { label: "Video consult", done: accepted && Boolean(live.join_url) },
+    { key: "sent", label: "Request sent", done: true },
+    { key: "notified", label: "Doctors notified", done: doctors.length > 0 || accepted },
+    {
+      key: "approval",
+      label: accepted ? "Approved" : exhausted ? "No availability" : "Approval pending",
+      done: accepted,
+      failed: exhausted,
+    },
+    {
+      key: "video",
+      label: accepted && live.join_url ? "Ready to join" : "Video consult",
+      done: accepted && Boolean(live.join_url),
+    },
   ];
 
   return (
-    <div className={`patient-urgent-card${accepted ? " patient-urgent-card--accepted" : ""}`}>
-      {!accepted && (
-        <div className="patient-urgent-er" role="note">
+    <div
+      className={`patient-urgent-card${accepted ? " patient-urgent-card--accepted" : ""}${
+        exhausted ? " patient-urgent-card--exhausted" : ""
+      }`}
+    >
+      {(!accepted || exhausted) && (
+        <div className={`patient-urgent-er${exhausted ? " patient-urgent-er--strong" : ""}`} role="note">
           <span className="material-symbols-outlined" aria-hidden>
             e911_emergency
           </span>
           <p>
-            If you have severe breathing difficulty, chest pain, or feel unsafe,{" "}
-            <strong>call emergency services (911) or go to the ER now</strong> — do not wait.
+            {exhausted ? (
+              <>
+                <strong>No doctor is available for immediate video consult right now.</strong>{" "}
+                {isEmergency
+                  ? "This may be urgent — call emergency services (911) or go to the ER. Do not wait."
+                  : "Please book an in-person appointment or try notifying doctors again."}
+              </>
+            ) : (
+              <>
+                If you have severe breathing difficulty, chest pain, or feel unsafe,{" "}
+                <strong>call emergency services (911) or go to the ER now</strong> — do not wait.
+              </>
+            )}
           </p>
         </div>
       )}
@@ -749,17 +844,21 @@ function UrgentConsultCard({ ui }: { ui: ChatUiPayload }) {
         </div>
         <div className="patient-urgent-hero-text">
           <span className="patient-urgent-kicker">
-            {accepted ? "Doctor connected" : "Urgent video consult"}
+            {accepted ? "Consult approved" : exhausted ? "No doctors available" : "Urgent care request"}
           </span>
           <strong>
             {accepted
-              ? `${live.doctor_name || "Your doctor"} is ready for you`
-              : "We're connecting you with a doctor"}
+              ? `${live.doctor_name || "Your doctor"} approved your request`
+              : exhausted
+                ? "We couldn't connect you to a doctor yet"
+                : "Waiting for doctor approval"}
           </strong>
           <p>
             {accepted
-              ? "Join the secure video room below. Keep this tab open."
-              : `${specialty} doctors have been alerted. The first available doctor will accept your request.`}
+              ? "Your video room is ready. Join below and keep this tab open."
+              : exhausted
+                ? "All notified doctors declined or are unavailable. Use the options below — do not delay care if symptoms are severe."
+                : `${specialty} specialists are reviewing your case. The first doctor to approve will connect with you by video.`}
           </p>
         </div>
       </div>
@@ -780,10 +879,10 @@ function UrgentConsultCard({ ui }: { ui: ChatUiPayload }) {
       <ol className="patient-urgent-steps" aria-label="Consult progress">
         {steps.map((step, index) => (
           <li
-            key={step.label}
+            key={step.key}
             className={`patient-urgent-step${step.done ? " patient-urgent-step--done" : ""}${
-              !step.done && steps[index - 1]?.done ? " patient-urgent-step--active" : ""
-            }`}
+              step.failed ? " patient-urgent-step--failed" : ""
+            }${!step.done && !step.failed && steps[index - 1]?.done ? " patient-urgent-step--active" : ""}`}
           >
             <span className="patient-urgent-step-dot" aria-hidden>
               {step.done ? (
@@ -800,10 +899,12 @@ function UrgentConsultCard({ ui }: { ui: ChatUiPayload }) {
       {!accepted && doctors.length > 0 && (
         <div className="patient-urgent-doctors">
           <span className="patient-urgent-doctors-label">
-            Notified doctors ({doctors.length})
+            {exhausted ? "Contacted specialists" : "Available specialists"} ({doctors.length})
           </span>
           <ul>
-            {doctors.map((doc) => (
+            {doctors.map((doc) => {
+              const status = formatDoctorOfferStatus(doc.offer_status);
+              return (
               <li key={doc.id}>
                 <DoctorAvatar
                   name={doc.name}
@@ -814,11 +915,12 @@ function UrgentConsultCard({ ui }: { ui: ChatUiPayload }) {
                   <strong>{doc.name}</strong>
                   <span>{doc.specialty || specialty}</span>
                 </div>
-                <span className="patient-urgent-doctor-status">
-                  {doc.offer_status === "superseded" ? "Assigned elsewhere" : "Notified"}
+                <span className={`patient-urgent-doctor-status ${status.className}`}>
+                  {status.label}
                 </span>
               </li>
-            ))}
+              );
+            })}
           </ul>
         </div>
       )}
@@ -848,6 +950,30 @@ function UrgentConsultCard({ ui }: { ui: ChatUiPayload }) {
           <span className="material-symbols-outlined">videocam</span>
           Join video consultation now
         </a>
+      ) : exhausted ? (
+        <div className="patient-urgent-actions">
+          {canRetry && (
+            <button
+              type="button"
+              className="patient-urgent-retry-btn"
+              disabled={retrying}
+              onClick={() => void handleRetry()}
+            >
+              <span className="material-symbols-outlined">group_add</span>
+              {retrying ? "Notifying doctors…" : "Notify more doctors"}
+            </button>
+          )}
+          {onPick && (
+            <button
+              type="button"
+              className="patient-urgent-book-btn"
+              onClick={() => void onPick("I'd like to book an appointment with a doctor.")}
+            >
+              <span className="material-symbols-outlined">event</span>
+              Book in-person appointment
+            </button>
+          )}
+        </div>
       ) : (
         <div className="patient-urgent-waiting" aria-live="polite">
           <div className="patient-urgent-waiting-dots" aria-hidden>
@@ -856,8 +982,12 @@ function UrgentConsultCard({ ui }: { ui: ChatUiPayload }) {
             <span />
           </div>
           <div>
-            <strong>Waiting for a doctor to accept</strong>
-            <span>Usually within a few minutes · waiting {waitLabel}</span>
+            <strong>
+              {live.all_declined && (live.awaiting_count ?? 0) === 0 && !exhausted
+                ? "Notifying additional doctors…"
+                : "Waiting for doctor approval"}
+            </strong>
+            <span>Usually within a few minutes · elapsed {waitLabel}</span>
           </div>
         </div>
       )}
@@ -1136,7 +1266,7 @@ export function ChatBookingUI({ ui, disabled, onPick }: Props) {
     (ui.type === "urgent_consult_pending" || ui.type === "urgent_consult_accepted") &&
     ui.request_id
   ) {
-    return <UrgentConsultCard ui={ui} />;
+    return <UrgentConsultCard ui={ui} onPick={onPick} />;
   }
 
   // ── video_consultation ──

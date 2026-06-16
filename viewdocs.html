@@ -1,0 +1,3117 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>MediAI — Developer Guide &amp; Architecture Roadmap</title>
+  <style>
+    :root {
+      --bg: #080c12;
+      --bg2: #0d1219;
+      --surface: #131b26;
+      --surface2: #1a2433;
+      --surface3: #212d3f;
+      --border: #2a384d;
+      --text: #eef2f7;
+      --muted: #8fa3be;
+      --accent: #38bdf8;
+      --accent-dim: rgba(56, 189, 248, 0.12);
+      --accent2: #34d399;
+      --accent2-dim: rgba(52, 211, 153, 0.12);
+      --purple: #a78bfa;
+      --purple-dim: rgba(167, 139, 250, 0.12);
+      --warn: #fbbf24;
+      --danger: #f87171;
+      --radius: 12px;
+      --radius-sm: 8px;
+      --font: "Segoe UI", system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
+      --mono: "Cascadia Code", "Fira Code", Consolas, monospace;
+      --shadow: 0 4px 24px rgba(0, 0, 0, 0.35);
+      --glow-green: 0 0 40px rgba(52, 211, 153, 0.08);
+      --glow-blue: 0 0 40px rgba(56, 189, 248, 0.08);
+    }
+
+    html { scroll-behavior: smooth; }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: var(--font);
+      background: var(--bg);
+      background-image:
+        radial-gradient(ellipse 80% 50% at 50% -20%, rgba(56, 189, 248, 0.08), transparent),
+        radial-gradient(ellipse 60% 40% at 100% 0%, rgba(167, 139, 250, 0.06), transparent),
+        radial-gradient(ellipse 50% 30% at 0% 100%, rgba(52, 211, 153, 0.05), transparent);
+      color: var(--text);
+      line-height: 1.65;
+      font-size: 15px;
+      padding: 0 1.25rem 4rem;
+    }
+
+    .wrap {
+      max-width: 1120px;
+      margin: 0 auto;
+    }
+
+    nav.toc {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 1.15rem 1.35rem;
+      margin-bottom: 1.75rem;
+      box-shadow: var(--shadow);
+    }
+
+    .toc-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 1rem;
+      margin-top: 0.75rem;
+    }
+
+    @media (max-width: 800px) {
+      .toc-grid { grid-template-columns: 1fr; }
+    }
+
+    .toc-group {
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-sm);
+      padding: 0.75rem 0.85rem;
+    }
+
+    .toc-group-title {
+      font-size: 0.68rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      margin-bottom: 0.45rem;
+      display: flex;
+      align-items: center;
+      gap: 0.35rem;
+    }
+
+    .toc-group.start .toc-group-title { color: var(--accent); }
+    .toc-group.status .toc-group-title { color: var(--accent2); }
+    .toc-group.roadmap .toc-group-title { color: var(--purple); }
+
+    .toc-group a {
+      display: block;
+      font-size: 0.82rem;
+      text-decoration: none;
+      padding: 0.28rem 0;
+      color: var(--muted);
+      transition: color 0.15s;
+    }
+
+    .toc-group a:hover { color: var(--text); }
+    .toc-group a strong { color: var(--text); font-weight: 600; }
+
+    nav.toc > strong {
+      display: block;
+      font-size: 0.72rem;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: var(--muted);
+      margin-bottom: 0.25rem;
+    }
+
+    nav.toc a.toc-legacy {
+      display: inline-block;
+      margin: 0.35rem 0.75rem 0 0;
+      font-size: 0.8rem;
+    }
+
+    .roadmap-header {
+      border-color: rgba(167, 139, 250, 0.4);
+    }
+
+    .roadmap-header h2 {
+      color: #a78bfa;
+    }
+
+    .phase-grid {
+      display: grid;
+      gap: 1rem;
+      margin-top: 1rem;
+    }
+
+    .phase-card {
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 1.1rem 1.25rem;
+    }
+
+    .phase-card h3 {
+      font-size: 1rem;
+      margin-bottom: 0.35rem;
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      flex-wrap: wrap;
+    }
+
+    .pill {
+      display: inline-block;
+      font-size: 0.68rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+      padding: 0.15rem 0.5rem;
+      border-radius: 999px;
+    }
+
+    .pill-p1 { background: rgba(34, 197, 94, 0.2); color: var(--accent2); }
+    .pill-p2 { background: rgba(59, 158, 255, 0.2); color: var(--accent); }
+    .pill-p3 { background: rgba(245, 158, 11, 0.2); color: var(--warn); }
+    .pill-p4 { background: rgba(167, 139, 250, 0.2); color: #a78bfa; }
+
+    .phase-card p, .phase-card li {
+      font-size: 0.9rem;
+      color: var(--muted);
+    }
+
+    .phase-card ul { margin-top: 0.5rem; }
+
+    .arch-flow {
+      background: var(--surface2);
+      border: 1px dashed var(--border);
+      border-radius: var(--radius);
+      padding: 1rem 1.25rem;
+      margin: 1rem 0;
+      font-family: var(--mono);
+      font-size: 0.78rem;
+      line-height: 1.7;
+      color: var(--muted);
+      overflow-x: auto;
+      white-space: pre;
+    }
+
+    .map-table td:nth-child(2) {
+      font-family: var(--mono);
+      font-size: 0.82rem;
+      color: #7dd3fc;
+    }
+
+    .risk-box {
+      background: rgba(239, 68, 68, 0.08);
+      border: 1px solid rgba(239, 68, 68, 0.25);
+      border-radius: var(--radius);
+      padding: 0.85rem 1rem;
+      margin-top: 0.75rem;
+      font-size: 0.88rem;
+      color: var(--muted);
+    }
+
+    .risk-box strong { color: #fca5a5; }
+
+    h3.sub {
+      font-size: 0.95rem;
+      color: var(--accent);
+      margin: 1.1rem 0 0.5rem;
+    }
+
+    ol.steps {
+      margin: 0.5rem 0 0.75rem 1.25rem;
+      color: var(--text);
+    }
+
+    ol.steps li { margin-bottom: 0.4rem; }
+
+    .status-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 1rem;
+      margin-top: 0.75rem;
+    }
+
+    @media (max-width: 700px) {
+      .status-grid { grid-template-columns: 1fr; }
+    }
+
+    .status-box {
+      background: var(--surface2);
+      border-radius: var(--radius);
+      padding: 1rem 1.1rem;
+      border: 1px solid var(--border);
+    }
+
+    .status-box.have { border-color: rgba(34, 197, 94, 0.35); }
+    .status-box.missing { border-color: rgba(239, 68, 68, 0.3); }
+
+    .status-box h4 {
+      font-size: 0.85rem;
+      margin-bottom: 0.5rem;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+    }
+
+    .status-box.have h4 { color: var(--accent2); }
+    .status-box.missing h4 { color: #fca5a5; }
+
+    .aws-header { border-color: rgba(255, 153, 0, 0.4); }
+    .aws-header h2 { color: #ff9900; }
+
+    .two-col {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 1rem;
+      margin-top: 0.75rem;
+    }
+
+    @media (max-width: 700px) {
+      .two-col { grid-template-columns: 1fr; }
+    }
+
+    .cost-header { border-color: rgba(34, 197, 94, 0.4); }
+    .cost-header h2 { color: var(--accent2); }
+
+    .cost-free { color: var(--accent2); font-weight: 700; }
+    .cost-low { color: #86efac; font-weight: 600; }
+    .cost-mid { color: var(--warn); font-weight: 600; }
+    .cost-high { color: #fca5a5; font-weight: 600; }
+
+    .cost-summary-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 1rem;
+      margin: 1rem 0;
+    }
+
+    @media (max-width: 800px) {
+      .cost-summary-grid { grid-template-columns: 1fr; }
+    }
+
+    .cost-total-card {
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 1.1rem 1.25rem;
+      text-align: center;
+    }
+
+    .cost-total-card .amount {
+      font-size: 1.6rem;
+      font-weight: 800;
+      margin: 0.35rem 0;
+    }
+
+    .cost-total-card .period {
+      font-size: 0.78rem;
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+
+    .cost-total-card.tier-dev .amount { color: var(--accent2); }
+    .cost-total-card.tier-budget .amount { color: #86efac; }
+    .cost-total-card.tier-aws .amount { color: var(--warn); }
+
+    .lowcost-header { border-color: rgba(59, 158, 255, 0.45); }
+    .lowcost-header h2 { color: var(--accent); }
+
+    .impl-header {
+      border-color: rgba(167, 139, 250, 0.5);
+      background: linear-gradient(180deg, rgba(167, 139, 250, 0.06) 0%, var(--surface) 100%);
+    }
+    .impl-header h2 { color: #c4b5fd; }
+
+    .phase-block {
+      border-left: 4px solid var(--border);
+      padding-left: 1rem;
+      margin: 1.25rem 0 1.5rem;
+    }
+
+    .phase-block.phase-0 { border-left-color: #64748b; }
+    .phase-block.phase-1 { border-left-color: var(--accent2); }
+    .phase-block.phase-2 { border-left-color: var(--accent); }
+    .phase-block.phase-3 { border-left-color: #a78bfa; }
+    .phase-block.phase-4 { border-left-color: var(--warn); }
+    .phase-block.phase-5 { border-left-color: #ff9900; }
+    .phase-block.phase-6 { border-left-color: #f472b6; }
+
+    .phase-block h3 {
+      font-size: 1.05rem;
+      margin-bottom: 0.35rem;
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 0.5rem;
+    }
+
+    .phase-meta {
+      font-size: 0.8rem;
+      color: var(--muted);
+      margin-bottom: 0.65rem;
+    }
+
+    .phase-meta span { margin-right: 1rem; }
+
+    .deliverable-list li::marker { color: var(--accent2); }
+
+    .coverage-table td:nth-child(2),
+    .coverage-table td:nth-child(3),
+    .coverage-table td:nth-child(4) {
+      text-align: center;
+      font-size: 0.85rem;
+    }
+
+    .cov-yes { color: var(--accent2); }
+    .cov-partial { color: var(--warn); }
+    .cov-no { color: #64748b; }
+
+    .impl-legend {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.75rem 1.25rem;
+      margin: 1rem 0 1.25rem;
+      padding: 0.75rem 1rem;
+      background: rgba(0, 0, 0, 0.2);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      font-size: 0.85rem;
+    }
+
+    .impl-tag {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.35rem;
+      padding: 0.15rem 0.5rem;
+      border-radius: 4px;
+      font-weight: 600;
+      font-size: 0.7rem;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+      vertical-align: middle;
+      white-space: nowrap;
+    }
+
+    .impl-tag.done {
+      background: rgba(34, 197, 94, 0.15);
+      color: var(--accent2);
+      border: 1px solid rgba(34, 197, 94, 0.35);
+    }
+
+    .impl-tag.todo {
+      background: rgba(148, 163, 184, 0.1);
+      color: #94a3b8;
+      border: 1px solid rgba(148, 163, 184, 0.28);
+    }
+
+    .impl-tag.partial {
+      background: rgba(245, 158, 11, 0.12);
+      color: var(--warn);
+      border: 1px solid rgba(245, 158, 11, 0.35);
+    }
+
+    .phase-status {
+      font-size: 0.72rem;
+      font-weight: 600;
+      padding: 0.2rem 0.55rem;
+      border-radius: 999px;
+      background: rgba(148, 163, 184, 0.15);
+      color: #cbd5e1;
+    }
+
+    .phase-status.complete { background: rgba(34, 197, 94, 0.15); color: var(--accent2); }
+    .phase-status.progress { background: rgba(245, 158, 11, 0.15); color: var(--warn); }
+    .phase-status.future { background: rgba(148, 163, 184, 0.12); color: #94a3b8; }
+
+    .impl-subhead {
+      font-size: 0.82rem;
+      font-weight: 600;
+      margin: 0.85rem 0 0.4rem;
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+
+    .impl-subhead.done { color: var(--accent2); }
+    .impl-subhead.todo { color: #94a3b8; }
+
+    ul.impl-list { margin-top: 0.25rem; }
+    ul.impl-list.done li::marker { color: var(--accent2); }
+    ul.impl-list.todo li::marker { color: #64748b; }
+
+    .status-col-done { color: var(--accent2); font-weight: 600; font-size: 0.82rem; }
+    .status-col-partial { color: var(--warn); font-weight: 600; font-size: 0.82rem; }
+    .status-col-todo { color: #64748b; font-weight: 600; font-size: 0.82rem; }
+
+    td.cost-cell { text-align: right; white-space: nowrap; font-variant-numeric: tabular-nums; }
+
+    header.hero {
+      margin: 1.75rem 0 1.75rem;
+      padding: 2rem 2rem 1.75rem;
+      background: linear-gradient(135deg, var(--surface) 0%, var(--surface2) 50%, rgba(26, 36, 51, 0.9) 100%);
+      border: 1px solid var(--border);
+      border-radius: calc(var(--radius) + 4px);
+      box-shadow: var(--shadow), var(--glow-blue);
+      position: relative;
+      overflow: hidden;
+    }
+
+    header.hero::before {
+      content: "";
+      position: absolute;
+      top: 0; left: 0; right: 0;
+      height: 3px;
+      background: linear-gradient(90deg, var(--accent2), var(--accent), var(--purple));
+    }
+
+    .hero-eyebrow {
+      font-size: 0.72rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.12em;
+      color: var(--accent);
+      margin-bottom: 0.5rem;
+    }
+
+    header.hero h1 {
+      font-size: clamp(1.65rem, 4vw, 2.25rem);
+      font-weight: 800;
+      line-height: 1.2;
+      margin-bottom: 0.65rem;
+      background: linear-gradient(135deg, #fff 0%, var(--accent) 60%, var(--purple) 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+    }
+
+    .hero-desc {
+      color: var(--muted);
+      font-size: 1rem;
+      max-width: 52ch;
+      margin-bottom: 1.15rem;
+    }
+
+    .hero-meta {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.5rem;
+      margin-bottom: 1.15rem;
+    }
+
+    .tech-pill {
+      font-size: 0.72rem;
+      font-weight: 600;
+      padding: 0.3rem 0.65rem;
+      border-radius: 999px;
+      background: var(--surface3);
+      border: 1px solid var(--border);
+      color: var(--muted);
+    }
+
+    .hero-badges {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 0.75rem;
+    }
+
+    @media (max-width: 700px) {
+      .hero-badges { grid-template-columns: repeat(2, 1fr); }
+      header.hero { padding: 1.5rem 1.25rem; }
+    }
+
+    .hero-badge {
+      background: rgba(0, 0, 0, 0.25);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-sm);
+      padding: 0.75rem 0.85rem;
+      text-align: center;
+    }
+
+    .hero-badge .hb-label {
+      font-size: 0.65rem;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      color: var(--muted);
+      margin-bottom: 0.2rem;
+    }
+
+    .hero-badge .hb-value {
+      font-size: 0.95rem;
+      font-weight: 700;
+    }
+
+    .hero-badge.ok .hb-value { color: var(--accent2); }
+    .hero-badge.no .hb-value { color: var(--danger); }
+    .hero-badge.info .hb-value { color: var(--accent); }
+    .hero-badge.warn .hb-value { color: var(--warn); }
+
+    header {
+      margin-bottom: 2rem;
+      padding-bottom: 1.5rem;
+      border-bottom: 1px solid var(--border);
+    }
+
+    header h1 {
+      font-size: 1.75rem;
+      color: var(--accent);
+      font-weight: 700;
+      margin-bottom: 0.5rem;
+    }
+
+    header .subtitle {
+      color: var(--muted);
+      font-size: 0.95rem;
+    }
+
+    .short-answer {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 1rem;
+      margin-bottom: 2rem;
+    }
+
+    @media (max-width: 600px) {
+      .short-answer { grid-template-columns: 1fr; }
+    }
+
+    .badge-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 1.25rem 1.5rem;
+    }
+
+    .badge-card.yes { border-color: rgba(34, 197, 94, 0.4); }
+    .badge-card.no { border-color: rgba(239, 68, 68, 0.35); }
+
+    .badge-card .label {
+      font-size: 0.75rem;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      color: var(--muted);
+      margin-bottom: 0.35rem;
+    }
+
+    .badge-card .value {
+      font-size: 1.15rem;
+      font-weight: 700;
+    }
+
+    .badge-card.yes .value { color: var(--accent2); }
+    .badge-card.no .value { color: var(--danger); }
+
+    section {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 1.5rem 1.75rem;
+      margin-bottom: 1.35rem;
+      box-shadow: 0 2px 12px rgba(0, 0, 0, 0.2);
+      transition: border-color 0.2s;
+    }
+
+    section:hover { border-color: rgba(56, 189, 248, 0.2); }
+
+    section.section-highlight {
+      border-color: rgba(56, 189, 248, 0.35);
+      box-shadow: var(--shadow), var(--glow-blue);
+    }
+
+    section.section-green {
+      border-color: rgba(52, 211, 153, 0.3);
+      box-shadow: var(--shadow), var(--glow-green);
+    }
+
+    .section-head {
+      display: flex;
+      align-items: flex-start;
+      gap: 0.85rem;
+      margin-bottom: 1rem;
+      padding-bottom: 0.85rem;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .section-icon {
+      width: 2.5rem;
+      height: 2.5rem;
+      border-radius: var(--radius-sm);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 1.2rem;
+      flex-shrink: 0;
+    }
+
+    .section-icon.blue { background: var(--accent-dim); }
+    .section-icon.green { background: var(--accent2-dim); }
+    .section-icon.purple { background: var(--purple-dim); }
+
+    .section-head h2 {
+      font-size: 1.2rem;
+      color: var(--text);
+      margin: 0;
+      padding: 0;
+      border: none;
+      font-weight: 700;
+    }
+
+    .section-head .section-sub {
+      font-size: 0.85rem;
+      color: var(--muted);
+      margin-top: 0.2rem;
+    }
+
+    section h2 {
+      font-size: 1.15rem;
+      color: var(--text);
+      margin-bottom: 0.85rem;
+      padding-bottom: 0.5rem;
+      border-bottom: 1px solid var(--border);
+    }
+
+    section p {
+      margin-bottom: 0.75rem;
+      color: var(--muted);
+    }
+
+    section p:last-child { margin-bottom: 0; }
+
+    ul {
+      margin: 0.5rem 0 0.75rem 1.25rem;
+      color: var(--text);
+    }
+
+    ul li { margin-bottom: 0.35rem; }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 0.75rem;
+      font-size: 0.9rem;
+    }
+
+    th, td {
+      border: 1px solid var(--border);
+      padding: 0.65rem 0.85rem;
+      text-align: left;
+      vertical-align: top;
+    }
+
+    th {
+      background: var(--surface2);
+      color: var(--accent);
+      font-weight: 600;
+    }
+
+    td { color: var(--muted); }
+    td:first-child { color: var(--text); }
+
+    .bottom-line {
+      border-color: rgba(59, 158, 255, 0.35);
+    }
+
+    .bottom-line h2 { color: var(--accent); }
+
+    .highlight {
+      color: var(--text);
+      font-weight: 600;
+    }
+
+    footer {
+      margin-top: 2rem;
+      font-size: 0.8rem;
+      color: var(--muted);
+      text-align: center;
+    }
+
+    a { color: var(--accent); }
+
+    /* ── Developer dashboard: Existing vs Enhancement ── */
+    .dev-dashboard-intro {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 0.85rem;
+      margin-bottom: 1.25rem;
+    }
+
+    @media (max-width: 720px) {
+      .dev-dashboard-intro { grid-template-columns: 1fr; }
+      .dev-split { grid-template-columns: 1fr !important; }
+    }
+
+    .stat-card {
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 1.1rem 1.15rem;
+      text-align: center;
+      transition: transform 0.15s;
+    }
+
+    .stat-card:hover { transform: translateY(-2px); }
+
+    .stat-card .num {
+      font-size: 1.75rem;
+      font-weight: 800;
+      line-height: 1.1;
+    }
+
+    .stat-card .lbl {
+      font-size: 0.78rem;
+      color: var(--muted);
+      margin-top: 0.25rem;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+    }
+
+    .stat-card.done .num { color: var(--accent2); }
+    .stat-card.pending .num { color: #a78bfa; }
+    .stat-card.progress .num { color: var(--warn); }
+
+    .progress-wrap {
+      margin-bottom: 1.25rem;
+      padding: 0.85rem 1rem;
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+    }
+
+    .progress-wrap label {
+      display: flex;
+      justify-content: space-between;
+      font-size: 0.82rem;
+      color: var(--muted);
+      margin-bottom: 0.45rem;
+    }
+
+    .progress-bar {
+      height: 10px;
+      background: rgba(148, 163, 184, 0.15);
+      border-radius: 999px;
+      overflow: hidden;
+    }
+
+    .progress-bar span {
+      display: block;
+      height: 100%;
+      width: 44%;
+      background: linear-gradient(90deg, var(--accent2), #4ade80);
+      border-radius: 999px;
+    }
+
+    .dev-split {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 1rem;
+      align-items: start;
+    }
+
+    .func-panel {
+      border-radius: var(--radius);
+      border: 2px solid var(--border);
+      overflow: hidden;
+      background: var(--surface);
+    }
+
+    .func-panel.existing { border-color: rgba(52, 211, 153, 0.5); box-shadow: var(--glow-green); }
+    .func-panel.enhancement { border-color: rgba(167, 139, 250, 0.45); box-shadow: 0 0 40px rgba(167, 139, 250, 0.06); }
+
+    .func-panel-head {
+      padding: 1rem 1.15rem;
+      display: flex;
+      align-items: center;
+      gap: 0.65rem;
+      flex-wrap: wrap;
+    }
+
+    .func-panel.existing .func-panel-head {
+      background: linear-gradient(135deg, rgba(52, 211, 153, 0.14) 0%, var(--surface) 100%);
+      border-bottom: 1px solid rgba(52, 211, 153, 0.25);
+    }
+
+    .func-panel.enhancement .func-panel-head {
+      background: linear-gradient(135deg, rgba(167, 139, 250, 0.14) 0%, var(--surface) 100%);
+      border-bottom: 1px solid rgba(167, 139, 250, 0.25);
+    }
+
+    .func-panel-head h2 {
+      font-size: 1.05rem;
+      margin: 0;
+      padding: 0;
+      border: none;
+      flex: 1;
+      min-width: 180px;
+    }
+
+    .func-panel.existing .func-panel-head h2 { color: var(--accent2); }
+    .func-panel.enhancement .func-panel-head h2 { color: #c4b5fd; }
+
+    .func-panel-head .count {
+      font-size: 0.72rem;
+      font-weight: 700;
+      padding: 0.2rem 0.55rem;
+      border-radius: 999px;
+    }
+
+    .func-panel.existing .count {
+      background: rgba(34, 197, 94, 0.2);
+      color: var(--accent2);
+    }
+
+    .func-panel.enhancement .count {
+      background: rgba(167, 139, 250, 0.2);
+      color: #c4b5fd;
+    }
+
+    .func-panel-body {
+      padding: 0.85rem 1rem 1rem;
+      max-height: 780px;
+      overflow-y: auto;
+      scrollbar-width: thin;
+      scrollbar-color: var(--border) transparent;
+    }
+
+    .func-cat {
+      margin-bottom: 0.85rem;
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      overflow: hidden;
+    }
+
+    .func-cat:last-child { margin-bottom: 0; }
+
+    .func-cat-title {
+      font-size: 0.78rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      padding: 0.5rem 0.75rem;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .func-panel.existing .func-cat-title {
+      color: var(--accent2);
+      background: rgba(34, 197, 94, 0.06);
+    }
+
+    .func-panel.enhancement .func-cat-title {
+      color: #a78bfa;
+      background: rgba(167, 139, 250, 0.06);
+    }
+
+    .func-cat-title .prio {
+      float: right;
+      font-size: 0.65rem;
+      color: var(--muted);
+      font-weight: 600;
+    }
+
+    .feat-list {
+      list-style: none;
+      margin: 0;
+      padding: 0;
+    }
+
+    .feat-list li {
+      display: flex;
+      gap: 0.55rem;
+      align-items: flex-start;
+      padding: 0.45rem 0.75rem;
+      font-size: 0.84rem;
+      color: var(--muted);
+      border-bottom: 1px solid rgba(45, 58, 79, 0.5);
+    }
+
+    .feat-list li:last-child { border-bottom: none; }
+
+    .feat-list li strong { color: var(--text); font-weight: 600; }
+
+    .feat-icon {
+      flex-shrink: 0;
+      width: 1.15rem;
+      height: 1.15rem;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 0.65rem;
+      font-weight: 800;
+      margin-top: 0.1rem;
+    }
+
+    .feat-icon.ok {
+      background: rgba(34, 197, 94, 0.2);
+      color: var(--accent2);
+    }
+
+    .feat-icon.future {
+      background: rgba(167, 139, 250, 0.15);
+      color: #a78bfa;
+    }
+
+    .feat-list li code {
+      font-family: var(--mono);
+      font-size: 0.78rem;
+      color: var(--accent);
+    }
+
+    .dev-section-wrap {
+      margin-bottom: 1.5rem;
+    }
+
+    .dev-section-wrap > p.lead {
+      font-size: 0.92rem;
+      color: var(--muted);
+      margin-bottom: 1rem;
+    }
+
+    /* ── New developer onboarding ── */
+    .quick-grid {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 1rem;
+      margin: 1rem 0;
+    }
+
+    @media (max-width: 700px) { .quick-grid { grid-template-columns: 1fr; } }
+
+    .quick-card {
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-sm);
+      padding: 1rem 1.1rem;
+      transition: transform 0.15s, border-color 0.15s;
+    }
+
+    .quick-card:hover {
+      transform: translateY(-2px);
+      border-color: rgba(56, 189, 248, 0.35);
+    }
+
+    .quick-card h4 {
+      font-size: 0.88rem;
+      color: var(--text);
+      margin-bottom: 0.5rem;
+      display: flex;
+      align-items: center;
+      gap: 0.4rem;
+    }
+
+    .quick-card ul { margin: 0; padding-left: 1.1rem; font-size: 0.84rem; }
+    .quick-card li { color: var(--muted); margin-bottom: 0.3rem; }
+
+    .code-block {
+      background: #0a0e14;
+      border: 1px solid var(--border);
+      border-radius: var(--radius-sm);
+      padding: 0.85rem 1rem;
+      font-family: var(--mono);
+      font-size: 0.8rem;
+      line-height: 1.6;
+      color: #94a3b8;
+      overflow-x: auto;
+      margin: 0.65rem 0;
+    }
+
+    .code-block .cmd { color: var(--accent2); }
+    .code-block .cmt { color: #64748b; }
+
+    .url-table td:nth-child(2) {
+      font-family: var(--mono);
+      font-size: 0.82rem;
+      color: var(--accent);
+    }
+
+    .arch-visual {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 0.5rem;
+      padding: 1.25rem;
+      background: var(--surface2);
+      border: 1px dashed var(--border);
+      border-radius: var(--radius);
+      margin: 1rem 0;
+    }
+
+    .arch-row {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: center;
+      align-items: center;
+      gap: 0.5rem;
+    }
+
+    .arch-node {
+      padding: 0.45rem 0.85rem;
+      border-radius: var(--radius-sm);
+      font-size: 0.8rem;
+      font-weight: 600;
+      border: 1px solid var(--border);
+      background: var(--surface3);
+      color: var(--text);
+    }
+
+    .arch-node.patient { border-color: rgba(56, 189, 248, 0.4); color: var(--accent); }
+    .arch-node.agent { border-color: rgba(52, 211, 153, 0.4); color: var(--accent2); }
+    .arch-node.data { border-color: rgba(167, 139, 250, 0.4); color: var(--purple); }
+    .arch-node.ui { border-color: rgba(251, 191, 36, 0.4); color: var(--warn); }
+
+    .arch-arrow {
+      color: var(--muted);
+      font-size: 1.1rem;
+      font-weight: 300;
+    }
+
+    .file-tree {
+      font-family: var(--mono);
+      font-size: 0.8rem;
+      line-height: 1.75;
+      color: var(--muted);
+      background: #0a0e14;
+      border: 1px solid var(--border);
+      border-radius: var(--radius-sm);
+      padding: 1rem 1.15rem;
+      overflow-x: auto;
+    }
+
+    .file-tree .dir { color: var(--accent); }
+    .file-tree .file { color: var(--accent2); }
+    .file-tree .note { color: #64748b; }
+
+    .flow-steps {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 0.75rem;
+      margin: 1rem 0;
+    }
+
+    @media (max-width: 800px) { .flow-steps { grid-template-columns: 1fr; } }
+
+    .flow-step {
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-sm);
+      padding: 0.85rem;
+      position: relative;
+    }
+
+    .flow-step .step-num {
+      font-size: 0.65rem;
+      font-weight: 800;
+      color: var(--accent);
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      margin-bottom: 0.35rem;
+    }
+
+    .flow-step h4 {
+      font-size: 0.88rem;
+      color: var(--text);
+      margin-bottom: 0.35rem;
+    }
+
+    .flow-step p {
+      font-size: 0.8rem;
+      color: var(--muted);
+      margin: 0;
+    }
+
+    .read-path {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.5rem;
+      margin: 1rem 0 0;
+    }
+
+    .read-path a {
+      font-size: 0.8rem;
+      padding: 0.4rem 0.75rem;
+      background: var(--accent-dim);
+      border: 1px solid rgba(56, 189, 248, 0.3);
+      border-radius: 999px;
+      text-decoration: none;
+      color: var(--accent);
+      font-weight: 600;
+      transition: background 0.15s;
+    }
+
+    .read-path a:hover { background: rgba(56, 189, 248, 0.22); }
+
+    .dashboard-section-title {
+      text-align: center;
+      margin: 2rem 0 1.25rem;
+    }
+
+    .dashboard-section-title h2 {
+      font-size: 1.35rem;
+      font-weight: 800;
+      color: var(--text);
+      margin-bottom: 0.35rem;
+      border: none;
+      padding: 0;
+    }
+
+    .dashboard-section-title p {
+      color: var(--muted);
+      font-size: 0.9rem;
+    }
+
+    .back-top {
+      position: fixed;
+      bottom: 1.5rem;
+      right: 1.5rem;
+      width: 2.5rem;
+      height: 2.5rem;
+      border-radius: 50%;
+      background: var(--accent);
+      color: #0a0e14;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      text-decoration: none;
+      font-weight: 800;
+      font-size: 1.1rem;
+      box-shadow: var(--shadow);
+      opacity: 0.9;
+      transition: transform 0.15s, opacity 0.15s;
+      z-index: 100;
+    }
+
+    .back-top:hover { transform: scale(1.08); opacity: 1; }
+
+    footer.doc-footer {
+      margin-top: 2.5rem;
+      padding: 1.5rem;
+      text-align: center;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      font-size: 0.82rem;
+      color: var(--muted);
+    }
+
+    footer.doc-footer strong { color: var(--text); }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <header class="hero">
+      <p class="hero-eyebrow">Developer documentation · MediAI Healthcare Chatbot</p>
+      <h1>Understand the app in 15 minutes</h1>
+      <p class="hero-desc">
+        Onboarding guide for new developers: how to run locally, where the code lives,
+        what is already built, and what advanced features are planned next.
+      </p>
+      <div class="hero-meta">
+        <span class="tech-pill">React + Vite</span>
+        <span class="tech-pill">FastAPI</span>
+        <span class="tech-pill">PostgreSQL + pgvector</span>
+        <span class="tech-pill">Redis · MinIO</span>
+        <span class="tech-pill">Groq / Gemini</span>
+        <span class="tech-pill">Multi-agent AI</span>
+      </div>
+      <div class="hero-badges">
+        <div class="hero-badge ok">
+          <div class="hb-label">Multi-agent</div>
+          <div class="hb-value">Yes · Medium</div>
+        </div>
+        <div class="hero-badge no">
+          <div class="hb-label">Vector RAG</div>
+          <div class="hb-value">Not yet</div>
+        </div>
+        <div class="hero-badge info">
+          <div class="hb-label">Features done</div>
+          <div class="hb-value">41 working</div>
+        </div>
+        <div class="hero-badge warn">
+          <div class="hb-label">Roadmap</div>
+          <div class="hb-value">52 pending</div>
+        </div>
+      </div>
+    </header>
+
+    <nav class="toc" aria-label="Table of contents">
+      <strong>Navigate this document</strong>
+      <div class="toc-grid">
+        <div class="toc-group start">
+          <div class="toc-group-title">🚀 Start here</div>
+          <a href="#start-here"><strong>New developer guide</strong></a>
+          <a href="#quick-start">Run locally (Docker)</a>
+          <a href="#architecture-overview">Architecture snapshot</a>
+          <a href="#project-map">Project structure</a>
+          <a href="#key-files">Key files cheat sheet</a>
+        </div>
+        <div class="toc-group status">
+          <div class="toc-group-title">✓ Status dashboard</div>
+          <a href="#existing-functionality"><strong>Existing functionality</strong></a>
+          <a href="#new-enhancement"><strong>New enhancements</strong></a>
+          <a href="#implementation-phases">Phase timeline</a>
+          <a href="#production-today">Production today</a>
+        </div>
+        <div class="toc-group roadmap">
+          <div class="toc-group-title">🗺 Roadmap &amp; planning</div>
+          <a href="#upgrade-vision">Upgrade vision</a>
+          <a href="#target-architecture">Target architecture</a>
+          <a href="#code-mapping">Code mapping</a>
+          <a href="#low-cost-complex">Low-cost deploy</a>
+          <a href="#project-costs">Cost breakdown</a>
+          <a href="#decision-checklist">Checklist</a>
+        </div>
+      </div>
+      <p style="margin-top: 0.85rem; font-size: 0.78rem; color: var(--muted);">
+        Deep-dive sections:
+        <a href="#multi-agent" class="toc-legacy">Multi-agent</a>
+        <a href="#rag" class="toc-legacy">RAG</a>
+        <a href="#aws-deployment" class="toc-legacy">AWS</a>
+        <a href="#genai-advanced" class="toc-legacy">GenAI</a>
+        <a href="#master-roadmap" class="toc-legacy">Master roadmap</a>
+      </p>
+    </nav>
+
+    <!-- ── NEW DEVELOPER ONBOARDING ── -->
+    <section id="start-here" class="section-highlight">
+      <div class="section-head">
+        <div class="section-icon blue">👋</div>
+        <div>
+          <h2>Start Here — New Developer Guide</h2>
+          <p class="section-sub">Read this first. ~5 minutes to orient yourself.</p>
+        </div>
+      </div>
+      <p><strong>What is MediAI?</strong> A full-stack healthcare demo: patients chat with a multi-agent AI assistant for triage, booking, and report questions; doctors manage consultations in a portal; admins oversee users.</p>
+
+      <div class="flow-steps">
+        <div class="flow-step">
+          <div class="step-num">Step 1</div>
+          <h4>Clone &amp; configure</h4>
+          <p>Copy <code>.env.example</code> → <code>.env</code>. Add a Groq or Gemini API key.</p>
+        </div>
+        <div class="flow-step">
+          <div class="step-num">Step 2</div>
+          <h4>Start Docker</h4>
+          <p>Run <code>docker compose up --build</code> or <code>.\start.ps1</code> on Windows.</p>
+        </div>
+        <div class="flow-step">
+          <div class="step-num">Step 3</div>
+          <h4>Explore the app</h4>
+          <p>Open <code>localhost:5173</code>. Log in as patient, doctor, or admin (see Quick Start).</p>
+        </div>
+      </div>
+
+      <h3 class="sub">Recommended reading order</h3>
+      <div class="read-path">
+        <a href="#quick-start">1 · Quick Start</a>
+        <a href="#architecture-overview">2 · Architecture</a>
+        <a href="#project-map">3 · Folder map</a>
+        <a href="#key-files">4 · Key files</a>
+        <a href="#existing-functionality">5 · What's built</a>
+        <a href="#new-enhancement">6 · What's next</a>
+      </div>
+
+      <div class="quick-grid" style="margin-top: 1.25rem;">
+        <div class="quick-card">
+          <h4>🎯 Your first task?</h4>
+          <ul>
+            <li><strong>Bug fix</strong> → check <code>backend/app/routes/</code> + matching React page</li>
+            <li><strong>Chat / AI</strong> → start at <code>multi_agent/supervisor.py</code></li>
+            <li><strong>Doctor UI</strong> → <code>frontend/src/pages/doctor/</code></li>
+            <li><strong>Database</strong> → <code>models/</code> + <code>alembic/versions/</code></li>
+          </ul>
+        </div>
+        <div class="quick-card">
+          <h4>⚠️ Important to know</h4>
+          <ul>
+            <li>pgvector is installed but <strong>not used for RAG yet</strong></li>
+            <li>LangGraph is in requirements but <strong>not active</strong> — custom supervisor instead</li>
+            <li>Production deploy is <strong>local Docker only</strong> today</li>
+            <li>Never commit <code>.env</code> — contains API keys</li>
+          </ul>
+        </div>
+      </div>
+    </section>
+
+    <section id="quick-start" class="section-green">
+      <div class="section-head">
+        <div class="section-icon green">⚡</div>
+        <div>
+          <h2>Quick Start — Run Locally</h2>
+          <p class="section-sub">Docker is the recommended path. First run takes 5–15 minutes.</p>
+        </div>
+      </div>
+
+      <div class="code-block">
+<span class="cmt"># 1. Environment</span>
+<span class="cmd">cp .env.example .env</span>   <span class="cmt"># then set GROQ_API_KEY or GEMINI_API_KEY</span>
+
+<span class="cmt"># 2. Start (Windows)</span>
+<span class="cmd">.\start.ps1</span>
+
+<span class="cmt"># 2. Start (Mac / Linux)</span>
+<span class="cmd">docker compose up --build</span>
+
+<span class="cmt"># 3. Run backend tests</span>
+<span class="cmd">docker compose exec api pytest</span>
+      </div>
+
+      <h3 class="sub">URLs after startup</h3>
+      <table class="url-table">
+        <thead>
+          <tr><th>URL</th><th>Purpose</th></tr>
+        </thead>
+        <tbody>
+          <tr><td>http://localhost:5173</td><td>Web app (patient · doctor · admin)</td></tr>
+          <tr><td>http://localhost:8000/docs</td><td>Swagger API documentation</td></tr>
+          <tr><td>http://localhost:8000/health</td><td>API health check</td></tr>
+          <tr><td>localhost:5433</td><td>PostgreSQL (user: healthcare, db: healthcare)</td></tr>
+          <tr><td>http://localhost:9001</td><td>MinIO console (reports storage)</td></tr>
+        </tbody>
+      </table>
+
+      <h3 class="sub">Demo login accounts (auto-seeded)</h3>
+      <table>
+        <thead>
+          <tr><th>Role</th><th>Email</th><th>Password</th><th>Lands on</th></tr>
+        </thead>
+        <tbody>
+          <tr><td>Patient</td><td>john@test.com</td><td>Patient@12345</td><td>/dashboard</td></tr>
+          <tr><td>Doctor</td><td>dr.sharma@clinic.com</td><td>Doctor@12345</td><td>/doctor</td></tr>
+          <tr><td>Admin</td><td>admin@clinic.com</td><td>Admin@12345</td><td>/admin</td></tr>
+        </tbody>
+      </table>
+    </section>
+
+    <section id="architecture-overview">
+      <div class="section-head">
+        <div class="section-icon purple">🏗</div>
+        <div>
+          <h2>Architecture Snapshot</h2>
+          <p class="section-sub">How a patient message flows through the system today.</p>
+        </div>
+      </div>
+
+      <div class="arch-visual">
+        <div class="arch-row">
+          <span class="arch-node patient">Patient / Guest</span>
+          <span class="arch-arrow">→</span>
+          <span class="arch-node ui">React Chat UI</span>
+          <span class="arch-arrow">→</span>
+          <span class="arch-node">FastAPI /chat</span>
+        </div>
+        <div class="arch-arrow">↓</div>
+        <div class="arch-row">
+          <span class="arch-node agent">Supervisor</span>
+          <span class="arch-arrow">→</span>
+          <span class="arch-node agent">Specialist Agent</span>
+          <span class="arch-arrow">→</span>
+          <span class="arch-node agent">Tools</span>
+        </div>
+        <div class="arch-arrow">↓</div>
+        <div class="arch-row">
+          <span class="arch-node data">PostgreSQL</span>
+          <span class="arch-node data">Redis</span>
+          <span class="arch-node data">MinIO</span>
+          <span class="arch-node agent">Groq / Gemini</span>
+        </div>
+      </div>
+
+      <table>
+        <thead>
+          <tr><th>Specialist agent</th><th>Handles</th></tr>
+        </thead>
+        <tbody>
+          <tr><td><strong>Supervisor</strong></td><td>Routes message to the right specialist; tracks care goals &amp; flow state</td></tr>
+          <tr><td><strong>Triage</strong></td><td>Symptom assessment, risk level, specialty recommendation</td></tr>
+          <tr><td><strong>Scheduling</strong></td><td>Book, cancel, reschedule; urgent video consult</td></tr>
+          <tr><td><strong>Report</strong></td><td>Lab report Q&amp;A (LLM on extracted text — not vector RAG)</td></tr>
+          <tr><td><strong>Refill</strong></td><td>Prescription refill requests to doctor</td></tr>
+          <tr><td><strong>Safety</strong></td><td>Emergency + mental health crisis detection</td></tr>
+          <tr><td><strong>Education / Follow-up</strong></td><td>Health Q&amp;A, post-visit check-ins</td></tr>
+        </tbody>
+      </table>
+    </section>
+
+    <section id="project-map">
+      <div class="section-head">
+        <div class="section-icon blue">📁</div>
+        <div>
+          <h2>Project Structure</h2>
+          <p class="section-sub">Where to look when debugging or adding features.</p>
+        </div>
+      </div>
+      <div class="file-tree">
+<span class="dir">medical_healthcare_chatbot/</span>
+├── <span class="file">docker-compose.yml</span>      <span class="note"># Postgres, Redis, MinIO, API, Web</span>
+├── <span class="file">.env.example</span>            <span class="note"># Copy to .env — API keys here</span>
+├── <span class="file">start.ps1</span>                 <span class="note"># Windows one-click start</span>
+├── <span class="dir">backend/</span>
+│   ├── <span class="dir">app/</span>
+│   │   ├── <span class="dir">multi_agent/</span>        <span class="note"># supervisor.py, specialists.py, booking_actions.py</span>
+│   │   ├── <span class="dir">routes/</span>             <span class="note"># chat.py, doctor_portal.py, auth.py, guest.py</span>
+│   │   ├── <span class="dir">services/</span>           <span class="note"># business logic (appointments, reports, urgent consult)</span>
+│   │   ├── <span class="dir">models/</span>             <span class="note"># SQLAlchemy ORM models</span>
+│   │   ├── <span class="file">emergency_detection.py</span>
+│   │   └── <span class="file">main.py</span>
+│   ├── <span class="dir">alembic/versions/</span>       <span class="note"># DB migrations</span>
+│   ├── <span class="dir">tests/</span>                  <span class="note"># pytest suite</span>
+│   └── <span class="file">seed.py</span>                   <span class="note"># Demo doctors + patients</span>
+└── <span class="dir">frontend/src/</span>
+    ├── <span class="dir">pages/patient/</span>          <span class="note"># Chat.tsx, Dashboard, Reports, Doctors</span>
+    ├── <span class="dir">pages/doctor/</span>           <span class="note"># Doctor portal, consultation history</span>
+    ├── <span class="dir">pages/admin/</span>            <span class="note"># Admin panel</span>
+    └── <span class="dir">components/</span>             <span class="note"># ChatBookingUI.tsx, doctor components</span>
+      </div>
+    </section>
+
+    <section id="key-files">
+      <div class="section-head">
+        <div class="section-icon green">🔑</div>
+        <div>
+          <h2>Key Files Cheat Sheet</h2>
+          <p class="section-sub">Jump directly to the code that matters most.</p>
+        </div>
+      </div>
+      <table class="map-table">
+        <thead>
+          <tr><th>When you need to…</th><th>Open this file</th></tr>
+        </thead>
+        <tbody>
+          <tr><td>Change how chat routes to agents</td><td>backend/app/multi_agent/supervisor.py</td></tr>
+          <tr><td>Modify agent behaviour / prompts</td><td>backend/app/multi_agent/specialists.py</td></tr>
+          <tr><td>Booking, urgent consult, refill flows</td><td>backend/app/multi_agent/booking_actions.py</td></tr>
+          <tr><td>Emergency / urgent detection rules</td><td>backend/app/emergency_detection.py</td></tr>
+          <tr><td>Chat API endpoint</td><td>backend/app/routes/chat.py</td></tr>
+          <tr><td>Doctor portal APIs</td><td>backend/app/routes/doctor_portal.py</td></tr>
+          <tr><td>Consultation history logic</td><td>backend/app/services/visit_records_service.py</td></tr>
+          <tr><td>Urgent consult backend</td><td>backend/app/services/urgent_consult_service.py</td></tr>
+          <tr><td>Guest resume after OTP</td><td>backend/app/services/guest_resume_service.py</td></tr>
+          <tr><td>Patient chat UI</td><td>frontend/src/pages/patient/Chat.tsx</td></tr>
+          <tr><td>Booking / urgent UI cards</td><td>frontend/src/components/ChatBookingUI.tsx</td></tr>
+          <tr><td>Doctor consultation history</td><td>frontend/src/components/doctor/DoctorConsultationHistory.tsx</td></tr>
+          <tr><td>DB schema change</td><td>backend/app/models/ + new alembic migration</td></tr>
+        </tbody>
+      </table>
+    </section>
+
+    <div class="dashboard-section-title" id="developer-status">
+      <h2>Developer Status Dashboard</h2>
+      <p>Green = built today · Purple = planned enhancements · Scroll each panel for the full list</p>
+    </div>
+
+    <div class="dev-section-wrap">
+
+      <div class="dev-dashboard-intro">
+        <div class="stat-card done">
+          <div class="num">41</div>
+          <div class="lbl">Features working</div>
+        </div>
+        <div class="stat-card pending">
+          <div class="num">52</div>
+          <div class="lbl">Enhancements pending</div>
+        </div>
+        <div class="stat-card progress">
+          <div class="num">~44%</div>
+          <div class="lbl">Roadmap complete</div>
+        </div>
+      </div>
+
+      <div class="progress-wrap">
+        <label><span>Overall platform maturity</span><span>Phase 0 mostly done · Phases 1–6 not started</span></label>
+        <div class="progress-bar" role="progressbar" aria-valuenow="44" aria-valuemin="0" aria-valuemax="100">
+          <span style="width: 44%;"></span>
+        </div>
+      </div>
+
+      <div class="dev-split">
+        <!-- ── EXISTING ── -->
+        <div class="func-panel existing" id="existing-functionality">
+          <div class="func-panel-head">
+            <h2>✓ Existing Functionality</h2>
+            <span class="count">IMPLEMENTED &amp; WORKING</span>
+          </div>
+          <div class="func-panel-body">
+            <div class="func-cat">
+              <div class="func-cat-title">Platform &amp; infrastructure</div>
+              <ul class="feat-list">
+                <li><span class="feat-icon ok">✓</span><span>Docker Compose: API, React (Vite), Postgres + pgvector image, Redis, MinIO</span></li>
+                <li><span class="feat-icon ok">✓</span><span>FastAPI + async SQLAlchemy + Alembic migrations (through urgent consult)</span></li>
+                <li><span class="feat-icon ok">✓</span><span>MinIO S3-compatible report storage</span></li>
+                <li><span class="feat-icon ok">✓</span><span>Basic rate limiting + request middleware</span></li>
+                <li><span class="feat-icon ok">✓</span><span>One-command startup: <code>docker compose up</code></span></li>
+              </ul>
+            </div>
+            <div class="func-cat">
+              <div class="func-cat-title">Auth &amp; security</div>
+              <ul class="feat-list">
+                <li><span class="feat-icon ok">✓</span><span>JWT authentication + refresh tokens</span></li>
+                <li><span class="feat-icon ok">✓</span><span>OTP email verification (SMTP)</span></li>
+                <li><span class="feat-icon ok">✓</span><span>RBAC: patient · doctor · admin roles</span></li>
+                <li><span class="feat-icon ok">✓</span><span>Guest chat → OTP verify → resume booking / urgent flow</span></li>
+              </ul>
+            </div>
+            <div class="func-cat">
+              <div class="func-cat-title">Patient portal &amp; chat</div>
+              <ul class="feat-list">
+                <li><span class="feat-icon ok">✓</span><span>AI chat UI with conversation history</span></li>
+                <li><span class="feat-icon ok">✓</span><span>Symptom assessment + risk panel in chat</span></li>
+                <li><span class="feat-icon ok">✓</span><span>Interactive booking cards (<code>ChatBookingUI</code>)</span></li>
+                <li><span class="feat-icon ok">✓</span><span>Report upload from patient portal</span></li>
+                <li><span class="feat-icon ok">✓</span><span>In-app notifications + unread count</span></li>
+                <li><span class="feat-icon ok">✓</span><span>Profile, medications, allergies on patient record</span></li>
+              </ul>
+            </div>
+            <div class="func-cat">
+              <div class="func-cat-title">Multi-agent AI (medium level)</div>
+              <ul class="feat-list">
+                <li><span class="feat-icon ok">✓</span><span>LLM supervisor routing — <code>multi_agent/supervisor.py</code></span></li>
+                <li><span class="feat-icon ok">✓</span><span>7 specialists: education, triage, scheduling, report, follow-up, refill, safety</span></li>
+                <li><span class="feat-icon ok">✓</span><span>Tool execution: book, cancel, reschedule, refill, report analysis</span></li>
+                <li><span class="feat-icon ok">✓</span><span>Flow state / session persistence across turns (<code>flow_state</code>)</span></li>
+                <li><span class="feat-icon ok">✓</span><span>Groq / Gemini LLM + rule-based fallbacks</span></li>
+                <li><span class="feat-icon ok">✓</span><span>Report Q&amp;A via <code>report_agent</code> (full-text LLM — not vector RAG)</span></li>
+              </ul>
+            </div>
+            <div class="func-cat">
+              <div class="func-cat-title">Emergency &amp; urgent consult</div>
+              <ul class="feat-list">
+                <li><span class="feat-icon ok">✓</span><span>Emergency + mental health crisis detection — <code>emergency_detection.py</code></span></li>
+                <li><span class="feat-icon ok">✓</span><span>Urgent video consult request create / accept / decline</span></li>
+                <li><span class="feat-icon ok">✓</span><span>Auto-expiry + escalation when all doctors decline</span></li>
+                <li><span class="feat-icon ok">✓</span><span>Skip triage for urgent flow; doctor urgent panel + patient join URL UI</span></li>
+              </ul>
+            </div>
+            <div class="func-cat">
+              <div class="func-cat-title">Appointments &amp; booking</div>
+              <ul class="feat-list">
+                <li><span class="feat-icon ok">✓</span><span>Book, reschedule, cancel via chat tools</span></li>
+                <li><span class="feat-icon ok">✓</span><span>Doctor slot management + specialty matching</span></li>
+                <li><span class="feat-icon ok">✓</span><span>Appointment reminder scheduling (Redis)</span></li>
+                <li><span class="feat-icon ok">✓</span><span>Guest resume booking after verify — <code>guest_resume_service.py</code></span></li>
+              </ul>
+            </div>
+            <div class="func-cat">
+              <div class="func-cat-title">Doctor portal</div>
+              <ul class="feat-list">
+                <li><span class="feat-icon ok">✓</span><span>Patient list, patient detail, visit records</span></li>
+                <li><span class="feat-icon ok">✓</span><span>Consultation history — all patients, symptoms, meds, SOAP</span></li>
+                <li><span class="feat-icon ok">✓</span><span>Mark appointment <strong>completed</strong> / <strong>cancelled</strong></span></li>
+                <li><span class="feat-icon ok">✓</span><span>Past-due / overdue flags; filters (upcoming, past, completed)</span></li>
+                <li><span class="feat-icon ok">✓</span><span>Refill request review + urgent consult accept UI</span></li>
+                <li><span class="feat-icon ok">✓</span><span>View / edit SOAP notes on consultations</span></li>
+              </ul>
+            </div>
+            <div class="func-cat">
+              <div class="func-cat-title">Reports, refills &amp; admin</div>
+              <ul class="feat-list">
+                <li><span class="feat-icon ok">✓</span><span>PDF / image report upload → OCR / text extraction → LLM summary</span></li>
+                <li><span class="feat-icon ok">✓</span><span>Refill agent + submit refill request to doctor</span></li>
+                <li><span class="feat-icon ok">✓</span><span>Admin panel: users, doctors, system overview</span></li>
+                <li><span class="feat-icon ok">✓</span><span>Transactional email (OTP, booking confirmations)</span></li>
+              </ul>
+            </div>
+            <div class="func-cat">
+              <div class="func-cat-title">Tests &amp; quality (local)</div>
+              <ul class="feat-list">
+                <li><span class="feat-icon ok">✓</span><span>pytest: emergency, urgent consult, booking, refill, agents, triage</span></li>
+                <li><span class="feat-icon ok">✓</span><span>E2E agent flow tests — <code>test_agent_flows_e2e.py</code></span></li>
+              </ul>
+            </div>
+          </div>
+        </div>
+
+        <!-- ── NEW ENHANCEMENT ── -->
+        <div class="func-panel enhancement" id="new-enhancement">
+          <div class="func-panel-head">
+            <h2>○ New Enhancement Functionality</h2>
+            <span class="count">NOT IMPLEMENTED YET</span>
+          </div>
+          <div class="func-panel-body">
+            <div class="func-cat">
+              <div class="func-cat-title">Phase 1 — Deploy + RAG v1 <span class="prio">P0 · $25–80/mo</span></div>
+              <ul class="feat-list">
+                <li><span class="feat-icon future">○</span><span>VPS + Cloudflare + Nginx HTTPS public deploy</span></li>
+                <li><span class="feat-icon future">○</span><span>GitHub Actions CI/CD → SSH deploy</span></li>
+                <li><span class="feat-icon future">○</span><span>React production static build (not Vite dev in prod)</span></li>
+                <li><span class="feat-icon future">○</span><span><code>document_chunks</code> table + pgvector embeddings pipeline</span></li>
+                <li><span class="feat-icon future">○</span><span>Chunk reports on upload; local embeddings (sentence-transformers)</span></li>
+                <li><span class="feat-icon future">○</span><span><code>retrieval_service.py</code> — patient-scoped top-k before LLM</span></li>
+                <li><span class="feat-icon future">○</span><span>Doctor portal “Sources” panel with chunk citations</span></li>
+                <li><span class="feat-icon future">○</span><span><code>agent_traces</code> table — log routing per turn</span></li>
+                <li><span class="feat-icon future">○</span><span>Automated DB backups (pg_dump → B2 / Glacier)</span></li>
+              </ul>
+            </div>
+            <div class="func-cat">
+              <div class="func-cat-title">Phase 2 — Complex multi-agent <span class="prio">P1 · LangGraph</span></div>
+              <ul class="feat-list">
+                <li><span class="feat-icon future">○</span><span>LangGraph state machine — <code>multi_agent/graph.py</code></span></li>
+                <li><span class="feat-icon future">○</span><span>Subgraphs: triage, scheduling, report, refill</span></li>
+                <li><span class="feat-icon future">○</span><span>Checkpointing — resume after disconnect / guest verify</span></li>
+                <li><span class="feat-icon future">○</span><span>Dedicated retrieval agent node for all RAG calls</span></li>
+                <li><span class="feat-icon future">○</span><span>SSE streaming chat + progress events (“Finding slots…”)</span></li>
+                <li><span class="feat-icon future">○</span><span>Redis semantic cache for repeated education questions</span></li>
+                <li><span class="feat-icon future">○</span><span>Conversation rolling summary (compress after 20 msgs)</span></li>
+                <li><span class="feat-icon future">○</span><span>Dynamic model routing (cheap vs large model per intent)</span></li>
+                <li><span class="feat-icon future">○</span><span>Pydantic-validated structured triage JSON outputs</span></li>
+              </ul>
+            </div>
+            <div class="func-cat">
+              <div class="func-cat-title">Phase 3 — Advanced RAG &amp; safety <span class="prio">P1 · Clinical depth</span></div>
+              <ul class="feat-list">
+                <li><span class="feat-icon future">○</span><span>Hybrid search: pgvector + PostgreSQL full-text</span></li>
+                <li><span class="feat-icon future">○</span><span>Query rewriting + metadata filters + CPU reranker</span></li>
+                <li><span class="feat-icon future">○</span><span>Citations in patient chat + expanded doctor portal sources</span></li>
+                <li><span class="feat-icon future">○</span><span><strong>Critic / safety agent</strong> — review draft before send</span></li>
+                <li><span class="feat-icon future">○</span><span><strong>Medication safety agent</strong> — allergies + RxNorm interactions</span></li>
+                <li><span class="feat-icon future">○</span><span><strong>Documentation agent</strong> — auto-draft SOAP + visit summary</span></li>
+                <li><span class="feat-icon future">○</span><span>Doctor approve/edit AI SOAP before save</span></li>
+                <li><span class="feat-icon future">○</span><span>Celery worker for async embed / index jobs</span></li>
+              </ul>
+            </div>
+            <div class="func-cat">
+              <div class="func-cat-title">Phase 4 — Full automation <span class="prio">P2 · Proactive AI</span></div>
+              <ul class="feat-list">
+                <li><span class="feat-icon future">○</span><span>Auto pipeline on report upload: chunk → embed → notify</span></li>
+                <li><span class="feat-icon future">○</span><span>Auto on booking: summary → embed → email → reminder</span></li>
+                <li><span class="feat-icon future">○</span><span>Auto visit summary on appointment complete</span></li>
+                <li><span class="feat-icon future">○</span><span>Proactive follow-up agent (48h post-visit cron)</span></li>
+                <li><span class="feat-icon future">○</span><span>Refill approve → auto-update med list + notify patient</span></li>
+                <li><span class="feat-icon future">○</span><span>Multi-hop / self-RAG agent loops</span></li>
+                <li><span class="feat-icon future">○</span><span>Planner agent for multi-intent messages</span></li>
+                <li><span class="feat-icon future">○</span><span>Langfuse / Phoenix LLM observability + cost tracking</span></li>
+                <li><span class="feat-icon future">○</span><span>RAGAS eval + emergency regression in CI</span></li>
+                <li><span class="feat-icon future">○</span><span>Admin analytics: AI usage, triage risk, automation rates</span></li>
+              </ul>
+            </div>
+            <div class="func-cat">
+              <div class="func-cat-title">Phase 5 — AWS production <span class="prio">P3 · $200–500/mo</span></div>
+              <ul class="feat-list">
+                <li><span class="feat-icon future">○</span><span>Terraform/CDK: ECS, RDS, ElastiCache, S3, ALB, CloudFront</span></li>
+                <li><span class="feat-icon future">○</span><span>SQS workers for embeddings, email, reminders</span></li>
+                <li><span class="feat-icon future">○</span><span>Secrets Manager, WAF, CloudWatch alarms, X-Ray</span></li>
+                <li><span class="feat-icon future">○</span><span>Amazon Bedrock + Guardrails; SES for email</span></li>
+                <li><span class="feat-icon future">○</span><span>AWS BAA + HIPAA-ready topology; backup/DR drills</span></li>
+              </ul>
+            </div>
+            <div class="func-cat">
+              <div class="func-cat-title">Phase 6 — Enterprise <span class="prio">P4 · Hospital-grade</span></div>
+              <ul class="feat-list">
+                <li><span class="feat-icon future">○</span><span>FHIR / HL7 EHR sync (HealthLake or HAPI FHIR)</span></li>
+                <li><span class="feat-icon future">○</span><span>Clinical knowledge RAG (guidelines, separate from PHI)</span></li>
+                <li><span class="feat-icon future">○</span><span>Hospital SSO (Cognito + SAML)</span></li>
+                <li><span class="feat-icon future">○</span><span>Multi-tenant clinics + white-label branding</span></li>
+                <li><span class="feat-icon future">○</span><span>Chime / Twilio video SDK (real rooms, not URL placeholder)</span></li>
+                <li><span class="feat-icon future">○</span><span>SMS OTP + reminders (SNS / Pinpoint)</span></li>
+                <li><span class="feat-icon future">○</span><span>Google / Outlook calendar sync for doctor slots</span></li>
+                <li><span class="feat-icon future">○</span><span>WhatsApp / Telegram / voice triage channels</span></li>
+              </ul>
+            </div>
+            <div class="func-cat">
+              <div class="func-cat-title">Polish gaps (finish Phase 0)</div>
+              <ul class="feat-list">
+                <li><span class="feat-icon future">○</span><span>Full pytest coverage for doctor portal APIs</span></li>
+                <li><span class="feat-icon future">○</span><span>Dev / staging env split + documented <code>.env</code> matrix</span></li>
+                <li><span class="feat-icon future">○</span><span>Complete developer README runbook</span></li>
+              </ul>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <section id="multi-agent">
+      <h2>Multi-Agent</h2>
+      <p>This project <span class="highlight">does</span> use a multi-agent style architecture:</p>
+      <ul>
+        <li>Supervisor routes patient messages to the right specialist</li>
+        <li>Specialist agents: triage, scheduling, education, report, refill, safety, follow-up</li>
+        <li>Tool execution for booking, reports, refills, and related actions</li>
+        <li>Flow state management across conversation turns</li>
+        <li>Emergency / urgent consult detection and guest → patient flows</li>
+      </ul>
+      <p>
+        This is <span class="highlight">more than</span> a simple single-prompt chatbot, but
+        <span class="highlight">not</span> the most advanced multi-agent system (no deep agent hierarchies,
+        no LangGraph orchestration in active use, no heavy autonomous planning loops).
+      </p>
+    </section>
+
+    <section id="rag">
+      <h2>RAG (Retrieval-Augmented Generation)</h2>
+      <p>
+        This project does <span class="highlight">not</span> implement complex modern RAG as described in
+        advanced architecture articles. What exists is closer to
+        <span class="highlight">simple / lightweight</span> retrieval and context use.
+      </p>
+    </section>
+
+    <section id="comparison">
+      <h2>Comparison</h2>
+      <table>
+        <thead>
+          <tr>
+            <th>Complex RAG (typical advanced stack)</th>
+            <th>This project</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>Vector embeddings + semantic search</td>
+            <td>pgvector is in DB setup, but no full embedding/retrieval pipeline in chat</td>
+          </tr>
+          <tr>
+            <td>Chunking + indexing + hybrid search</td>
+            <td>Reports are parsed as text and analyzed by LLM directly</td>
+          </tr>
+          <tr>
+            <td>Query rewriting / reranking / multi-hop RAG</td>
+            <td>Not implemented</td>
+          </tr>
+          <tr>
+            <td>Agentic RAG loops</td>
+            <td>Not implemented</td>
+          </tr>
+        </tbody>
+      </table>
+    </section>
+
+    <section id="actually-uses">
+      <h2>What This Project Actually Uses</h2>
+      <ul>
+        <li>Direct database context (patient profile, medications, allergies, appointments)</li>
+        <li>Report upload → OCR/text extraction → LLM analysis (not vector RAG)</li>
+        <li>Rule-based symptom and emergency detection</li>
+        <li>Conversation memory stored as facts</li>
+        <li>LLM + tools + supervisor routing</li>
+      </ul>
+    </section>
+
+    <section id="bottom-line" class="bottom-line">
+      <h2>Bottom Line</h2>
+      <p>
+        This is a solid, feature-rich medical chatbot with multi-agent orchestration, but it is
+        <span class="highlight">not</span> a “complex RAG + advanced multi-agent” architecture like
+        advanced Medium-style articles describe.
+      </p>
+      <p>It is <span class="highlight">practical mid-level</span>:</p>
+      <ul>
+        <li>Smart routing</li>
+        <li>Tools</li>
+        <li>Context injection</li>
+      </ul>
+      <p>
+        It is <span class="highlight">not</span> a full enterprise RAG stack with vector retrieval,
+        hybrid search, reranking, or agentic retrieval loops.
+      </p>
+    </section>
+
+    <!-- ═══════════════════════════════════════════════════════════════════
+         UPGRADE ROADMAP — planning only, no implementation started
+         ═══════════════════════════════════════════════════════════════════ -->
+
+    <section id="upgrade-vision" class="roadmap-header">
+      <h2>Upgrade Vision — Complex Multi-Agent + RAG</h2>
+      <p>
+        Goal: evolve MediAI from <span class="highlight">mid-level orchestration</span> to an
+        <span class="highlight">enterprise-grade clinical AI platform</span> with retrieval-grounded answers,
+        auditable agent workflows, and safer medical decision support.
+      </p>
+      <p><strong style="color: var(--text);">Recommended strategy:</strong> upgrade in layers — RAG foundation first, then agent orchestration, then agentic loops. Do not jump straight to “full complex” in one release.</p>
+      <table class="map-table" style="margin-top: 1rem;">
+        <thead>
+          <tr>
+            <th>Layer</th>
+            <th>Today</th>
+            <th>Target (complex)</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>Knowledge</td>
+            <td>DB rows + report JSON</td>
+            <td>Indexed medical knowledge + patient-specific vector stores</td>
+          </tr>
+          <tr>
+            <td>Retrieval</td>
+            <td>Load full patient context</td>
+            <td>Hybrid RAG (semantic + keyword + metadata filters)</td>
+          </tr>
+          <tr>
+            <td>Reasoning</td>
+            <td>Supervisor + specialist LLM calls</td>
+            <td>LangGraph state machine + planner/reviewer agents</td>
+          </tr>
+          <tr>
+            <td>Tools</td>
+            <td>Booking, reports, refill tools</td>
+            <td>Tools + retrieval tools + clinical validators</td>
+          </tr>
+          <tr>
+            <td>Safety</td>
+            <td>Rule-based emergency detection</td>
+            <td>Rules + LLM safety classifier + citation-required answers</td>
+          </tr>
+        </tbody>
+      </table>
+    </section>
+
+    <section id="upgrade-rag">
+      <h2>Suggested RAG Upgrades (Simple → Complex)</h2>
+
+      <h3 class="sub">Phase R1 — Foundation (Naive → Indexed RAG)</h3>
+      <div class="phase-card">
+        <h3><span class="pill pill-p1">Priority 1</span> Vector store on existing pgvector</h3>
+        <ul>
+          <li><strong>Chunk &amp; embed</strong> uploaded reports (lab PDFs, discharge summaries) after OCR — store chunks in a <code>document_chunks</code> table with pgvector embeddings.</li>
+          <li><strong>Embed patient artifacts:</strong> SOAP notes, triage summaries, conversation memory facts, medication lists.</li>
+          <li><strong>Retrieval at chat time:</strong> top-k semantic search scoped by <code>patient_id</code> + document type.</li>
+          <li><strong>Replace</strong> “inject entire report analysis JSON” with “retrieve only relevant chunks”.</li>
+        </ul>
+        <p><strong>Files to extend later:</strong> <code>report_service.py</code>, new <code>rag/embedding_service.py</code>, <code>rag/retrieval_service.py</code>, Alembic migration for chunk tables.</p>
+      </div>
+
+      <h3 class="sub">Phase R2 — Advanced RAG (Indexed → Hybrid + Reranked)</h3>
+      <div class="phase-card">
+        <h3><span class="pill pill-p2">Priority 2</span> Hybrid retrieval + reranking</h3>
+        <ul>
+          <li><strong>Hybrid search:</strong> combine pgvector cosine similarity + PostgreSQL full-text (BM25/tsvector) for lab test names, drug names, ICD codes.</li>
+          <li><strong>Metadata filters:</strong> date range, document type (lab vs prescription), doctor_id, appointment_id.</li>
+          <li><strong>Cross-encoder reranker</strong> (e.g. Cohere rerank, bge-reranker, or LLM rerank) on top-20 → top-5 chunks.</li>
+          <li><strong>Query rewriting:</strong> expand patient question into clinical search queries (“headache 3 days” → “cephalgia duration triage fever”).</li>
+        </ul>
+      </div>
+
+      <h3 class="sub">Phase R3 — Agentic RAG (Complex)</h3>
+      <div class="phase-card">
+        <h3><span class="pill pill-p3">Priority 3</span> Multi-step retrieval loops</h3>
+        <ul>
+          <li><strong>Retriever agent</strong> decides: search patient history, search medical guidelines, or both.</li>
+          <li><strong>Multi-hop RAG:</strong> initial retrieval → gap analysis → follow-up retrieval (e.g. find lab → find related meds → find allergies).</li>
+          <li><strong>Self-RAG / CRAG pattern:</strong> model checks if retrieved context is sufficient; if not, reformulate query and retrieve again.</li>
+          <li><strong>Citations required:</strong> every clinical claim links to chunk IDs (report page, note date) shown in doctor portal.</li>
+        </ul>
+      </div>
+
+      <h3 class="sub">Phase R4 — Knowledge bases beyond patient data</h3>
+      <div class="phase-card">
+        <h3><span class="pill pill-p4">Priority 4</span> External medical knowledge RAG</h3>
+        <ul>
+          <li>Ingest curated sources: clinical guidelines, drug interaction DBs, hospital protocols (not open web scrape for production).</li>
+          <li>Separate index namespace: <code>global_clinical_kb</code> vs <code>patient_private</code> — strict RBAC at retrieval time.</li>
+          <li>Version and audit knowledge snapshots for compliance.</li>
+        </ul>
+      </div>
+    </section>
+
+    <section id="upgrade-agents">
+      <h2>Suggested Multi-Agent Upgrades (Medium → Complex)</h2>
+
+      <h3 class="sub">Phase A1 — Orchestration hardening</h3>
+      <div class="phase-card">
+        <h3><span class="pill pill-p1">Priority 1</span> LangGraph state machine (use existing dependency)</h3>
+        <ul>
+          <li>Replace ad-hoc <code>flow_state</code> + supervisor if/else with explicit graph nodes: <em>route → retrieve → reason → tool → validate → respond</em>.</li>
+          <li>Persist graph state per conversation (checkpointing) for resume after disconnect.</li>
+          <li>Each specialist becomes a <strong>subgraph</strong> (triage subgraph, scheduling subgraph).</li>
+          <li><strong>Extend:</strong> <code>multi_agent/supervisor.py</code>, new <code>multi_agent/graph.py</code>.</li>
+        </ul>
+      </div>
+
+      <h3 class="sub">Phase A2 — Planner + specialist + critic pattern</h3>
+      <div class="phase-card">
+        <h3><span class="pill pill-p2">Priority 2</span> Hierarchical agents</h3>
+        <ul>
+          <li><strong>Planner agent:</strong> breaks patient goal into steps (triage → risk assess → recommend action → offer booking).</li>
+          <li><strong>Specialist workers:</strong> current agents (triage, scheduling, report) execute steps.</li>
+          <li><strong>Critic / safety agent:</strong> reviews draft reply for hallucination, prescription requests, missing disclaimers, emergency miss.</li>
+          <li><strong>Human-in-the-loop node</strong> for high-risk outputs before showing to patient.</li>
+        </ul>
+      </div>
+
+      <h3 class="sub">Phase A3 — New clinical agents</h3>
+      <div class="phase-card">
+        <h3><span class="pill pill-p2">Priority 2</span> Additional specialists to add</h3>
+        <ul>
+          <li><strong>Clinical retrieval agent</strong> — owns all RAG tool calls (not embedded in every specialist).</li>
+          <li><strong>Medication safety agent</strong> — cross-checks meds vs allergies, interactions (retrieval + rules).</li>
+          <li><strong>Documentation agent</strong> — drafts SOAP, patient summary, doctor handoff from chat + retrieval context.</li>
+          <li><strong>Follow-up orchestrator</strong> — proactive post-visit check-ins using appointment + triage history.</li>
+        </ul>
+      </div>
+
+      <h3 class="sub">Phase A4 — Agentic tool ecosystem</h3>
+      <div class="phase-card">
+        <h3><span class="pill pill-p3">Priority 3</span> Rich tool layer</h3>
+        <ul>
+          <li>Standardize tools with JSON schema + idempotent execution + audit log (<code>agent_tool_runs</code> table).</li>
+          <li>New tools: <code>search_patient_records</code>, <code>search_clinical_guidelines</code>, <code>get_drug_interactions</code>, <code>summarize_visit_with_citations</code>.</li>
+          <li>Parallel tool calls where safe (retrieve labs + meds + allergies simultaneously).</li>
+          <li><strong>Extend:</strong> <code>services/agent_tools.py</code>, <code>multi_agent/specialists.py</code>.</li>
+        </ul>
+      </div>
+
+      <h3 class="sub">Phase A5 — Observability &amp; evaluation</h3>
+      <div class="phase-card">
+        <h3><span class="pill pill-p3">Priority 3</span> Production agent ops</h3>
+        <ul>
+          <li>Trace every turn: router decision, retrieved chunks, tools called, critic verdict, latency, token cost.</li>
+          <li>Eval suite: triage accuracy, emergency recall, RAG faithfulness, booking success rate.</li>
+          <li>A/B routing: compare simple vs complex path per conversation type.</li>
+        </ul>
+      </div>
+    </section>
+
+    <section id="target-architecture">
+      <h2>Target Architecture (End State)</h2>
+      <p>Conceptual flow after full upgrade — for planning discussions only:</p>
+      <div class="arch-flow">Patient message
+    │
+    ▼
+┌─────────────────┐
+│  API / Chat     │
+└────────┬────────┘
+         │
+         ▼
+┌─────────────────┐     emergency? ──yes──► Safety Agent (bypass)
+│ LangGraph       │
+│ Supervisor      │
+└────────┬────────┘
+         │
+    ┌────┴────┐
+    ▼         ▼
+ Planner   Retrieval Agent ──► Hybrid RAG (patient + clinical KB)
+    │              │
+    └──────┬───────┘
+           ▼
+    Specialist subgraphs
+    (triage | schedule | report | refill | education)
+           │
+           ▼
+    Tool executor + audit log
+           │
+           ▼
+    Critic / Safety validator
+    (citations, no prescription, disclaimers)
+           │
+           ▼
+    Response + UI cards + doctor citations</div>
+    </section>
+
+    <section id="code-mapping">
+      <h2>Where Changes Would Land (Code Mapping)</h2>
+      <table class="map-table">
+        <thead>
+          <tr>
+            <th>Capability</th>
+            <th>Current location</th>
+            <th>Suggested new / extended modules</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>Agent routing</td>
+            <td>multi_agent/supervisor.py</td>
+            <td>multi_agent/graph.py, multi_agent/state.py</td>
+          </tr>
+          <tr>
+            <td>Specialists</td>
+            <td>multi_agent/specialists.py</td>
+            <td>multi_agent/agents/*.py (one file per agent)</td>
+          </tr>
+          <tr>
+            <td>Tools</td>
+            <td>services/agent_tools.py</td>
+            <td>services/tools/ + retrieval tools</td>
+          </tr>
+          <tr>
+            <td>Report parsing</td>
+            <td>services/report_service.py</td>
+            <td>rag/ingestion/report_ingest.py</td>
+          </tr>
+          <tr>
+            <td>Patient context</td>
+            <td>services/patient_context.py</td>
+            <td>rag/retrieval/patient_retriever.py</td>
+          </tr>
+          <tr>
+            <td>Vector DB</td>
+            <td>pgvector extension (unused)</td>
+            <td>models/document_chunk.py, embedding jobs</td>
+          </tr>
+          <tr>
+            <td>Doctor answers</td>
+            <td>doctor_portal routes</td>
+            <td>citation UI, retrieval debug panel</td>
+          </tr>
+          <tr>
+            <td>Memory</td>
+            <td>ConversationMemory model</td>
+            <td>embed memories + episodic summary index</td>
+          </tr>
+        </tbody>
+      </table>
+    </section>
+
+    <section id="phased-plan">
+      <h2>Recommended Implementation Phases (GenAI focus)</h2>
+      <p>
+        Practical order for RAG + agents only. For the <strong>full application build</strong> (deploy, automation, AWS, enterprise),
+        see <a href="#implementation-phases">Full Implementation by Phases</a> (Phases 0–6).
+      </p>
+      <ol class="steps">
+        <li><strong>Phase 1 (4–6 weeks):</strong> Report chunking + pgvector embeddings + patient-scoped retrieval in report_agent and doctor summary. <span class="pill pill-p1">Highest ROI</span></li>
+        <li><strong>Phase 2 (3–4 weeks):</strong> Hybrid search + reranking + citation strings in chat UI.</li>
+        <li><strong>Phase 3 (4–6 weeks):</strong> LangGraph supervisor, checkpointing, retrieval agent as dedicated node.</li>
+        <li><strong>Phase 4 (3–4 weeks):</strong> Critic/safety agent + medication interaction checks + audit traces.</li>
+        <li><strong>Phase 5 (ongoing):</strong> Clinical KB ingestion, multi-hop agentic RAG, eval harness, production monitoring.</li>
+      </ol>
+
+      <div class="phase-grid" style="margin-top: 1.25rem;">
+        <div class="phase-card">
+          <h3>Quick wins (low effort)</h3>
+          <ul>
+            <li>Embed existing <code>PatientSummary</code> + <code>DoctorNote</code> rows</li>
+            <li>Add retrieval step before report_agent LLM call</li>
+            <li>Show “Sources” panel in doctor portal consult view</li>
+            <li>Log supervisor routing decisions to DB</li>
+          </ul>
+        </div>
+        <div class="phase-card">
+          <h3>Medium effort</h3>
+          <ul>
+            <li>Hybrid pgvector + full-text search</li>
+            <li>LangGraph for triage + booking flows only</li>
+            <li>Query rewriting for patient slang → clinical terms</li>
+            <li>Background job to re-embed on new report upload</li>
+          </ul>
+        </div>
+        <div class="phase-card">
+          <h3>High effort (complex tier)</h3>
+          <ul>
+            <li>Full agentic RAG with gap detection loops</li>
+            <li>External clinical knowledge base with governance</li>
+            <li>Planner + critic for every patient turn</li>
+            <li>Real-time eval + automated regression for safety cases</li>
+          </ul>
+        </div>
+      </div>
+    </section>
+
+    <section id="risks">
+      <h2>Risks, Guardrails &amp; Healthcare Constraints</h2>
+      <p>Before implementing complex RAG + agents in a medical product, plan for:</p>
+      <ul>
+        <li><strong>HIPAA / privacy:</strong> embeddings of PHI must stay in your VPC; no sending patient chunks to unapproved embedding APIs without BAA.</li>
+        <li><strong>Hallucination:</strong> complex RAG increases citation surface but does not eliminate wrong clinical advice — critic agent + mandatory disclaimers remain required.</li>
+        <li><strong>Latency:</strong> multi-hop RAG + multiple agents can push responses from ~2s to 8–15s — use streaming and parallel retrieval.</li>
+        <li><strong>Cost:</strong> embedding storage, rerankers, and extra LLM calls per turn — budget per conversation.</li>
+        <li><strong>Stale index:</strong> medication or allergy changes must invalidate/update embeddings quickly.</li>
+        <li><strong>Regulatory:</strong> document that AI assists triage; does not diagnose or prescribe — especially if adding clinical KB.</li>
+      </ul>
+      <div class="risk-box">
+        <strong>Recommendation:</strong> keep rule-based emergency detection (<code>emergency_detection.py</code>) as a hard gate
+        <em>before</em> any LLM router — do not replace it with RAG or agent routing alone.
+      </div>
+    </section>
+
+    <!-- ═══════════════════════════════════════════════════════════════════
+         PRODUCTION, GENAI ADVANCED, AWS — not implemented yet
+         ═══════════════════════════════════════════════════════════════════ -->
+
+    <section id="production-today">
+      <h2>Production Status Today vs Target</h2>
+      <p>
+        See the <a href="#existing-functionality">Existing Functionality</a> and
+        <a href="#new-enhancement">New Enhancement</a> panels at the top for the full developer list.
+        Summary below:
+      </p>
+      <div class="status-grid">
+        <div class="status-box have">
+          <h4>✓ What exists now</h4>
+          <ul>
+            <li>Docker Compose: API, React web, Postgres (pgvector), Redis, MinIO</li>
+            <li>FastAPI + async SQLAlchemy + Alembic migrations</li>
+            <li>JWT auth, OTP email, RBAC (patient / doctor / admin)</li>
+            <li>Basic rate limiting + request middleware</li>
+            <li>Multi-agent supervisor + specialist agents + tools</li>
+            <li>Report OCR/PDF parsing, S3-compatible storage (MinIO)</li>
+            <li>Email notifications (SMTP), appointment reminders via Redis</li>
+            <li>Doctor + patient portals, urgent consult, video room IDs</li>
+            <li>Groq / Gemini LLM with rule-based fallbacks</li>
+          </ul>
+        </div>
+        <div class="status-box missing">
+          <h4>✗ Not production-ready yet</h4>
+          <ul>
+            <li>No AWS (or any cloud) deployment — local Docker only</li>
+            <li>No CI/CD pipeline, staging, or blue/green releases</li>
+            <li>No vector RAG pipeline (pgvector unused for retrieval)</li>
+            <li>No LangGraph orchestration in active use</li>
+            <li>No LLM observability (Langfuse, Phoenix, CloudWatch GenAI)</li>
+            <li>No streaming chat responses (SSE / WebSocket)</li>
+            <li>No async worker tier (Celery / SQS) for embeddings &amp; emails</li>
+            <li>No WAF, secrets rotation, or HIPAA BAA-ready infra</li>
+            <li>No FHIR/EHR integration — readiness only in docs</li>
+            <li>No automated eval / regression for AI safety</li>
+            <li>Frontend dev server (Vite) — not optimized static CDN build in prod</li>
+          </ul>
+        </div>
+      </div>
+    </section>
+
+    <section id="genai-advanced">
+      <h2>Advanced GenAI Concepts to Add (Beyond RAG + Agents)</h2>
+      <p>High-impact GenAI patterns for a <span class="highlight">complex, production-grade</span> medical assistant:</p>
+
+      <div class="phase-grid">
+        <div class="phase-card">
+          <h3><span class="pill pill-p1">Core UX</span> Streaming &amp; real-time</h3>
+          <ul>
+            <li><strong>SSE / WebSocket streaming</strong> for token-by-token chat — reduces perceived latency during multi-agent turns.</li>
+            <li><strong>Progress events:</strong> “Searching your records…”, “Checking triage…”, “Finding slots…” while agents run.</li>
+            <li><strong>Voice pipeline:</strong> AWS Transcribe / Polly or Whisper + TTS for hands-free triage (listed as readiness, not built).</li>
+          </ul>
+        </div>
+        <div class="phase-card">
+          <h3><span class="pill pill-p1">Quality</span> Structured outputs &amp; validation</h3>
+          <ul>
+            <li><strong>JSON schema / tool contracts</strong> for triage, booking, SOAP drafts — validate before DB write.</li>
+            <li><strong>Pydantic + instructor</strong> pattern: force typed clinical fields (symptoms[], risk, specialty).</li>
+            <li><strong>Constrained decoding</strong> for enums (risk level, appointment status) to reduce parse errors.</li>
+          </ul>
+        </div>
+        <div class="phase-card">
+          <h3><span class="pill pill-p2">Efficiency</span> Caching &amp; context management</h3>
+          <ul>
+            <li><strong>Semantic cache</strong> (Redis + embeddings): similar patient questions → cached safe answers.</li>
+            <li><strong>Prompt caching</strong> (Bedrock / provider-native): reuse system + patient profile tokens.</li>
+            <li><strong>Conversation summarization:</strong> compress long chats into rolling summary + episodic memory index.</li>
+            <li><strong>Context budget router:</strong> decide what fits in window (RAG chunks vs full history).</li>
+          </ul>
+        </div>
+        <div class="phase-card">
+          <h3><span class="pill pill-p2">Safety</span> Guardrails &amp; evaluation</h3>
+          <ul>
+            <li><strong>LLM safety classifier</strong> layer after generation (toxicity, self-harm, prescription requests).</li>
+            <li><strong>Amazon Bedrock Guardrails</strong> or NeMo Guardrails for topic + PII redaction.</li>
+            <li><strong>RAGAS / DeepEval</strong> offline eval: faithfulness, context recall, emergency detection recall.</li>
+            <li><strong>LLM-as-judge</strong> for triage quality on golden datasets before each release.</li>
+            <li><strong>Human feedback loop:</strong> doctor thumbs-up/down on AI summaries → fine-tune prompts or rankers.</li>
+          </ul>
+        </div>
+        <div class="phase-card">
+          <h3><span class="pill pill-p3">Intelligence</span> Model routing &amp; ensembles</h3>
+          <ul>
+            <li><strong>Router model:</strong> cheap model for greetings; large model for triage; vision model for images.</li>
+            <li><strong>Fallback chain:</strong> Bedrock Claude → Groq → Gemini → offline rules (already partial).</li>
+            <li><strong>Specialist fine-tunes</strong> (optional): small model for symptom extraction; keep general LLM for dialogue.</li>
+            <li><strong>Uncertainty scoring:</strong> when confidence low → ask clarifying question or escalate to human.</li>
+          </ul>
+        </div>
+        <div class="phase-card">
+          <h3><span class="pill pill-p3">Multimodal</span> Vision &amp; documents</h3>
+          <ul>
+            <li><strong>Layout-aware parsing:</strong> Textract / unstructured.io for lab tables (better than plain OCR).</li>
+            <li><strong>Medical VLM pipeline:</strong> rash/wound images → structured findings + “see doctor if…” (not diagnosis).</li>
+            <li><strong>Chart grounding:</strong> link vision findings to retrieved patient history via RAG.</li>
+          </ul>
+        </div>
+        <div class="phase-card">
+          <h3><span class="pill pill-p4">Platform</span> Agent protocols &amp; memory</h3>
+          <ul>
+            <li><strong>MCP (Model Context Protocol)</strong> for standardized tools (calendar, EHR, pharmacy lookup).</li>
+            <li><strong>Long-term memory tiers:</strong> working memory (session) + episodic (visits) + semantic (facts index).</li>
+            <li><strong>Proactive agents:</strong> EventBridge triggers post-visit follow-up, refill reminders, abnormal lab alerts.</li>
+            <li><strong>Digital twin patient context graph</strong> (optional advanced): symptoms ↔ meds ↔ labs relationships.</li>
+          </ul>
+        </div>
+      </div>
+    </section>
+
+    <section id="aws-deployment" class="aws-header">
+      <h2>AWS Production Deployment — Suggested Architecture</h2>
+      <p>
+        Replace local Docker demo with a <span class="highlight">HIPAA-eligible, scalable AWS stack</span>.
+        Sign AWS BAA before storing PHI in cloud services.
+      </p>
+
+      <div class="arch-flow">                        ┌─────────────────────────────────────┐
+                        │  Route 53 + ACM (TLS certificate)   │
+                        └──────────────────┬──────────────────┘
+                                           │
+              ┌────────────────────────────┼────────────────────────────┐
+              ▼                            ▼                            ▼
+     ┌─────────────────┐         ┌─────────────────┐         ┌─────────────────┐
+     │ CloudFront CDN  │         │   AWS WAF       │         │  Amazon SES     │
+     │ (React static)  │         │  (API shield)   │         │  (email/OTP)    │
+     └────────┬────────┘         └────────┬────────┘         └─────────────────┘
+              │                           │
+              │                  ┌────────▼────────┐
+              │                  │  ALB (HTTPS)    │
+              │                  └────────┬────────┘
+              │                           │
+              │         ┌─────────────────┼─────────────────┐
+              │         ▼                 ▼                 ▼
+              │  ┌─────────────┐   ┌─────────────┐   ┌─────────────┐
+              │  │ ECS Fargate │   │ ECS Fargate │   │ ECS Fargate │
+              │  │  API task   │   │  API task   │   │  worker     │
+              │  │  (FastAPI)  │   │  (FastAPI)  │   │  (Celery)   │
+              │  └──────┬──────┘   └──────┬──────┘   └──────┬──────┘
+              │         │                 │                 │
+              │         └────────┬────────┴────────┬────────┘
+              │                  ▼                 ▼
+              │         ┌─────────────────┐ ┌─────────────────┐
+              │         │ RDS PostgreSQL  │ │ ElastiCache     │
+              │         │ + pgvector      │ │ Redis           │
+              │         │ (Multi-AZ)      │ │ (sessions/jobs) │
+              │         └─────────────────┘ └─────────────────┘
+              │                  │
+              │                  ▼
+              │         ┌─────────────────┐   ┌─────────────────┐
+              │         │ S3 (encrypted)  │   │ SQS + EventBridge│
+              │         │ medical reports │   │ reminders, embed │
+              │         └─────────────────┘   └─────────────────┘
+              │
+              └─ S3 bucket (static web build) or AWS Amplify Hosting
+
+     GenAI layer (inside VPC or via PrivateLink):
+     ┌──────────────────────────────────────────────────────────┐
+     │ Amazon Bedrock — Claude / Llama for chat + embeddings    │
+     │ Amazon Textract — advanced lab report parsing            │
+     │ Bedrock Knowledge Bases — managed RAG (alternative)      │
+     │ Bedrock Guardrails — safety + PII filters                │
+     └──────────────────────────────────────────────────────────┘
+
+     Observability:
+     CloudWatch Logs · Metrics · Alarms · X-Ray · (optional) Langfuse on ECS</div>
+
+      <h3 class="sub">AWS service mapping (Docker → AWS)</h3>
+      <table class="map-table">
+        <thead>
+          <tr>
+            <th>Local / today</th>
+            <th>AWS production equivalent</th>
+            <th>Why</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>Docker Compose API</td>
+            <td>ECS Fargate or EKS</td>
+            <td>Auto-scaling, health checks, zero server management</td>
+          </tr>
+          <tr>
+            <td>Vite dev server (web)</td>
+            <td>S3 + CloudFront or Amplify</td>
+            <td>Fast global CDN, HTTPS, cache static assets</td>
+          </tr>
+          <tr>
+            <td>Postgres + pgvector</td>
+            <td>RDS PostgreSQL 16 + pgvector extension</td>
+            <td>Managed backups, Multi-AZ, encryption at rest</td>
+          </tr>
+          <tr>
+            <td>Redis</td>
+            <td>ElastiCache Redis</td>
+            <td>Session cache, rate limits, job broker</td>
+          </tr>
+          <tr>
+            <td>MinIO</td>
+            <td>S3 (SSE-KMS)</td>
+            <td>HIPAA-eligible object storage, lifecycle policies</td>
+          </tr>
+          <tr>
+            <td>Groq / Gemini API keys</td>
+            <td>Amazon Bedrock (primary)</td>
+            <td>BAA coverage, VPC endpoints, no data retention options</td>
+          </tr>
+          <tr>
+            <td>SMTP in .env</td>
+            <td>Amazon SES</td>
+            <td>Deliverability, bounce handling, domain auth (DKIM)</td>
+          </tr>
+          <tr>
+            <td>Manual docker restart</td>
+            <td>CodePipeline / GitHub Actions → ECR → ECS deploy</td>
+            <td>Repeatable releases, rollback</td>
+          </tr>
+          <tr>
+            <td>JWT secret in .env</td>
+            <td>Secrets Manager + rotation</td>
+            <td>No secrets in images or git</td>
+          </tr>
+          <tr>
+            <td>—</td>
+            <td>AWS WAF + Shield</td>
+            <td>DDoS, bot protection on public APIs</td>
+          </tr>
+        </tbody>
+      </table>
+
+      <h3 class="sub">Suggested AWS implementation phases</h3>
+      <ol class="steps">
+        <li><strong>AWS Phase 1:</strong> Terraform/CDK — VPC, RDS, ElastiCache, S3, ECR, ECS Fargate (lift-and-shift API). <span class="pill pill-p1">Foundation</span></li>
+        <li><strong>AWS Phase 2:</strong> CloudFront + ACM + Route 53, Secrets Manager, SES, WAF on ALB.</li>
+        <li><strong>AWS Phase 3:</strong> SQS workers for report processing, embedding jobs, email queue.</li>
+        <li><strong>AWS Phase 4:</strong> Bedrock for LLM + embeddings + Guardrails; retire external API keys in prod.</li>
+        <li><strong>AWS Phase 5:</strong> Multi-AZ, read replicas, backup/DR runbook, CloudWatch dashboards + PagerDuty alerts.</li>
+      </ol>
+
+      <div class="risk-box">
+        <strong>Cost note:</strong> AWS is <em>not</em> free for production. See
+        <a href="#project-costs">full cost breakdown</a> and
+        <a href="#low-cost-complex">low-cost complex architecture</a> for budget-friendly options.
+      </div>
+    </section>
+
+    <section id="project-costs" class="cost-header">
+      <h2>Project Cost Breakdown (Estimates)</h2>
+      <p>
+        Indicative monthly costs for MediAI — <span class="highlight">USD, approximate</span>, low-traffic demo
+        (~50 patients, ~500 chat turns/month). AI and cloud costs scale with users and model usage.
+      </p>
+
+      <div class="cost-summary-grid">
+        <div class="cost-total-card tier-dev">
+          <div class="period">Local dev (today)</div>
+          <div class="amount">$0 – $15</div>
+          <div class="period">per month</div>
+        </div>
+        <div class="cost-total-card tier-budget">
+          <div class="period">Low-cost complex cloud</div>
+          <div class="amount">$25 – $80</div>
+          <div class="period">per month</div>
+        </div>
+        <div class="cost-total-card tier-aws">
+          <div class="period">Full AWS production</div>
+          <div class="amount">$250 – $1,500+</div>
+          <div class="period">per month</div>
+        </div>
+      </div>
+
+      <h3 class="sub">1. Current setup — local Docker (what you run now)</h3>
+      <table>
+        <thead>
+          <tr>
+            <th>Component</th>
+            <th>Service</th>
+            <th>Monthly cost</th>
+            <th>Notes</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>API + frontend + DB + Redis + MinIO</td>
+            <td>Docker Compose on your PC</td>
+            <td class="cost-cell cost-free">$0</td>
+            <td>Uses your machine RAM/CPU; electricity only</td>
+          </tr>
+          <tr>
+            <td>PostgreSQL + pgvector</td>
+            <td>Container (local)</td>
+            <td class="cost-cell cost-free">$0</td>
+            <td>Port 5433 on localhost</td>
+          </tr>
+          <tr>
+            <td>Domain name (optional)</td>
+            <td>Namecheap / Route 53</td>
+            <td class="cost-cell cost-low">$1 – $15</td>
+            <td>Not required for localhost demo</td>
+          </tr>
+          <tr>
+            <td>IDE / Cursor</td>
+            <td>Developer tool</td>
+            <td class="cost-cell cost-low">$0 – $20</td>
+            <td>Separate from app runtime</td>
+          </tr>
+          <tr>
+            <td><strong>Subtotal infrastructure</strong></td>
+            <td></td>
+            <td class="cost-cell cost-free"><strong>$0 – $15</strong></td>
+            <td></td>
+          </tr>
+        </tbody>
+      </table>
+
+      <h3 class="sub">2. LLM &amp; AI API costs (variable — main ongoing cost)</h3>
+      <table>
+        <thead>
+          <tr>
+            <th>Provider</th>
+            <th>Used for</th>
+            <th>Typical pricing</th>
+            <th>Est. monthly (demo traffic)</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>Groq</td>
+            <td>Primary chat (<code>llama-3.3-70b</code>)</td>
+            <td>Free tier + pay-per-token after limits</td>
+            <td class="cost-cell cost-free">$0 – $20</td>
+          </tr>
+          <tr>
+            <td>Google Gemini</td>
+            <td>Fallback / vision / reports</td>
+            <td>Free tier (Flash), then per 1M tokens</td>
+            <td class="cost-cell cost-free">$0 – $15</td>
+          </tr>
+          <tr>
+            <td>Embeddings (if RAG added)</td>
+            <td>OpenAI / Bedrock / local</td>
+            <td>~$0.02–$0.10 per 1M tokens</td>
+            <td class="cost-cell cost-low">$2 – $10</td>
+          </tr>
+          <tr>
+            <td>Report vision / OCR</td>
+            <td>Gemini multimodal or Textract</td>
+            <td>Per image / page</td>
+            <td class="cost-cell cost-low">$1 – $25</td>
+          </tr>
+          <tr>
+            <td><strong>Subtotal AI APIs</strong></td>
+            <td></td>
+            <td></td>
+            <td class="cost-cell cost-low"><strong>$0 – $70</strong></td>
+          </tr>
+        </tbody>
+      </table>
+      <p style="font-size: 0.88rem; margin-top: 0.5rem;">
+        <strong>Rule of thumb:</strong> ~500 chat turns × ~2k tokens/turn ≈ 1M tokens/month → roughly
+        <span class="cost-low">$1–$5</span> on cheap models, <span class="cost-mid">$15–$50</span> on premium models.
+        Urgent multi-agent turns use more tokens (supervisor + specialist + tools).
+      </p>
+
+      <h3 class="sub">3. Email &amp; notifications</h3>
+      <table>
+        <thead>
+          <tr>
+            <th>Service</th>
+            <th>Use in project</th>
+            <th>Monthly cost</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>SMTP (Gmail / SendGrid free)</td>
+            <td>OTP, appointment emails</td>
+            <td class="cost-cell cost-free">$0 – $15</td>
+          </tr>
+          <tr>
+            <td>Amazon SES</td>
+            <td>Production email at scale</td>
+            <td class="cost-cell cost-low">$1 – $10</td>
+          </tr>
+          <tr>
+            <td>SMS (Twilio / SNS) — not built yet</td>
+            <td>Reminders</td>
+            <td class="cost-cell cost-low">$5 – $30</td>
+          </tr>
+        </tbody>
+      </table>
+
+      <h3 class="sub">4. AWS deployment tiers (if you move to cloud)</h3>
+      <table>
+        <thead>
+          <tr>
+            <th>Tier</th>
+            <th>Architecture</th>
+            <th>Est. monthly</th>
+            <th>Best for</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><span class="pill pill-p1">Free / 12-mo</span></td>
+            <td>AWS Free Tier only (t2.micro EC2, 750h) — tight limits, not HIPAA-ready</td>
+            <td class="cost-cell cost-free">$0 – $10</td>
+            <td>Learning AWS basics only</td>
+          </tr>
+          <tr>
+            <td><span class="pill pill-p2">Budget AWS</span></td>
+            <td>1× Lightsail or small EC2, RDS db.t4g.micro, S3, no Multi-AZ</td>
+            <td class="cost-cell cost-low">$40 – $120</td>
+            <td>Small pilot, few users</td>
+          </tr>
+          <tr>
+            <td><span class="pill pill-p2">Standard AWS</span></td>
+            <td>ECS Fargate (2 tasks), RDS PostgreSQL, ElastiCache, S3, ALB, CloudFront</td>
+            <td class="cost-cell cost-mid">$200 – $500</td>
+            <td>Early production</td>
+          </tr>
+          <tr>
+            <td><span class="pill pill-p3">HA + Bedrock</span></td>
+            <td>Multi-AZ RDS, WAF, Bedrock LLM + embeddings, Guardrails, workers</td>
+            <td class="cost-cell cost-mid">$500 – $1,500</td>
+            <td>Clinical pilot with BAA</td>
+          </tr>
+          <tr>
+            <td><span class="pill pill-p4">Enterprise</span></td>
+            <td>EKS, Multi-AZ everything, HealthLake, Chime, 24/7 monitoring</td>
+            <td class="cost-cell cost-high">$2,000 – $10,000+</td>
+            <td>Hospital deployment</td>
+          </tr>
+        </tbody>
+      </table>
+
+      <h3 class="sub">5. AWS line-item reference (standard tier example)</h3>
+      <table>
+        <thead>
+          <tr>
+            <th>AWS service</th>
+            <th>Config (example)</th>
+            <th>Est. $/month</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr><td>ECS Fargate</td><td>2 tasks, 0.5 vCPU, 1 GB RAM, 24/7</td><td class="cost-cell">$35 – $60</td></tr>
+          <tr><td>RDS PostgreSQL</td><td>db.t4g.small, 20 GB, single-AZ</td><td class="cost-cell">$25 – $45</td></tr>
+          <tr><td>RDS Multi-AZ (upgrade)</td><td>Same instance ×2</td><td class="cost-cell">+$25 – $45</td></tr>
+          <tr><td>ElastiCache Redis</td><td>cache.t4g.micro</td><td class="cost-cell">$12 – $20</td></tr>
+          <tr><td>S3</td><td>Reports, 50 GB + requests</td><td class="cost-cell">$2 – $10</td></tr>
+          <tr><td>ALB</td><td>1 load balancer</td><td class="cost-cell">$18 – $25</td></tr>
+          <tr><td>CloudFront</td><td>Static frontend, low traffic</td><td class="cost-cell">$1 – $10</td></tr>
+          <tr><td>Route 53</td><td>1 hosted zone + queries</td><td class="cost-cell">$1 – $5</td></tr>
+          <tr><td>Secrets Manager</td><td>~5 secrets</td><td class="cost-cell">$2 – $4</td></tr>
+          <tr><td>CloudWatch</td><td>Logs + alarms</td><td class="cost-cell">$5 – $30</td></tr>
+          <tr><td>WAF</td><td>Web ACL + rules</td><td class="cost-cell">$10 – $25</td></tr>
+          <tr><td>Bedrock (Claude Haiku)</td><td>~2M input + 500k output tokens</td><td class="cost-cell">$5 – $40</td></tr>
+          <tr><td>Bedrock embeddings</td><td>~500k tokens indexed</td><td class="cost-cell">$1 – $5</td></tr>
+          <tr><td>Data transfer</td><td>Egress</td><td class="cost-cell">$5 – $20</td></tr>
+          <tr><td><strong>Typical total</strong></td><td></td><td class="cost-cell cost-mid"><strong>$150 – $350</strong></td></tr>
+        </tbody>
+      </table>
+
+      <h3 class="sub">6. One-time &amp; hidden costs</h3>
+      <ul>
+        <li><strong>Domain + SSL:</strong> $10–15/year (ACM on AWS is free for ALB/CloudFront)</li>
+        <li><strong>AWS BAA:</strong> no extra fee — but requires eligible services &amp; support plan for some enterprises</li>
+        <li><strong>Developer time:</strong> largest real cost for RAG, LangGraph, AWS migration</li>
+        <li><strong>Compliance audit:</strong> $5k–$50k+ if pursuing formal HIPAA certification (optional for demos)</li>
+        <li><strong>Third-party video:</strong> Twilio/Chime ~$0.001–0.004/min per participant when built</li>
+      </ul>
+
+      <div class="risk-box">
+        <strong>AWS Free Tier is NOT enough</strong> for this full stack long-term. It can offset a tiny EC2/RDS
+        experiment for ~12 months, but Bedrock, Fargate at scale, Multi-AZ, and WAF are always paid.
+      </div>
+    </section>
+
+    <section id="low-cost-complex" class="lowcost-header">
+      <h2>Low-Cost but Complex Architecture (Recommended for Budget)</h2>
+      <p>
+        Goal: keep <span class="highlight">multi-agent + RAG + production deploy</span> without full enterprise AWS bill.
+        Trade managed services for a single well-configured server + smart model choices.
+        This stack maps to <a href="#implementation-phases">Phase 1–4</a> (~$25–150/mo).
+      </p>
+
+      <div class="arch-flow">                    ┌──────────────────────────────────────┐
+                    │  Cloudflare (FREE) — DNS, SSL, CDN   │
+                    └──────────────────┬───────────────────┘
+                                       │
+                    ┌──────────────────▼───────────────────┐
+                    │  VPS — Hetzner / DO / Lightsail      │
+                    │  $6–12/mo (4 GB RAM) or $24/mo (8 GB)│
+                    │                                      │
+                    │  Docker Compose (same as today):       │
+                    │   • FastAPI API                        │
+                    │   • Nginx → React static build         │
+                    │   • Postgres + pgvector                │
+                    │   • Redis                              │
+                    │   • MinIO OR mount volume as S3-like   │
+                    │   • Celery worker (same VM)            │
+                    └──────────────────┬───────────────────┘
+                                       │
+              ┌────────────────────────┼────────────────────────┐
+              ▼                        ▼                        ▼
+        Groq (free/cheap)        Gemini free tier         Local embeddings
+        chat + routing             vision/reports          (sentence-transformers
+        LangGraph supervisor       fallback                on CPU — $0 API)
+        pgvector RAG               rule-based safety
+
+        Observability: self-hosted Langfuse (Docker) or free Sentry tier
+        CI/CD: GitHub Actions (free) → SSH deploy to VPS</div>
+
+      <h3 class="sub">What makes it still “complex”</h3>
+      <div class="two-col">
+        <div class="phase-card">
+          <h3><span class="pill pill-p1">Keep</span> GenAI complexity (software, not spend)</h3>
+          <ul>
+            <li>LangGraph supervisor + specialist subgraphs</li>
+            <li>pgvector RAG with hybrid full-text (Postgres only — no paid vector DB)</li>
+            <li>Retrieval agent + citation UI in doctor portal</li>
+            <li>Critic/safety agent (runs on same cheap LLM)</li>
+            <li>Semantic cache in Redis (reduce repeat LLM calls ~30–50%)</li>
+            <li>SSE streaming chat</li>
+          </ul>
+        </div>
+        <div class="phase-card">
+          <h3><span class="pill pill-p2">Skip or defer</span> (save money)</h3>
+          <ul>
+            <li>Amazon Bedrock → use Groq + Gemini free tiers first</li>
+            <li>ECS Fargate + Multi-AZ RDS → single VPS + daily pg_dump backups</li>
+            <li>ElastiCache → Redis container on same host</li>
+            <li>WAF / Shield → Cloudflare free WAF rules</li>
+            <li>Textract → pdfplumber + Gemini (already in project)</li>
+            <li>Paid rerankers → Postgres ts_rank + small cross-encoder on CPU</li>
+            <li>Multi-hop agentic RAG → Phase 2 after basic RAG works</li>
+          </ul>
+        </div>
+      </div>
+
+      <h3 class="sub">Low-cost stack monthly budget</h3>
+      <table>
+        <thead>
+          <tr>
+            <th>Item</th>
+            <th>Provider / choice</th>
+            <th>Cost</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr><td>VPS hosting</td><td>Hetzner CX22 / DO $12 / Lightsail $12</td><td class="cost-cell cost-low">$6 – $24</td></tr>
+          <tr><td>Domain</td><td>Any registrar</td><td class="cost-cell cost-low">~$1/mo</td></tr>
+          <tr><td>SSL + CDN + DDoS</td><td>Cloudflare Free</td><td class="cost-cell cost-free">$0</td></tr>
+          <tr><td>LLM APIs</td><td>Groq + Gemini free tiers, rate limits</td><td class="cost-cell cost-free">$0 – $20</td></tr>
+          <tr><td>Embeddings</td><td>Local model on VPS (no API)</td><td class="cost-cell cost-free">$0</td></tr>
+          <tr><td>Email OTP</td><td>SendGrid free (100/day) or Brevo</td><td class="cost-cell cost-free">$0 – $15</td></tr>
+          <tr><td>Backups</td><td>S3 Glacier / Backblaze B2</td><td class="cost-cell cost-low">$1 – $5</td></tr>
+          <tr><td>Monitoring</td><td>UptimeRobot free + Sentry free tier</td><td class="cost-cell cost-free">$0</td></tr>
+          <tr><td>CI/CD</td><td>GitHub Actions (public repo free)</td><td class="cost-cell cost-free">$0</td></tr>
+          <tr><td><strong>Total</strong></td><td></td><td class="cost-cell cost-low"><strong>$25 – $80/mo</strong></td></tr>
+        </tbody>
+      </table>
+
+      <h3 class="sub">Cost optimization tactics for AI</h3>
+      <ul>
+        <li><strong>Model routing:</strong> small/fast model for greetings &amp; booking; large model only for triage.</li>
+        <li><strong>Cache:</strong> Redis semantic cache for FAQ-style health education questions.</li>
+        <li><strong>Shorter prompts:</strong> RAG top-3 chunks only — not full patient history every turn.</li>
+        <li><strong>Batch embeddings:</strong> embed reports on upload (background), not during chat.</li>
+        <li><strong>Rules first:</strong> keep <code>emergency_detection.py</code> — avoids LLM call on clear emergencies.</li>
+        <li><strong>Token budgets:</strong> cap history to last N messages + summary blob.</li>
+        <li><strong>Dev/staging:</strong> stay on local Docker ($0); only prod VPS runs 24/7.</li>
+      </ul>
+
+      <h3 class="sub">When to upgrade from low-cost → AWS</h3>
+      <ol class="steps">
+        <li>Need signed <strong>AWS BAA</strong> and formal HIPAA for real patient PHI at scale</li>
+        <li>More than ~500–1000 daily active users or need auto-scaling</li>
+        <li>Require 99.9% SLA, Multi-AZ, dedicated security team integrations</li>
+        <li>Hospital asks for VPC isolation, private Bedrock, HealthLake/FHIR</li>
+      </ol>
+
+      <div class="phase-card" style="margin-top: 1rem;">
+        <h3><span class="pill pill-p1">Suggested path</span> Best value for this project</h3>
+        <p style="margin: 0; font-size: 0.9rem; color: var(--muted);">
+          <strong style="color: var(--text);">Phase A ($0):</strong> Build RAG + LangGraph locally on Docker.<br>
+          <strong style="color: var(--text);">Phase B (~$12/mo):</strong> Deploy to one VPS with Cloudflare — public demo URL.<br>
+          <strong style="color: var(--text);">Phase C (~$25–80/mo):</strong> Add local embeddings, Celery worker, backups, monitoring.<br>
+          <strong style="color: var(--text);">Phase D ($200+/mo):</strong> Migrate to AWS only when compliance or scale requires it.
+        </p>
+      </div>
+    </section>
+
+    <!-- ═══════════════════════════════════════════════════════════════════
+         MASTER IMPLEMENTATION PHASES — low-cost → full complex automation
+         ═══════════════════════════════════════════════════════════════════ -->
+
+    <section id="implementation-phases" class="impl-header">
+      <h2>Implementation Phases (Timeline)</h2>
+      <p>
+        Feature-level detail lives in the <a href="#existing-functionality">Existing Functionality</a> and
+        <a href="#new-enhancement">New Enhancement</a> panels above. This section is the build order, cost, and timeline.
+      </p>
+
+      <div class="arch-flow">PHASE 0 ──► PHASE 1 ──► PHASE 2 ──► PHASE 3 ──► PHASE 4 ──► PHASE 5 ──► PHASE 6
+  Polish      Low-cost      LangGraph     Advanced      Full auto     AWS prod      Enterprise
+  ✓ MOSTLY    ○ FUTURE      ○ FUTURE      ○ FUTURE      ○ FUTURE      ○ FUTURE      ○ FUTURE</div>
+
+      <h3 class="sub">Phase overview</h3>
+      <table>
+        <thead>
+          <tr>
+            <th>Phase</th>
+            <th>Name</th>
+            <th>Status today</th>
+            <th>Duration</th>
+            <th>Cost / mo</th>
+            <th>Complexity unlocked</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><strong>0</strong></td>
+            <td>Foundation &amp; stabilize</td>
+            <td class="status-col-partial">◐ Mostly done</td>
+            <td>1–2 weeks</td>
+            <td class="cost-cell cost-free">$0</td>
+            <td>Reliable demo on Docker</td>
+          </tr>
+          <tr>
+            <td><strong>1</strong></td>
+            <td>Low-cost complex deploy + RAG v1</td>
+            <td class="status-col-todo">○ Not started</td>
+            <td>3–5 weeks</td>
+            <td class="cost-cell cost-low">$25 – $80</td>
+            <td>Public URL, pgvector, grounded reports</td>
+          </tr>
+          <tr>
+            <td><strong>2</strong></td>
+            <td>Complex multi-agent core</td>
+            <td class="status-col-todo">○ Not started</td>
+            <td>4–6 weeks</td>
+            <td class="cost-cell cost-low">$25 – $100</td>
+            <td>LangGraph, streaming, structured triage</td>
+          </tr>
+          <tr>
+            <td><strong>3</strong></td>
+            <td>Advanced RAG + clinical depth</td>
+            <td class="status-col-todo">○ Not started</td>
+            <td>4–6 weeks</td>
+            <td class="cost-cell cost-low">$40 – $120</td>
+            <td>Hybrid search, citations, med safety</td>
+          </tr>
+          <tr>
+            <td><strong>4</strong></td>
+            <td>Full automation &amp; intelligence</td>
+            <td class="status-col-todo">○ Not started</td>
+            <td>6–8 weeks</td>
+            <td class="cost-cell cost-mid">$60 – $150</td>
+            <td>Proactive agents, eval, auto-docs</td>
+          </tr>
+          <tr>
+            <td><strong>5</strong></td>
+            <td>AWS production &amp; scale</td>
+            <td class="status-col-todo">○ Not started</td>
+            <td>6–10 weeks</td>
+            <td class="cost-cell cost-mid">$200 – $500</td>
+            <td>HA infra, Bedrock, workers, BAA path</td>
+          </tr>
+          <tr>
+            <td><strong>6</strong></td>
+            <td>Enterprise &amp; hospital-grade</td>
+            <td class="status-col-todo">○ Not started</td>
+            <td>8–12+ weeks</td>
+            <td class="cost-cell cost-high">$500 – $2k+</td>
+            <td>FHIR, SSO, clinical KB, multi-tenant</td>
+          </tr>
+        </tbody>
+      </table>
+
+      <h3 class="sub">Feature coverage matrix — status today vs future phases</h3>
+      <table class="coverage-table">
+        <thead>
+          <tr>
+            <th>Application capability</th>
+            <th>Status today</th>
+            <th>After Ph 1–2</th>
+            <th>After Ph 3–4</th>
+            <th>After Ph 5–6</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr><td>Patient AI chat + triage</td><td class="status-col-partial">◐ Working</td><td class="status-col-done">✓ Enhanced</td><td class="status-col-done">✓ Enhanced</td><td class="status-col-done">✓ Full</td></tr>
+          <tr><td>Guest → verify → resume flows</td><td class="status-col-done">✓ Working</td><td class="status-col-done">✓ Enhanced</td><td class="status-col-done">✓ Enhanced</td><td class="status-col-done">✓ Full</td></tr>
+          <tr><td>Emergency / urgent consult</td><td class="status-col-done">✓ Working</td><td class="status-col-done">✓ Working</td><td class="status-col-done">✓ Enhanced</td><td class="status-col-done">✓ Full</td></tr>
+          <tr><td>Booking / reschedule / cancel</td><td class="status-col-done">✓ Working</td><td class="status-col-done">✓ Enhanced</td><td class="status-col-done">✓ Enhanced</td><td class="status-col-done">✓ Full</td></tr>
+          <tr><td>Report upload + intelligent Q&amp;A</td><td class="status-col-partial">◐ LLM only</td><td class="status-col-done">✓ RAG</td><td class="status-col-done">✓ RAG+</td><td class="status-col-done">✓ Full</td></tr>
+          <tr><td>Grounded RAG with citations</td><td class="status-col-todo">○ Not yet</td><td class="status-col-partial">◐ Basic</td><td class="status-col-done">✓ Full</td><td class="status-col-done">✓ Full</td></tr>
+          <tr><td>Complex multi-agent (LangGraph)</td><td class="status-col-partial">◐ Supervisor</td><td class="status-col-done">✓ LangGraph</td><td class="status-col-done">✓ Full</td><td class="status-col-done">✓ Full</td></tr>
+          <tr><td>Doctor portal + consultation history</td><td class="status-col-done">✓ Working</td><td class="status-col-done">✓ Enhanced</td><td class="status-col-done">✓ Enhanced</td><td class="status-col-done">✓ Full</td></tr>
+          <tr><td>Auto SOAP + visit summaries</td><td class="status-col-todo">○ Not yet</td><td class="status-col-todo">○ Not yet</td><td class="status-col-done">✓ Working</td><td class="status-col-done">✓ Full</td></tr>
+          <tr><td>Proactive follow-up / reminders</td><td class="status-col-partial">◐ Basic</td><td class="status-col-partial">◐ Basic</td><td class="status-col-done">✓ Automated</td><td class="status-col-done">✓ Full</td></tr>
+          <tr><td>Refill workflow + med safety</td><td class="status-col-partial">◐ Basic</td><td class="status-col-partial">◐ Basic</td><td class="status-col-done">✓ Enhanced</td><td class="status-col-done">✓ Full</td></tr>
+          <tr><td>Full automation (minimal manual ops)</td><td class="status-col-todo">○ Not yet</td><td class="status-col-todo">○ Not yet</td><td class="status-col-done">✓ Working</td><td class="status-col-done">✓ Full</td></tr>
+          <tr><td>AI eval + safety regression in CI</td><td class="status-col-todo">○ Not yet</td><td class="status-col-partial">◐ Traces</td><td class="status-col-done">✓ In CI</td><td class="status-col-done">✓ Full</td></tr>
+          <tr><td>Public HTTPS production deploy</td><td class="status-col-todo">○ Not yet</td><td class="status-col-done">✓ VPS</td><td class="status-col-done">✓ VPS</td><td class="status-col-done">✓ AWS</td></tr>
+          <tr><td>AWS HA + BAA-ready infra</td><td class="status-col-todo">○ Not yet</td><td class="status-col-todo">○ Not yet</td><td class="status-col-todo">○ Not yet</td><td class="status-col-done">✓ Working</td></tr>
+          <tr><td>EHR / FHIR + enterprise SSO</td><td class="status-col-todo">○ Not yet</td><td class="status-col-todo">○ Not yet</td><td class="status-col-todo">○ Not yet</td><td class="status-col-done">✓ Working</td></tr>
+          <tr><td>Video / voice / WhatsApp channels</td><td class="status-col-partial">◐ UI only</td><td class="status-col-partial">◐ UI only</td><td class="status-col-partial">◐ Partial</td><td class="status-col-done">✓ Full</td></tr>
+        </tbody>
+      </table>
+      <p style="font-size: 0.82rem; color: var(--muted); margin-top: 0.5rem;">
+        <span class="impl-tag done">✓</span> Already implemented and working &nbsp;
+        <span class="impl-tag partial">◐</span> Partially done &nbsp;
+        <span class="impl-tag todo">○</span> Not implemented yet
+      </p>
+
+      <h3 class="sub">Recommended team &amp; timeline (solo → small team)</h3>
+      <table>
+        <thead>
+          <tr>
+            <th>Team size</th>
+            <th>Phase 0–2</th>
+            <th>Phase 3–4</th>
+            <th>Phase 5–6</th>
+            <th>Total to enterprise</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>1 developer (part-time)</td>
+            <td>3–4 months</td>
+            <td>4–5 months</td>
+            <td>6–8 months</td>
+            <td>~14–18 months</td>
+          </tr>
+          <tr>
+            <td>2 developers + 1 DevOps (part-time)</td>
+            <td>6–8 weeks</td>
+            <td>8–10 weeks</td>
+            <td>10–14 weeks</td>
+            <td>~7–9 months</td>
+          </tr>
+          <tr>
+            <td>Small product team (4–6 people)</td>
+            <td>4–5 weeks</td>
+            <td>6–8 weeks</td>
+            <td>8–12 weeks</td>
+            <td>~5–6 months</td>
+          </tr>
+        </tbody>
+      </table>
+
+      <h3 class="sub">What to build first (if you can only do 3 things)</h3>
+      <ol class="steps">
+        <li><strong>Phase 1 RAG + VPS deploy</strong> — biggest visible jump in quality and demo-ability (~$25/mo)</li>
+        <li><strong>Phase 2 LangGraph + streaming</strong> — true “complex multi-agent” feel without AWS cost</li>
+        <li><strong>Phase 4 automation</strong> — makes the app feel “fully automatic” for doctors and patients</li>
+      </ol>
+
+      <div class="risk-box">
+        <strong>Do not skip Phase 0.</strong> Adding LangGraph and RAG on an unstable base multiplies debugging cost.
+        <strong>Do not jump to Phase 5 AWS</strong> until Phase 1–4 work on a $12 VPS — proves architecture before cloud spend.
+      </div>
+    </section>
+
+    <section id="production-ops">
+      <h2>DevOps, Security &amp; Production Operations</h2>
+      <div class="two-col">
+        <div class="phase-card">
+          <h3>CI/CD &amp; release engineering</h3>
+          <ul>
+            <li>GitHub Actions: lint → pytest → Docker build → push ECR → deploy ECS</li>
+            <li>Environments: <code>dev</code> · <code>staging</code> · <code>prod</code> with separate RDS/S3</li>
+            <li>Database migrations via Alembic in deploy pipeline (with rollback plan)</li>
+            <li>Feature flags (LaunchDarkly / AWS AppConfig) for new agents without full deploy</li>
+            <li>Blue/green or rolling ECS deployments — zero-downtime API updates</li>
+          </ul>
+        </div>
+        <div class="phase-card">
+          <h3>Security &amp; compliance</h3>
+          <ul>
+            <li>Encryption: TLS in transit, KMS at rest (RDS, S3, Redis where supported)</li>
+            <li>IAM least-privilege roles per ECS task — no root keys in containers</li>
+            <li>Audit log table: who accessed which patient record, AI trace IDs</li>
+            <li>PHI redaction in application logs — never log raw chat or lab values</li>
+            <li>Penetration test + OWASP scan before go-live</li>
+            <li>Data retention policy + right-to-delete for patient accounts (GDPR-style)</li>
+          </ul>
+        </div>
+        <div class="phase-card">
+          <h3>Observability &amp; SRE</h3>
+          <ul>
+            <li><strong>LLM tracing:</strong> Langfuse, Arize Phoenix, or OpenTelemetry → CloudWatch</li>
+            <li>Per-conversation cost tracking (tokens, embedding calls, tool latency)</li>
+            <li>SLOs: chat p95 &lt; 5s, API uptime 99.9%, emergency detection 100% recall on test set</li>
+            <li>Synthetic monitors: health check + sample triage conversation every 5 min</li>
+            <li>Error tracking: Sentry for API + frontend</li>
+          </ul>
+        </div>
+        <div class="phase-card">
+          <h3>Reliability &amp; scale</h3>
+          <ul>
+            <li>Horizontal API scaling on CPU / request count (ECS auto-scaling)</li>
+            <li>Separate <strong>worker service</strong> for long jobs — never block chat request thread</li>
+            <li>Idempotent appointment booking (already important) + distributed locks via Redis</li>
+            <li>Load testing with Locust/k6 — target N concurrent chat sessions</li>
+            <li>RDS automated backups + tested restore procedure (RPO/RTO documented)</li>
+          </ul>
+        </div>
+      </div>
+    </section>
+
+    <section id="integrations">
+      <h2>Healthcare &amp; Product Integrations (High Value)</h2>
+      <table class="map-table">
+        <thead>
+          <tr>
+            <th>Integration</th>
+            <th>Status today</th>
+            <th>Production suggestion</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>FHIR / HL7 (EHR)</td>
+            <td>Readiness only</td>
+            <td>AWS HealthLake or FHIR server — sync patient demographics, meds, allergies</td>
+          </tr>
+          <tr>
+            <td>Video consult</td>
+            <td>Room IDs in DB</td>
+            <td>Amazon Chime SDK, Twilio Video, or Daily.co with waiting room + recording policy</td>
+          </tr>
+          <tr>
+            <td>SMS / push</td>
+            <td>Listed, not built</td>
+            <td>Amazon SNS / Pinpoint for OTP + appointment reminders</td>
+          </tr>
+          <tr>
+            <td>Calendar sync</td>
+            <td>Not built</td>
+            <td>Google Calendar / Outlook APIs for doctor availability truth source</td>
+          </tr>
+          <tr>
+            <td>Payment / insurance</td>
+            <td>Not built</td>
+            <td>Stripe + eligibility API (if commercial product)</td>
+          </tr>
+          <tr>
+            <td>WhatsApp / Telegram bot</td>
+            <td>Not built</td>
+            <td>Same agent backend, different channel adapter + session linking</td>
+          </tr>
+          <tr>
+            <td>Drug interaction DB</td>
+            <td>Not built</td>
+            <td>FDB / RxNorm API + medication safety agent</td>
+          </tr>
+          <tr>
+            <td>Identity / SSO</td>
+            <td>JWT + OTP</td>
+            <td>Cognito + hospital SAML/OIDC for enterprise clinics</td>
+          </tr>
+        </tbody>
+      </table>
+    </section>
+
+    <section id="master-roadmap" class="roadmap-header">
+      <h2>Master Roadmap — Priority Matrix (All Areas)</h2>
+      <p>
+        Consolidated view: what to implement first for maximum production impact.
+        Step-by-step build order with costs and exit criteria:
+        <a href="#implementation-phases">Full Implementation by Phases (0–6)</a>.
+      </p>
+      <table>
+        <thead>
+          <tr>
+            <th>Priority</th>
+            <th>Area</th>
+            <th>Initiative</th>
+            <th>Outcome</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><span class="pill pill-p1">P0</span></td>
+            <td>Cost</td>
+            <td>VPS + Cloudflare deploy; Groq/Gemini free tiers; local embeddings</td>
+            <td>Complex features at ~$25–80/mo</td>
+          </tr>
+          <tr>
+            <td><span class="pill pill-p2">P1</span></td>
+            <td>AWS</td>
+            <td>ECS + RDS + S3 + Secrets Manager + CI/CD</td>
+            <td>Deployable, secure production baseline (~$150–500/mo)</td>
+          </tr>
+          <tr>
+            <td><span class="pill pill-p1">P0</span></td>
+            <td>GenAI</td>
+            <td>Streaming chat + structured triage outputs</td>
+            <td>Better UX, fewer parse errors</td>
+          </tr>
+          <tr>
+            <td><span class="pill pill-p1">P0</span></td>
+            <td>RAG</td>
+            <td>pgvector chunking for reports + patient notes</td>
+            <td>Grounded answers with citations</td>
+          </tr>
+          <tr>
+            <td><span class="pill pill-p1">P0</span></td>
+            <td>Safety</td>
+            <td>Eval harness + emergency regression tests</td>
+            <td>Trustworthy medical assistant</td>
+          </tr>
+          <tr>
+            <td><span class="pill pill-p2">P2</span></td>
+            <td>AWS</td>
+            <td>Bedrock + Guardrails, SQS workers, CloudWatch</td>
+            <td>HIPAA-aligned AI, async scale (~$300+/mo)</td>
+          </tr>
+          <tr>
+            <td><span class="pill pill-p2">P1</span></td>
+            <td>Agents</td>
+            <td>LangGraph + retrieval agent + critic</td>
+            <td>Complex multi-agent orchestration</td>
+          </tr>
+          <tr>
+            <td><span class="pill pill-p2">P1</span></td>
+            <td>Ops</td>
+            <td>LLM tracing, cost per chat, audit logs</td>
+            <td>Operable at scale</td>
+          </tr>
+          <tr>
+            <td><span class="pill pill-p3">P2</span></td>
+            <td>RAG</td>
+            <td>Hybrid search + reranking + agentic loops</td>
+            <td>Advanced retrieval quality</td>
+          </tr>
+          <tr>
+            <td><span class="pill pill-p3">P2</span></td>
+            <td>Integrations</td>
+            <td>SES/SNS, Chime video, calendar sync</td>
+            <td>Complete patient journey</td>
+          </tr>
+          <tr>
+            <td><span class="pill pill-p4">P3</span></td>
+            <td>Enterprise</td>
+            <td>FHIR, Cognito SSO, clinical KB, multi-tenant</td>
+            <td>Hospital-grade platform</td>
+          </tr>
+        </tbody>
+      </table>
+
+      <h3 class="sub">Suggested 12-month evolution</h3>
+      <div class="arch-flow">Month 1–2   AWS foundation (ECS, RDS, S3, CI/CD) + production build of React
+Month 2–3   RAG Phase 1 (embed reports) + SSE streaming chat
+Month 3–4   LangGraph supervisor + LLM observability (Langfuse)
+Month 4–5   Bedrock migration + Guardrails + SQS workers
+Month 5–6   Hybrid RAG + citation UI in doctor portal
+Month 6–8   Critic agent + med safety + eval automation
+Month 8–10  Video (Chime), SNS reminders, calendar sync
+Month 10–12 FHIR pilot + enterprise SSO + clinical knowledge base</div>
+    </section>
+
+    <section id="decision-checklist">
+      <h2>Decision Checklist — “Are we ready to implement?”</h2>
+      <h3 class="sub">GenAI &amp; RAG</h3>
+      <ul>
+        <li>☐ pgvector chunk schema designed with patient_id isolation</li>
+        <li>☐ Embedding model chosen (dimension, cost, HIPAA compliance)</li>
+        <li>☐ Retrieval eval set: 50+ real patient Q&amp;A with expected source docs</li>
+        <li>☐ LangGraph graph diagram agreed for triage + booking</li>
+        <li>☐ Citation format defined for patient vs doctor views</li>
+        <li>☐ Observability stack (traces, retrieval logs) selected</li>
+        <li>☐ Monthly budget agreed: dev $0 · pilot $25–80 · AWS $200+</li>
+        <li>☐ LLM cost caps configured (token budget per conversation)</li>
+      </ul>
+      <h3 class="sub">AWS &amp; production</h3>
+      <ul>
+        <li>☐ AWS BAA signed (required before PHI in cloud)</li>
+        <li>☐ VPC + private subnets + NAT design documented</li>
+        <li>☐ IaC repo started (Terraform or AWS CDK)</li>
+        <li>☐ Staging environment mirrors prod topology</li>
+        <li>☐ Secrets Manager migration plan from .env</li>
+        <li>☐ RDS backup restore tested successfully</li>
+        <li>☐ WAF rules + rate limits on ALB configured</li>
+        <li>☐ CloudWatch alarms → on-call rotation defined</li>
+        <li>☐ React production build on CloudFront (not Vite dev server)</li>
+        <li>☐ Incident response runbook for AI safety failures</li>
+      </ul>
+    </section>
+
+    <footer class="doc-footer">
+      <strong>MediAI Healthcare Chatbot</strong> — Developer guide &amp; architecture roadmap<br>
+      Existing features reflect the current codebase · Enhancement sections are planning-only<br>
+      <span style="margin-top: 0.5rem; display: inline-block;">Also see <code>README.md</code> for setup details</span>
+    </footer>
+  </div>
+  <a href="#" class="back-top" title="Back to top" aria-label="Back to top">↑</a>
+</body>
+</html>

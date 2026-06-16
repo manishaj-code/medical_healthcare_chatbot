@@ -42,6 +42,9 @@ class NotificationType(str, enum.Enum):
     urgent_consult_request = "urgent_consult_request"
     urgent_consult_assigned = "urgent_consult_assigned"
     urgent_consult_superseded = "urgent_consult_superseded"
+    urgent_consult_declined = "urgent_consult_declined"
+    urgent_consult_expanded = "urgent_consult_expanded"
+    urgent_consult_unavailable = "urgent_consult_unavailable"
 
 
 class UrgentConsultRequestStatus(str, enum.Enum):

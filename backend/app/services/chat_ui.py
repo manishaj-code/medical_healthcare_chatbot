@@ -342,6 +342,10 @@ def build_urgent_consult_pending_ui(payload: dict) -> dict:
         "symptoms": payload.get("symptoms") or [],
         "doctors": payload.get("doctors") or [],
         "expires_at": payload.get("expires_at"),
+        "awaiting_count": payload.get("awaiting_count", 0),
+        "all_declined": payload.get("all_declined", False),
+        "availability_exhausted": payload.get("availability_exhausted", False),
+        "can_retry": payload.get("can_retry", False),
     }
 
 

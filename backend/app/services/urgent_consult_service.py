@@ -55,6 +55,7 @@ def _doctor_summary(doc: dict) -> dict:
         "experience_years": doc.get("experience_years"),
         "profile_image_url": doc.get("profile_image_url"),
         "hospital_name": doc.get("hospital_name"),
+        "offer_status": UrgentConsultOfferStatus.notified.value,
     }
 
 
@@ -110,8 +111,180 @@ def serialize_request(
         "apt_id": format_apt_id(request.appointment_id) if request.appointment_id else None,
         "join_url": join_url,
         "doctors": doctors or [],
+        "awaiting_count": 0,
+        "all_declined": False,
+        "availability_exhausted": False,
+        "can_retry": False,
     }
     return data
+
+
+async def _existing_offer_doctor_ids(db: AsyncSession, request_id: UUID) -> set[UUID]:
+    result = await db.execute(
+        select(UrgentConsultOffer.doctor_id).where(UrgentConsultOffer.request_id == request_id)
+    )
+    return set(result.scalars().all())
+
+
+async def _offer_stats(db: AsyncSession, request_id: UUID) -> dict[str, int]:
+    result = await db.execute(
+        select(UrgentConsultOffer.status).where(UrgentConsultOffer.request_id == request_id)
+    )
+    statuses = result.scalars().all()
+    return {
+        "notified": sum(1 for s in statuses if s == UrgentConsultOfferStatus.notified.value),
+        "declined": sum(1 for s in statuses if s == UrgentConsultOfferStatus.declined.value),
+        "total": len(statuses),
+    }
+
+
+async def _fetch_expandable_doctors(
+    db: AsyncSession,
+    request: UrgentConsultRequest,
+    exclude: set[UUID],
+) -> list[dict]:
+    from app.services.doctor_service import list_doctors_with_availability
+
+    specialties = [request.specialty]
+    if request.specialty.lower() != "general physician":
+        specialties.append("General Physician")
+
+    seen: set[UUID] = set()
+    candidates: list[dict] = []
+    for spec in specialties:
+        search = await tool_search_doctors(db, spec)
+        doctors = search.get("doctors") or []
+        if not doctors:
+            doctors = await list_doctors_with_availability(
+                db, specialty=spec, include_without_slots=True, slots_per_doctor=1
+            )
+        for doc in doctors:
+            doctor_id = UUID(str(doc["id"]))
+            if doctor_id in exclude or doctor_id in seen:
+                continue
+            seen.add(doctor_id)
+            candidates.append(doc)
+    return candidates
+
+
+async def _has_expandable_doctors(db: AsyncSession, request: UrgentConsultRequest) -> bool:
+    exclude = await _existing_offer_doctor_ids(db, request.id)
+    return bool(await _fetch_expandable_doctors(db, request, exclude))
+
+
+async def _attach_doctor_offers(
+    db: AsyncSession,
+    request: UrgentConsultRequest,
+    doctors: list[dict],
+    *,
+    limit: int = 12,
+) -> list[dict]:
+    symptoms = list(request.symptoms_json or [])
+    symptom_text = ", ".join(symptoms[:3]) if symptoms else "urgent symptoms"
+    existing_ids = await _existing_offer_doctor_ids(db, request.id)
+    notified: list[dict] = []
+    for doc in doctors:
+        if len(notified) >= limit:
+            break
+        doctor_id = UUID(str(doc["id"]))
+        if doctor_id in existing_ids:
+            continue
+        doctor_row = await db.get(Doctor, doctor_id)
+        if not doctor_row:
+            continue
+        db.add(
+            UrgentConsultOffer(
+                request_id=request.id,
+                doctor_id=doctor_id,
+                status=UrgentConsultOfferStatus.notified.value,
+            )
+        )
+        db.add(
+            Notification(
+                user_id=doctor_row.user_id,
+                type=NotificationType.urgent_consult_request,
+                message=(
+                    f"🚨 Urgent consult request: patient reports {symptom_text}. "
+                    "Tap Accept to start immediate video consultation."
+                ),
+            )
+        )
+        notified.append(_doctor_summary(doc))
+        existing_ids.add(doctor_id)
+    if notified:
+        await db.flush()
+    return notified
+
+
+async def _escalate_after_all_declined(db: AsyncSession, request: UrgentConsultRequest) -> dict:
+    """Notify more doctors when every current offer was declined."""
+    exclude = await _existing_offer_doctor_ids(db, request.id)
+    candidates = await _fetch_expandable_doctors(db, request, exclude)
+    patient = await db.get(Patient, request.patient_id)
+
+    if candidates:
+        new_doctors = await _attach_doctor_offers(db, request, candidates)
+        if patient and new_doctors:
+            count = len(new_doctors)
+            label = "specialist" if count == 1 else "specialists"
+            db.add(
+                Notification(
+                    user_id=patient.user_id,
+                    type=NotificationType.urgent_consult_expanded,
+                    message=(
+                        "All initially notified doctors were unavailable. "
+                        f"We've alerted {count} additional {label} for your urgent consult."
+                    ),
+                )
+            )
+        return {"expanded": bool(new_doctors), "new_count": len(new_doctors), "exhausted": not new_doctors}
+
+    if patient:
+        er_hint = ""
+        if request.risk_level in ("emergency", "high"):
+            er_hint = " If this is life-threatening, call emergency services (911) or go to the ER now."
+        db.add(
+            Notification(
+                user_id=patient.user_id,
+                type=NotificationType.urgent_consult_unavailable,
+                message=(
+                    "No doctors are available for immediate video consult right now."
+                    f"{er_hint} Please book an in-person appointment or try again shortly."
+                ),
+            )
+        )
+    return {"expanded": False, "new_count": 0, "exhausted": True}
+
+
+async def _serialize_for_patient(
+    db: AsyncSession,
+    request: UrgentConsultRequest,
+    *,
+    doctors: list[dict] | None = None,
+    accepted_doctor_name: str | None = None,
+    join_url: str | None = None,
+    appointment_id: str | None = None,
+) -> dict:
+    doctor_rows = doctors if doctors is not None else await _notified_doctors_for_request(db, request.id)
+    payload = serialize_request(
+        request,
+        doctors=doctor_rows,
+        accepted_doctor_name=accepted_doctor_name,
+        join_url=join_url,
+        appointment_id=appointment_id,
+    )
+    if request.status == UrgentConsultRequestStatus.pending.value:
+        stats = await _offer_stats(db, request.id)
+        awaiting = stats["notified"]
+        all_declined = stats["total"] > 0 and awaiting == 0
+        can_expand = all_declined and await _has_expandable_doctors(db, request)
+        payload.update({
+            "awaiting_count": awaiting,
+            "all_declined": all_declined,
+            "availability_exhausted": all_declined and not can_expand,
+            "can_retry": all_declined and can_expand,
+        })
+    return payload
 
 
 def _patient_profile_dict(patient: Patient, user: User) -> dict:
@@ -191,8 +364,7 @@ async def _get_active_pending_request(
 
 
 async def _payload_for_request(db: AsyncSession, request: UrgentConsultRequest) -> dict:
-    doctors = await _notified_doctors_for_request(db, request.id)
-    return serialize_request(request, doctors=doctors)
+    return await _serialize_for_patient(db, request)
 
 
 async def create_urgent_request(
@@ -232,33 +404,8 @@ async def create_urgent_request(
             db, specialty=specialty, include_without_slots=True, slots_per_doctor=1
         )
 
-    notified: list[dict] = []
-    for doc in doctors[:12]:
-        doctor_id = UUID(str(doc["id"]))
-        doctor_row = await db.get(Doctor, doctor_id)
-        if not doctor_row:
-            continue
-        offer = UrgentConsultOffer(
-            request_id=request.id,
-            doctor_id=doctor_id,
-            status=UrgentConsultOfferStatus.notified.value,
-        )
-        db.add(offer)
-        symptom_text = ", ".join(symptoms[:3]) if symptoms else "urgent symptoms"
-        db.add(
-            Notification(
-                user_id=doctor_row.user_id,
-                type=NotificationType.urgent_consult_request,
-                message=(
-                    f"🚨 Urgent consult request: patient reports {symptom_text}. "
-                    f"Tap Accept to start immediate video consultation."
-                ),
-            )
-        )
-        notified.append(_doctor_summary(doc))
-
-    await db.flush()
-    return serialize_request(request, doctors=notified)
+    notified = await _attach_doctor_offers(db, request, doctors)
+    return await _serialize_for_patient(db, request, doctors=notified)
 
 
 async def get_request_for_patient(
@@ -273,21 +420,20 @@ async def get_request_for_patient(
     accepted_name = None
     join_url = None
     appointment_id = None
-    doctors = await _notified_doctors_for_request(db, request.id)
 
     if request.status == UrgentConsultRequestStatus.assigned.value and request.appointment_id:
         appointment_id = str(request.appointment_id)
         if request.accepted_doctor_id:
             accepted_name = await _doctor_name(db, request.accepted_doctor_id)
-        patient = await db.get(Patient, patient_id)
-        user = await db.get(User, patient.user_id) if patient else None
+        patient_user = await db.get(Patient, patient_id)
+        user = await db.get(User, patient_user.user_id) if patient_user else None
         appt = await db.get(Appointment, request.appointment_id)
         if appt and appt.video_room_id and user:
             join_url = build_join_url(appt.video_room_id, user.name.split()[0])
 
-    return serialize_request(
+    return await _serialize_for_patient(
+        db,
         request,
-        doctors=doctors,
         accepted_doctor_name=accepted_name,
         join_url=join_url,
         appointment_id=appointment_id,
@@ -500,10 +646,90 @@ async def decline_urgent_request(db: AsyncSession, doctor_id: UUID, request_id: 
         raise HTTPException(status_code=404, detail="Offer not found")
     if offer.status != UrgentConsultOfferStatus.notified.value:
         return {"success": True, "status": offer.status}
+
+    request = await _load_request(db, request_id)
+    doctor_name = await _doctor_name(db, doctor_id) or "A doctor"
+    other_pending = await db.execute(
+        select(UrgentConsultOffer.id).where(
+            UrgentConsultOffer.request_id == request_id,
+            UrgentConsultOffer.doctor_id != doctor_id,
+            UrgentConsultOffer.status == UrgentConsultOfferStatus.notified.value,
+        )
+    )
+    still_waiting = len(other_pending.scalars().all())
+
     offer.status = UrgentConsultOfferStatus.declined.value
     offer.responded_at = datetime.now(timezone.utc)
+
+    escalation: dict | None = None
+    if request.status == UrgentConsultRequestStatus.pending.value:
+        patient = await db.get(Patient, request.patient_id)
+        if patient:
+            if still_waiting > 0:
+                others = "another specialist" if still_waiting == 1 else "other specialists"
+                db.add(
+                    Notification(
+                        user_id=patient.user_id,
+                        type=NotificationType.urgent_consult_declined,
+                        message=(
+                            f"{doctor_name} declined your urgent consult request. "
+                            f"We're still waiting for {others} to approve."
+                        ),
+                    )
+                )
+            else:
+                escalation = await _escalate_after_all_declined(db, request)
+
     await db.flush()
-    return {"success": True, "status": offer.status}
+    result = {"success": True, "status": offer.status}
+    if escalation:
+        result["escalation"] = escalation
+    return result
+
+
+async def retry_urgent_broadcast(
+    db: AsyncSession,
+    patient_id: UUID,
+    request_id: UUID,
+) -> dict:
+    request = await _load_request(db, request_id)
+    if request.patient_id != patient_id:
+        raise HTTPException(status_code=404, detail="Urgent consult request not found")
+    if request.status != UrgentConsultRequestStatus.pending.value:
+        raise HTTPException(status_code=409, detail="This urgent consult request is no longer pending.")
+    if request.expires_at <= datetime.now(timezone.utc):
+        request.status = UrgentConsultRequestStatus.expired.value
+        raise HTTPException(status_code=410, detail="This urgent consult request has expired.")
+
+    stats = await _offer_stats(db, request.id)
+    if stats["notified"] > 0:
+        return await _serialize_for_patient(db, request)
+
+    if not await _has_expandable_doctors(db, request):
+        patient = await db.get(Patient, request.patient_id)
+        if patient:
+            er_hint = ""
+            if request.risk_level in ("emergency", "high"):
+                er_hint = " If this is life-threatening, call emergency services (911) or go to the ER now."
+            db.add(
+                Notification(
+                    user_id=patient.user_id,
+                    type=NotificationType.urgent_consult_unavailable,
+                    message=(
+                        "No additional doctors are available for immediate video consult."
+                        f"{er_hint} Please book an in-person appointment."
+                    ),
+                )
+            )
+            await db.flush()
+        payload = await _serialize_for_patient(db, request)
+        payload["availability_exhausted"] = True
+        payload["can_retry"] = False
+        return payload
+
+    await _escalate_after_all_declined(db, request)
+    await db.flush()
+    return await _serialize_for_patient(db, request)
 
 
 async def _load_request(db: AsyncSession, request_id: UUID) -> UrgentConsultRequest:

@@ -7264,6 +7264,22 @@ th { font-weight: 600; background: #f8f9fa; }
   box-shadow: 0 8px 28px rgba(0, 104, 95, 0.12);
 }
 
+.patient-urgent-card--exhausted {
+  border-color: rgba(220, 38, 38, 0.22);
+  background: linear-gradient(180deg, #fff5f5 0%, #fff1f2 100%);
+  box-shadow: 0 8px 28px rgba(220, 38, 38, 0.08);
+}
+
+.patient-urgent-card--exhausted .patient-urgent-kicker {
+  color: #b91c1c;
+}
+
+.patient-urgent-er--strong {
+  background: linear-gradient(90deg, #fef2f2, #fee2e2);
+  border-bottom-color: rgba(220, 38, 38, 0.2);
+  color: #7f1d1d;
+}
+
 .patient-urgent-er {
   display: flex;
   gap: 10px;
@@ -7424,6 +7440,17 @@ th { font-weight: 600; background: #f8f9fa; }
   color: #c2410c;
 }
 
+.patient-urgent-step--failed {
+  color: #b91c1c;
+  font-weight: 700;
+}
+
+.patient-urgent-step--failed .patient-urgent-step-dot {
+  background: #fee2e2;
+  color: #b91c1c;
+  border-color: rgba(220, 38, 38, 0.35);
+}
+
 .patient-urgent-step-dot {
   width: 26px;
   height: 26px;
@@ -7536,6 +7563,29 @@ th { font-weight: 600; background: #f8f9fa; }
   white-space: nowrap;
 }
 
+.patient-urgent-doctor-status--awaiting {
+  color: #c2410c !important;
+}
+
+.patient-urgent-doctor-status--approved {
+  color: #059669 !important;
+}
+
+.patient-urgent-doctor-status--declined {
+  color: #94a3b8 !important;
+}
+
+.patient-urgent-doctor-status--superseded {
+  color: #64748b !important;
+  text-transform: none;
+  letter-spacing: 0;
+  font-size: 0.62rem !important;
+  max-width: 7rem;
+  white-space: normal;
+  text-align: right;
+  line-height: 1.25;
+}
+
 .patient-urgent-doctor-ready {
   display: flex;
   gap: 12px;
@@ -7629,6 +7679,51 @@ th { font-weight: 600; background: #f8f9fa; }
   40% { transform: scale(1); opacity: 1; }
 }
 
+.patient-urgent-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin: 14px 16px 16px;
+}
+
+.patient-urgent-retry-btn,
+.patient-urgent-book-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  width: 100%;
+  padding: 13px 16px;
+  border-radius: 14px;
+  font-weight: 700;
+  font-size: 0.9rem;
+  cursor: pointer;
+  border: none;
+  transition: transform 0.15s, box-shadow 0.15s;
+}
+
+.patient-urgent-retry-btn {
+  background: linear-gradient(135deg, #ea580c, #f97316);
+  color: #fff;
+  box-shadow: 0 4px 16px rgba(234, 88, 12, 0.3);
+}
+
+.patient-urgent-book-btn {
+  background: #fff;
+  color: #00685f;
+  border: 2px solid rgba(0, 104, 95, 0.35);
+}
+
+.patient-urgent-retry-btn:hover:not(:disabled),
+.patient-urgent-book-btn:hover {
+  transform: translateY(-1px);
+}
+
+.patient-urgent-retry-btn:disabled {
+  opacity: 0.7;
+  cursor: wait;
+}
+
 @media (max-width: 560px) {
   .patient-urgent-steps {
     grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -7697,49 +7792,6 @@ th { font-weight: 600; background: #f8f9fa; }
   flex-wrap: wrap;
   gap: 0.5rem;
   margin-top: 0.75rem;
-}
-
-.dp-urgent-tabs {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.5rem;
-  margin: 0.75rem 0 1rem;
-}
-
-.dp-urgent-tab {
-  border: 1px solid #cbd5e1;
-  background: #fff;
-  color: #334155;
-  border-radius: 999px;
-  padding: 0.35rem 0.85rem;
-  font-size: 0.82rem;
-  cursor: pointer;
-  display: inline-flex;
-  align-items: center;
-  gap: 0.35rem;
-}
-
-.dp-urgent-tab--active {
-  background: #0f5c4c;
-  border-color: #0f5c4c;
-  color: #fff;
-}
-
-.dp-urgent-tab-count {
-  min-width: 1.25rem;
-  height: 1.25rem;
-  border-radius: 999px;
-  background: rgba(255, 255, 255, 0.2);
-  font-size: 0.72rem;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  padding: 0 0.25rem;
-}
-
-.dp-urgent-tab:not(.dp-urgent-tab--active) .dp-urgent-tab-count {
-  background: #e2e8f0;
-  color: #334155;
 }
 
 .dp-urgent-empty {

@@ -14,6 +14,12 @@ export function typeLabel(type: string): string {
   if (type === "booking_confirmation") return "Appointment";
   if (type === "reminder" || type === "reminder_scheduled") return "Reminder";
   if (type === "video_consultation") return "Video consult";
+  if (type === "urgent_consult_assigned") return "Urgent consult approved";
+  if (type === "urgent_consult_declined") return "Urgent consult update";
+  if (type === "urgent_consult_expanded") return "More doctors notified";
+  if (type === "urgent_consult_unavailable") return "No doctors available";
+  if (type === "urgent_consult_request") return "Urgent consult";
+  if (type === "urgent_consult_superseded") return "Urgent consult";
   if (type === "cancellation") return "Cancelled";
   if (type === "system") return "System";
   return "Update";
@@ -26,6 +32,11 @@ export function typeIcon(type: string): string {
   if (type === "booking_confirmation") return "event";
   if (type === "reminder" || type === "reminder_scheduled") return "alarm";
   if (type === "video_consultation") return "videocam";
+  if (type === "urgent_consult_assigned") return "check_circle";
+  if (type === "urgent_consult_declined") return "person_cancel";
+  if (type === "urgent_consult_expanded") return "group_add";
+  if (type === "urgent_consult_unavailable") return "error";
+  if (type === "urgent_consult_request" || type === "urgent_consult_superseded") return "emergency";
   if (type === "cancellation") return "event_busy";
   if (type === "system") return "info";
   return "notifications";

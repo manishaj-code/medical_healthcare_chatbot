@@ -4,7 +4,7 @@ import { clearTokens } from "../../api/client";
 import NotificationDropdown from "../NotificationDropdown";
 import "../../styles/doctor-portal.css";
 
-export type DoctorTab = "overview" | "refills" | "patients" | "appointments" | "slots";
+export type DoctorTab = "overview" | "refills" | "patients" | "appointments" | "history" | "slots";
 
 export interface DoctorOutletContext {
   search: string;
@@ -16,6 +16,7 @@ const NAV: { tab?: DoctorTab; to?: string; label: string; icon: string; hash?: s
   { tab: "overview", to: "/doctor", label: "Dashboard", icon: "dashboard" },
   { tab: "overview", label: "Schedule", icon: "event", hash: "#schedule" },
   { tab: "patients", label: "Patients", icon: "group" },
+  { tab: "history", label: "Consultation history", icon: "history" },
   { tab: "refills", label: "Refills", icon: "medication" },
   { tab: "slots", label: "Availability", icon: "schedule" },
 ];

@@ -387,11 +387,17 @@ export default function DoctorUrgentConsultPanel() {
     async (silent = false) => {
       if (!silent) setRefreshing(true);
       try {
-        const [pendingRows, historyRows] = await Promise.all([loadPending(), loadHistory()]);
-        setPending(pendingRows);
-        setHistory(historyRows);
-      } catch (err) {
-        console.error(err);
+        const [pendingResult, historyResult] = await Promise.allSettled([loadPending(), loadHistory()]);
+        if (pendingResult.status === "fulfilled") {
+          setPending(pendingResult.value);
+        } else {
+          console.error(pendingResult.reason);
+        }
+        if (historyResult.status === "fulfilled") {
+          setHistory(historyResult.value);
+        } else {
+          console.error(historyResult.reason);
+        }
       } finally {
         setLoading(false);
         setRefreshing(false);
@@ -407,6 +413,13 @@ export default function DoctorUrgentConsultPanel() {
     }, 5000);
     return () => window.clearInterval(timer);
   }, [loadAll, loadPending]);
+
+  useEffect(() => {
+    if (tab === "pending") return;
+    void loadHistory()
+      .then(setHistory)
+      .catch(console.error);
+  }, [tab, loadHistory]);
 
   const accept = async (requestId: string) => {
     setActingId(requestId);
@@ -438,19 +451,12 @@ export default function DoctorUrgentConsultPanel() {
     setActingId(null);
   };
 
-  const historyCount = history.attended.length + history.declined.length + history.missed.length;
-  const hasAny = pending.length > 0 || historyCount > 0;
-
-  if (loading && !hasAny) {
+  if (loading) {
     return (
       <section className="dp-panel dp-urgent-panel dp-urgent-panel--loading">
         <div className="dp-urgent-skeleton" />
       </section>
     );
-  }
-
-  if (!hasAny) {
-    return null;
   }
 
   const tabs: { id: UrgentTab; count: number }[] = [

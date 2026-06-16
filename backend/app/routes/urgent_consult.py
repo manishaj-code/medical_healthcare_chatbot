@@ -7,7 +7,11 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.database import get_current_user, get_db, get_patient_profile
 from app.models import Patient, User
 from app.schemas.common import ResponseEnvelope
-from app.services.urgent_consult_service import create_urgent_request, get_request_for_patient
+from app.services.urgent_consult_service import (
+    create_urgent_request,
+    get_request_for_patient,
+    retry_urgent_broadcast,
+)
 
 router = APIRouter(prefix="/urgent-consult", tags=["urgent-consult"])
 
@@ -47,4 +51,15 @@ async def get_request(
     db: AsyncSession = Depends(get_db),
 ):
     payload = await get_request_for_patient(db, patient.id, request_id)
+    return ResponseEnvelope(data=payload)
+
+
+@router.post("/requests/{request_id}/retry")
+async def retry_request_broadcast(
+    request_id: UUID,
+    patient: Patient = Depends(get_patient_profile),
+    db: AsyncSession = Depends(get_db),
+):
+    payload = await retry_urgent_broadcast(db, patient.id, request_id)
+    await db.commit()
     return ResponseEnvelope(data=payload)

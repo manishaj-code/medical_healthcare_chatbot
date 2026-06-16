@@ -2,6 +2,9 @@ import { useEffect, useRef, useState } from "react";
 import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { api } from "../../api/client";
 import DoctorAppointmentsSections from "../../components/doctor/DoctorAppointmentsSections";
+import DoctorPatientVisitRecords, {
+  type VisitRecordsPayload,
+} from "../../components/doctor/DoctorPatientVisitRecords";
 import DoctorChatHistory from "../../components/doctor/DoctorChatHistory";
 import DoctorPatientConsultSummary, {
   type ConsultationSummaryData,
@@ -11,6 +14,7 @@ import {
   ageFromDob,
   formatDisplayDate,
   formatDoctorTime,
+  isUpcomingAppointment,
   patientCaseId,
   patientInitials,
   todayIso,
@@ -64,6 +68,7 @@ export default function PatientDetail() {
   const [reports, setReports] = useState<ReportRow[]>([]);
   const [healthVitals, setHealthVitals] = useState<HealthVital[]>([]);
   const [consultSummary, setConsultSummary] = useState<ConsultationSummaryData | null>(null);
+  const [visitRecords, setVisitRecords] = useState<VisitRecordsPayload | null>(null);
   const [loading, setLoading] = useState(true);
   const viewRef = useRef<HTMLDivElement>(null);
 
@@ -84,15 +89,17 @@ export default function PatientDetail() {
       api<PatientConversation[]>(`/api/v1/doctor/patients/${patientId}/conversations`),
       api<ReportRow[]>(`/api/v1/doctor/patients/${patientId}/reports`).catch(() => []),
       api<ConsultationSummaryData>(`/api/v1/doctor/patients/${patientId}/consultation-summary`).catch(() => null),
+      api<VisitRecordsPayload>(`/api/v1/doctor/patients/${patientId}/visit-records`).catch(() => null),
       api<{ vitals: HealthVital[] }>(`/api/v1/doctor/patients/${patientId}/health-vitals`).catch(() => ({
         vitals: [],
       })),
     ])
-      .then(([d, chats, reps, consult, vitalsRes]) => {
+      .then(([d, chats, reps, consult, visits, vitalsRes]) => {
         setDetail(d);
         setConversations(chats);
         setReports(reps);
         setConsultSummary(consult);
+        setVisitRecords(visits);
         setHealthVitals(vitalsRes.vitals ?? []);
       })
       .catch((err) => {
@@ -101,6 +108,27 @@ export default function PatientDetail() {
       })
       .finally(() => setLoading(false));
   }, [patientId]);
+
+  const reloadVisitRecords = async () => {
+    if (!patientId) return;
+    const visits = await api<VisitRecordsPayload>(`/api/v1/doctor/patients/${patientId}/visit-records`);
+    setVisitRecords(visits);
+    const d = await api<PatientDetailData>(`/api/v1/doctor/patients/${patientId}`);
+    setDetail(d);
+  };
+
+  const markAppointmentCompleted = async (appointmentId: string) => {
+    await api(`/api/v1/doctor/appointments/${appointmentId}/complete`, { method: "POST" });
+    await reloadVisitRecords();
+  };
+
+  const markAppointmentCancelled = async (appointmentId: string) => {
+    await api(`/api/v1/doctor/appointments/${appointmentId}/cancel`, {
+      method: "POST",
+      body: JSON.stringify({ reason: "Cancelled by doctor — patient did not attend or visit closed." }),
+    });
+    await reloadVisitRecords();
+  };
 
   useEffect(() => {
     if (tab !== "summary" && !loading) {
@@ -130,7 +158,7 @@ export default function PatientDetail() {
 
   const age = ageFromDob(detail.dob);
   const upcoming = detail.appointments
-    .filter((a) => a.date >= todayIso() && a.status !== "cancelled")
+    .filter((a) => isUpcomingAppointment(a.date, a.time, a.status))
     .sort((a, b) => `${a.date}${a.time}`.localeCompare(`${b.date}${b.time}`))[0];
 
   const hasEmergency = consultSummary?.emergency_flag || conversations.some((c) => c.emergency_flag);
@@ -145,7 +173,7 @@ export default function PatientDetail() {
   const tabs: { id: PatientTab; label: string; icon: string }[] = [
     { id: "summary", label: "Overview", icon: "info" },
     { id: "chats", label: `Chat history (${conversations.length})`, icon: "forum" },
-    { id: "appointments", label: "Appointments", icon: "event" },
+    { id: "appointments", label: "Consultations", icon: "medical_services" },
   ];
 
   return (
@@ -411,25 +439,28 @@ export default function PatientDetail() {
         )}
 
         {tab === "appointments" && (
-          <div className="dp-glass">
-            <div className="dp-panel-head">
-              <h2 className="dp-panel-title">Appointments with you</h2>
-              <span className="dp-muted-note" style={{ margin: 0 }}>
-                {detail.appointments.length} total
-              </span>
-            </div>
-            {detail.appointments.length === 0 ? (
-              <div className="dp-empty">
-                <div className="dp-empty-icon">
-                  <span className="material-symbols-outlined">event_busy</span>
+          <section className="dp-panel dp-visit-panel">
+            <div className="dp-visit-panel-head">
+              <div className="dp-visit-panel-intro">
+                <span className="dp-visit-panel-icon material-symbols-outlined">medical_services</span>
+                <div>
+                  <h2 className="dp-panel-title">Consultation records</h2>
+                  <p className="dp-panel-desc">
+                    Visit timeline, triage summaries, clinical notes, and patient context for {detail.name}.
+                  </p>
                 </div>
-                <p className="dp-empty-title">No appointments</p>
-                <p>No visits scheduled with this patient yet.</p>
               </div>
+            </div>
+            {visitRecords ? (
+              <DoctorPatientVisitRecords
+                data={visitRecords}
+                onMarkCompleted={markAppointmentCompleted}
+                onMarkCancelled={markAppointmentCancelled}
+              />
             ) : (
               <DoctorAppointmentsSections appointments={detail.appointments} showPatient={false} />
             )}
-          </div>
+          </section>
         )}
       </div>
     </>

@@ -76,6 +76,16 @@ export function isActiveAppointmentStatus(status: string): boolean {
   return s !== "cancelled" && s !== "canceled";
 }
 
+/** Future slot with a non-terminal status (confirmed, pending, etc.). */
+export function isUpcomingAppointment(date: string, time: string, status: string): boolean {
+  return isActiveAppointmentStatus(status) && !isAppointmentPast(date, time);
+}
+
+/** Slot time has passed but visit was never completed or cancelled. */
+export function isOverdueAppointment(date: string, time: string, status: string): boolean {
+  return isActiveAppointmentStatus(status) && isAppointmentPast(date, time);
+}
+
 export function queueVisitMetaForDate(iso: string, time: string, patientId: string, today = todayIso()): string {
   const when = formatDoctorTime(time);
   const caseId = patientCaseId(patientId);

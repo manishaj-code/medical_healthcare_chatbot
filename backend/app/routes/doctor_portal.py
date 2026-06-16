@@ -28,6 +28,7 @@ from app.services.symptom_extraction import resolve_detected_symptoms
 from app.models import DoctorAvailability
 from app.models.enums import AppointmentStatus
 from app.schemas.common import ResponseEnvelope
+from app.services.appointment_service import cancel_appointment_by_doctor, format_apt_id
 from app.services.doctor_service import create_default_availability, get_availability
 from app.schemas.notifications import (
     MarkNotificationsReadRequest,
@@ -51,6 +52,10 @@ from app.services.urgent_consult_service import (
     list_pending_for_doctor,
     list_urgent_consult_history_for_doctor,
 )
+from app.services.visit_records_service import (
+    list_consultation_history_for_doctor,
+    list_visit_records_for_doctor,
+)
 
 router = APIRouter(prefix="/doctor", tags=["doctor-portal"])
 
@@ -69,6 +74,10 @@ class SOAPNote(BaseModel):
 
 
 class RefillDenyRequest(BaseModel):
+    reason: str | None = None
+
+
+class AppointmentStatusUpdateRequest(BaseModel):
     reason: str | None = None
 
 
@@ -207,9 +216,13 @@ async def patient_detail(
     appointments = [
         {
             "appointment_id": str(a.id),
+            "apt_id": format_apt_id(a.id),
             "date": str(a.slot_date),
             "time": str(a.slot_time),
             "status": a.status.value if hasattr(a.status, "value") else str(a.status),
+            "completed_at": a.completed_at.isoformat() if a.completed_at else None,
+            "consultation_mode": a.consultation_mode or "in_person",
+            "is_video": bool(a.video_room_id),
         }
         for a in appt_rows.scalars().all()
     ]
@@ -244,10 +257,33 @@ async def patient_summary(
     if not await _verify_access(db, doctor.id, patient_id):
         raise HTTPException(status_code=403, detail="Forbidden")
     result = await db.execute(
-        select(PatientSummary).where(PatientSummary.patient_id == patient_id).order_by(PatientSummary.generated_at.desc()).limit(1)
+        select(PatientSummary)
+        .where(PatientSummary.patient_id == patient_id)
+        .order_by(PatientSummary.generated_at.desc())
+        .limit(1)
     )
     summary = result.scalar_one_or_none()
     return ResponseEnvelope(data={"summary": summary.summary_text if summary else "No summary yet"})
+
+
+@router.get("/consultation-history")
+async def doctor_consultation_history(
+    doctor: Doctor = Depends(get_doctor_profile),
+    db: AsyncSession = Depends(get_db),
+):
+    """All patient visits for this doctor with symptoms, medications, and consult notes."""
+    data = await list_consultation_history_for_doctor(db, doctor.id)
+    return ResponseEnvelope(data=data)
+
+
+@router.get("/patients/{patient_id}/visit-records")
+async def patient_visit_records(
+    patient_id: UUID, doctor: Doctor = Depends(get_doctor_profile), db: AsyncSession = Depends(get_db)
+):
+    if not await _verify_access(db, doctor.id, patient_id):
+        raise HTTPException(status_code=403, detail="Forbidden")
+    data = await list_visit_records_for_doctor(db, doctor.id, patient_id)
+    return ResponseEnvelope(data=data)
 
 
 @router.get("/patients/{patient_id}/consultation-summary")
@@ -431,11 +467,35 @@ async def complete_appointment(
 ):
     appt = await db.get(Appointment, appointment_id)
     if not appt or appt.doctor_id != doctor.id:
-        raise HTTPException(status_code=404)
+        raise HTTPException(status_code=404, detail="Appointment not found")
     appt.status = AppointmentStatus.completed
-    appt.completed_at = datetime.now(timezone.utc)
+    # DB column is TIMESTAMP WITHOUT TIME ZONE — store naive UTC
+    appt.completed_at = datetime.now(timezone.utc).replace(tzinfo=None)
     await db.flush()
-    return ResponseEnvelope(data={"status": "completed"})
+    return ResponseEnvelope(
+        data={
+            "status": "completed",
+            "appointment_id": str(appointment_id),
+            "apt_id": format_apt_id(appt.id),
+        }
+    )
+
+
+@router.post("/appointments/{appointment_id}/cancel")
+async def cancel_appointment_doctor(
+    appointment_id: UUID,
+    data: AppointmentStatusUpdateRequest,
+    doctor: Doctor = Depends(get_doctor_profile),
+    db: AsyncSession = Depends(get_db),
+):
+    appt = await cancel_appointment_by_doctor(db, appointment_id, doctor.id, data.reason)
+    return ResponseEnvelope(
+        data={
+            "status": "cancelled",
+            "appointment_id": str(appointment_id),
+            "apt_id": format_apt_id(appt.id),
+        }
+    )
 
 
 @router.get("/refill-requests")

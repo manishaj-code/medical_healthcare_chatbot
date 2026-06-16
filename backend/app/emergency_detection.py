@@ -16,6 +16,13 @@ EMERGENCY_PATTERNS = [
     r"difficulty breathing",
     r"trouble breathing",
     r"shortness of breath",
+    r"breathing problem",
+    r"breathing issue",
+    r"breathing difficulty",
+    r"hard to breathe",
+    r"hard time breathing",
+    r"labou?red breathing",
+    r"gasping for air",
     r"not breathing",
     r"choking",
     r"stroke",
@@ -91,6 +98,25 @@ _DISTRESS_RE = re.compile(
     re.I,
 )
 
+_BREATHING_CONCERN_RE = re.compile(
+    r"\b(breath|breathing|breathe|breathed|shortness of breath|short of breath|"
+    r"can'?t breathe|cannot breathe|hard to breathe|difficulty breathing|"
+    r"trouble breathing|breathing problem|breathing issue|breathing difficulty|"
+    r"gasping|wheez|suffocat|choking|not breathing|air hunger)\b",
+    re.I,
+)
+
+_PAIN_OR_DISTRESS_RE = re.compile(
+    r"\b(pain|ache|hurt|hurting|cramp|discomfort|pressure|tightness)\b",
+    re.I,
+)
+
+_BODY_SYSTEM_RE = re.compile(
+    r"\b(chest|stomach|abdominal|belly|heart|head|dizzy|faint|bleed|numb|weakness|"
+    r"vomit|cramp|gut|lung)\b",
+    re.I,
+)
+
 _SPECIALTY_FROM_TEXT = (
     (r"\b(chest|heart|palpitation|cardiac)\b", "Cardiologist"),
     (r"\b(stomach|abdominal|belly|gut|vomit|nausea)\b", "Gastroenterologist"),
@@ -144,6 +170,22 @@ def build_emergency_reply(*, mental_health_crisis: bool = False) -> str:
         "⚠️ This may be a medical emergency. Please call your local emergency number or go to "
         "the nearest emergency department immediately."
     )
+
+
+def _has_breathing_concern(text: str) -> bool:
+    return bool(_BREATHING_CONCERN_RE.search(text))
+
+
+def _has_concerning_combo(text: str, symptoms: list[str]) -> bool:
+    """Breathing plus another symptom or pain — skip routine triage."""
+    if not _has_breathing_concern(text):
+        return False
+    blob = f"{' '.join(symptoms)} {text}".lower()
+    if len(symptoms) >= 2:
+        return True
+    if _PAIN_OR_DISTRESS_RE.search(blob) and _BODY_SYSTEM_RE.search(blob):
+        return True
+    return bool(_BODY_SYSTEM_RE.search(blob) and _PAIN_OR_DISTRESS_RE.search(blob))
 
 
 def _has_severity_signal(text: str) -> bool:
@@ -227,12 +269,16 @@ def detect_urgent_consult(text: str) -> dict | None:
     )
 
     is_rule_emergency = detect_emergency(tl)
+    has_breathing = _has_breathing_concern(tl)
     has_severity = _has_severity_signal(tl)
     has_urgency = _has_urgency_signal(tl)
+    concerning_combo = _has_concerning_combo(text, symptoms)
     symptom_count = len(symptoms)
 
     should_trigger = False
     if is_rule_emergency:
+        should_trigger = True
+    elif concerning_combo or (has_breathing and symptom_count >= 2):
         should_trigger = True
     elif highest_risk == RiskLevel.emergency:
         should_trigger = True
@@ -251,6 +297,8 @@ def detect_urgent_consult(text: str) -> dict | None:
     if (
         is_routine_symptom_message(text)
         and not is_rule_emergency
+        and not has_breathing
+        and not concerning_combo
         and not has_severity
         and not has_urgency
         and highest_risk not in (RiskLevel.emergency, RiskLevel.high)
@@ -258,7 +306,7 @@ def detect_urgent_consult(text: str) -> dict | None:
         return None
 
     risk_level = "emergency" if (
-        is_rule_emergency or highest_risk == RiskLevel.emergency
+        is_rule_emergency or highest_risk == RiskLevel.emergency or (has_breathing and concerning_combo)
     ) else "high"
 
     specialty = _resolve_urgent_specialty(text, assessment["recommended_specialty"])
@@ -268,7 +316,7 @@ def detect_urgent_consult(text: str) -> dict | None:
         "specialty": specialty,
         "risk_level": risk_level,
         "symptoms": display_symptoms,
-        "er_advisory": risk_level == "emergency" or is_rule_emergency,
+        "er_advisory": risk_level == "emergency" or is_rule_emergency or has_breathing,
     }
 
 
@@ -292,6 +340,6 @@ def build_urgent_consult_opener(
         context = f"Based on what you've shared ({shown}), "
     return (
         f"{er_line}"
-        f"{context}this sounds urgent. I'm notifying available **{specialty}** doctors for an "
-        "**immediate video consultation**. The first available doctor can accept your request."
+        f"{context}this sounds urgent. Available **{specialty}** doctors are being notified for "
+        "**immediate video approval**. You'll join as soon as a doctor approves your request."
     )

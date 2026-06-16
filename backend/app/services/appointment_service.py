@@ -22,6 +22,16 @@ def format_apt_id(appointment_id: UUID) -> str:
     return f"APT-{appointment_id.hex[:5].upper()}"
 
 
+def is_slot_past(slot_date: date, slot_time: time) -> bool:
+    """True when the appointment slot start is before now (local server clock)."""
+    return datetime.combine(slot_date, slot_time) < datetime.now()
+
+
+def is_active_appointment_status(status: AppointmentStatus | str) -> bool:
+    value = status.value if hasattr(status, "value") else str(status)
+    return value.lower() not in {"cancelled", "canceled", "completed"}
+
+
 async def book_appointment(
     db: AsyncSession,
     patient_id: UUID,
@@ -237,6 +247,47 @@ async def cancel_appointment(db: AsyncSession, appointment_id: UUID, patient_id:
             slot_date=cancelled_date,
             slot_time=cancelled_time,
             reason=reason,
+        )
+    except Exception:
+        logger.exception("Failed to send cancellation emails for %s", appt.id)
+
+    return appt
+
+
+async def cancel_appointment_by_doctor(
+    db: AsyncSession,
+    appointment_id: UUID,
+    doctor_id: UUID,
+    reason: str | None = None,
+) -> Appointment:
+    appt = await db.get(Appointment, appointment_id)
+    if not appt or appt.doctor_id != doctor_id:
+        raise HTTPException(status_code=404, detail="Appointment not found")
+
+    cancelled_date = appt.slot_date
+    cancelled_time = appt.slot_time
+
+    appt.status = AppointmentStatus.cancelled
+    appt.cancellation_reason = reason or "Cancelled by doctor"
+    avail = await db.execute(
+        select(DoctorAvailability).where(
+            DoctorAvailability.doctor_id == appt.doctor_id,
+            DoctorAvailability.slot_date == appt.slot_date,
+            DoctorAvailability.slot_time == appt.slot_time,
+        )
+    )
+    slot = avail.scalar_one_or_none()
+    if slot:
+        slot.status = "available"
+    await db.flush()
+
+    try:
+        await send_appointment_cancelled_emails(
+            db,
+            appt,
+            slot_date=cancelled_date,
+            slot_time=cancelled_time,
+            reason=appt.cancellation_reason,
         )
     except Exception:
         logger.exception("Failed to send cancellation emails for %s", appt.id)
