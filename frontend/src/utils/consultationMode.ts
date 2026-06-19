@@ -13,8 +13,11 @@ export function normalizeConsultationMode(
 export function isVideoConsultation(visit: {
   is_video?: boolean;
   consultation_mode?: string;
+  status?: string;
 }): boolean {
-  return normalizeConsultationMode(visit.consultation_mode, visit.is_video) === "video";
+  if (visit.is_video || visit.consultation_mode === "video") return true;
+  if (visit.status && canConductConsultation(visit.status)) return true;
+  return false;
 }
 
 export function consultationModeLabel(mode?: string | null, isVideo?: boolean): string {

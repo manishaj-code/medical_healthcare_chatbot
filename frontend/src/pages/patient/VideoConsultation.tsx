@@ -1,33 +1,18 @@
-import { useEffect, useState } from "react";
-import { Link, useParams, useSearchParams } from "react-router-dom";
-import { api } from "../../api/client";
-import { VideoConsultSkeleton } from "../../components/skeleton";
+import { useEffect, useRef } from "react";
+import { Link, useParams } from "react-router-dom";
+import VideoCallModal from "../../components/VideoCallModal";
+import { useVideoConsultation } from "../../hooks/useVideoConsultation";
 
 export default function VideoConsultation() {
   const { appointmentId } = useParams<{ appointmentId: string }>();
-  const [search] = useSearchParams();
-  const [joinUrl, setJoinUrl] = useState(search.get("join") || "");
-  const [meta, setMeta] = useState<{ apt_id?: string; doctor_name?: string; room_id?: string }>({});
-  const [error, setError] = useState("");
+  const { session, loading, error, joinAppointment, reset } = useVideoConsultation("patient");
+  const joinedRef = useRef(false);
 
   useEffect(() => {
-    if (!appointmentId || joinUrl) return;
-    api<{
-      join_url: string;
-      apt_id: string;
-      doctor_name?: string;
-      room_id: string;
-    }>(`/api/v1/appointments/${appointmentId}/video`)
-      .then((data) => {
-        setJoinUrl(data.join_url);
-        setMeta({ apt_id: data.apt_id, room_id: data.room_id });
-      })
-      .catch((err: unknown) => {
-        setError(err instanceof Error ? err.message : "Could not load video room.");
-      });
-  }, [appointmentId, joinUrl]);
-
-  const embedSrc = joinUrl || (meta.room_id ? `https://meet.jit.si/${meta.room_id}` : "");
+    if (!appointmentId || joinedRef.current) return;
+    joinedRef.current = true;
+    void joinAppointment(appointmentId).catch(() => undefined);
+  }, [appointmentId, joinAppointment]);
 
   return (
     <div className="video-consult-page">
@@ -35,22 +20,21 @@ export default function VideoConsultation() {
         <Link to="/appointments" className="pd-outline-btn">← Back to appointments</Link>
         <div>
           <h2>Video Consultation</h2>
-          {meta.apt_id && <p className="pd-muted">Appointment {meta.apt_id}</p>}
+          {session?.apt_id && <p className="pd-muted">Appointment {session.apt_id}</p>}
         </div>
       </div>
 
-      {error && <p className="aura-chat-error">{error}</p>}
-
-      {embedSrc ? (
-        <iframe
-          title="MediAI video consultation"
-          className="video-consult-frame"
-          src={embedSrc}
-          allow="camera; microphone; fullscreen; display-capture"
-        />
-      ) : (
-        <VideoConsultSkeleton />
-      )}
+      <VideoCallModal
+        open
+        loading={loading}
+        error={error}
+        session={session}
+        role="patient"
+        onClose={() => {
+          reset();
+          window.location.href = "/appointments";
+        }}
+      />
     </div>
   );
 }

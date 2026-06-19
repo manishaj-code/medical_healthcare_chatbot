@@ -1,4 +1,5 @@
 from datetime import date, time
+import logging
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -12,9 +13,20 @@ from app.models import Appointment, Doctor, Patient, User
 from app.schemas.common import ResponseEnvelope
 from app.services.appointment_service import book_appointment, cancel_appointment, format_apt_id
 from app.services.summary_service import prepare_appointment_summary
-from app.services.video_consultation_service import enable_video_consultation, video_room_id_for_appointment
+from app.services.video_consultation_service import (
+    enable_video_consultation,
+    get_patient_video_session,
+)
 
 router = APIRouter(prefix="/appointments", tags=["appointments"])
+logger = logging.getLogger(__name__)
+
+
+def _participant_name(name: str | None) -> str:
+    value = (name or "").strip()
+    if not value:
+        return "Patient"
+    return value.split()[0]
 
 
 class BookRequest(BaseModel):
@@ -86,11 +98,12 @@ async def start_video_consultation(
             appointment_id,
             patient.id,
             user.id,
-            patient_name=user.name.split()[0],
+            patient_name=_participant_name(user.name),
         )
     except HTTPException:
         raise
     except Exception as exc:
+        logger.exception("Failed to start video consultation", extra={"appointment_id": str(appointment_id)})
         raise HTTPException(status_code=500, detail="Could not start video consultation.") from exc
     return ResponseEnvelope(data=data)
 
@@ -102,21 +115,14 @@ async def get_video_consultation(
     user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    from app.services.video_consultation_service import build_join_url
-
-    appt = await db.get(Appointment, appointment_id)
-    if not appt or appt.patient_id != patient.id:
-        raise HTTPException(status_code=404, detail="Appointment not found")
-    room_id = appt.video_room_id or video_room_id_for_appointment(appt.id)
-    return ResponseEnvelope(
-        data={
-            "appointment_id": str(appt.id),
-            "apt_id": format_apt_id(appt.id),
-            "room_id": room_id,
-            "join_url": build_join_url(room_id, user.name),
-            "consultation_mode": appt.consultation_mode or "in_person",
-        }
+    data = await get_patient_video_session(
+        db,
+        appointment_id,
+        patient.id,
+        user.id,
+        patient_name=_participant_name(user.name),
     )
+    return ResponseEnvelope(data=data)
 
 
 @router.patch("/{appointment_id}/cancel")

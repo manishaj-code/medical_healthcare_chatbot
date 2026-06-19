@@ -13,7 +13,21 @@ JOHN_DEMO_MEDICATIONS = (
     ("Atorvastatin", "10mg", "once at night"),
 )
 
-EXTRA_EVENING_SLOTS = [time(17, 30), time(18, 0), time(18, 30)]
+EXTRA_EVENING_SLOTS = [
+    time(17, 30),
+    time(18, 0),
+    time(18, 30),
+    time(19, 0),
+    time(19, 30),
+    time(20, 0),
+    time(20, 30),
+    time(21, 0),
+    time(21, 30),
+    time(22, 0),
+    time(22, 30),
+    time(23, 0),
+    time(23, 30),
+]
 
 
 async def ensure_john_medications(db, patient: Patient) -> int:

@@ -37,7 +37,6 @@ from app.services.otp_service import (
 )
 router = APIRouter(prefix="/guest", tags=["guest"])
 logger = logging.getLogger(__name__)
-logger = logging.getLogger(__name__)
 
 
 class GuestSessionResponse(BaseModel):
@@ -155,8 +154,8 @@ async def guest_chat_message(data: GuestMessageCreate, db: AsyncSession = Depend
         raise
     except Exception as exc:
         await db.rollback()
-        logger.exception("Guest chat processing failed: %s", exc)
-        raise HTTPException(status_code=500, detail="Guest chat processing failed.") from exc
+        logger.exception("Guest chat processing failed for session %s", data.session_id)
+        raise HTTPException(status_code=500, detail="Guest chat processing failed.") from None
     return ResponseEnvelope(data=GuestChatReply(**result))
 
 

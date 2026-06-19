@@ -32,6 +32,11 @@ def is_active_appointment_status(status: AppointmentStatus | str) -> bool:
     return value.lower() not in {"cancelled", "canceled", "completed"}
 
 
+def appointment_supports_video_call(appt: Appointment) -> bool:
+    """Any non-terminal appointment can start or join a video room."""
+    return is_active_appointment_status(appt.status)
+
+
 async def book_appointment(
     db: AsyncSession,
     patient_id: UUID,
@@ -92,10 +97,9 @@ async def book_appointment(
         appointment_reason=appointment_reason,
         linked_report_id=linked_report_id,
     )
-    if consultation_mode == "video":
-        from app.services.video_consultation_service import video_room_id_for_appointment
+    from app.services.video_consultation_service import video_room_id_for_appointment
 
-        appt.video_room_id = video_room_id_for_appointment(appt.id)
+    appt.video_room_id = video_room_id_for_appointment(appt.id)
     db.add(appt)
     when_time = slot_time.strftime("%I:%M %p").lstrip("0")
     db.add(

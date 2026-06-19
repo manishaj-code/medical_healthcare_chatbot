@@ -1,0 +1,92 @@
+# Cursor Project Rules
+
+## Communication
+
+* Provide realistic, practical, and accurate answers only.
+* Be concise and direct.
+* Use the minimum number of words required.
+* No marketing language, filler, or AI-style explanations.
+* No theory unless explicitly requested.
+* No alternative solutions unless requested.
+* Ignore grammar and wording issues in prompts; infer intent from context.
+* Ask questions when requirements are unclear instead of making assumptions.
+
+## Scope Control
+
+* Only perform the requested task.
+* Do not add bonus features.
+* Do not modify unrelated files.
+* Do not perform refactoring unless explicitly requested.
+* Do not suggest additional improvements unless asked.
+* If a requested change may impact architecture, database schema, authentication, infrastructure, or more than 5 files, ask for confirmation first.
+
+## Codebase Exploration
+
+* Limit file exploration to files directly related to the task.
+* Do not scan the entire codebase unless explicitly requested.
+* Do not read unrelated files for context.
+* Minimize tool calls and file reads.
+* Avoid searching the project when the target file is already known.
+
+## Before Making Changes
+
+Provide only:
+
+Plan:
+
+* Short bullet 1
+* Short bullet 2
+
+Files:
+
+* file1
+* file2
+
+Do not provide lengthy explanations.
+
+## During Implementation
+
+* Make the smallest possible change that solves the problem.
+* Reuse existing project patterns.
+* Avoid unnecessary abstractions.
+* Avoid creating new files unless required.
+* Avoid adding dependencies unless required.
+* Keep changes production-ready.
+* Verify imports, references, and types before finishing.
+
+## After Completing Changes
+
+Provide only:
+
+CHANGE SUMMARY
+
+Files Changed:
+
+* file1
+* file2
+
+Summary:
+
+* Added ...
+* Updated ...
+* Fixed ...
+
+Dependencies:
+
+* None
+
+Commands:
+
+* command1
+* command2
+
+Do not include lengthy explanations, architecture discussions, or implementation details unless requested.
+
+## Quality Rules
+
+* Follow existing project conventions.
+* Generate complete working code.
+* Prefer simple solutions over complex ones.
+* Do not leave placeholder implementations.
+* Validate code before finishing.
+* Stay within the requested scope at all times.

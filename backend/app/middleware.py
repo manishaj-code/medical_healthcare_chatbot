@@ -1,6 +1,7 @@
 """HTTP middleware: request ID, rate limiting, audit logging, security headers."""
 
 import hashlib
+import logging
 import time
 import uuid
 from contextvars import ContextVar
@@ -17,6 +18,8 @@ from app.services.cache import get_redis
 request_id_ctx: ContextVar[str] = ContextVar("request_id", default="")
 
 settings = get_settings()
+logger = logging.getLogger(__name__)
+AUDIT_ACTION_MAX_LEN = 255
 
 
 class RequestIDMiddleware(BaseHTTPMiddleware):
@@ -66,17 +69,21 @@ class AuditMiddleware(BaseHTTPMiddleware):
             actor_id = getattr(request.state, "user_id", None)
             ip = request.client.host if request.client else "unknown"
             ip_hash = hashlib.sha256(ip.encode()).hexdigest()[:16]
-            async with AsyncSessionLocal() as db:
-                db.add(
-                    AuditLog(
-                        actor_id=actor_id,
-                        action=f"{request.method} {request.url.path}",
-                        request_id=request_id_ctx.get(),
-                        ip_hash=ip_hash,
-                        status_code=response.status_code,
+            action = f"{request.method} {request.url.path}"[:AUDIT_ACTION_MAX_LEN]
+            try:
+                async with AsyncSessionLocal() as db:
+                    db.add(
+                        AuditLog(
+                            actor_id=actor_id,
+                            action=action,
+                            request_id=request_id_ctx.get(),
+                            ip_hash=ip_hash,
+                            status_code=response.status_code,
+                        )
                     )
-                )
-                await db.commit()
+                    await db.commit()
+            except Exception:
+                logger.exception("Failed to write audit log for %s", action)
         return response
 
 

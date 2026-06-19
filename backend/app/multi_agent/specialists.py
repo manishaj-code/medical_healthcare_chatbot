@@ -22,6 +22,7 @@ from app.healthcare_policy import (
 )
 from app.services.chat_ui import infer_triage_quick_actions
 from app.services.agent_tools import execute_agent_tool
+from app.services.self_care_service import wants_self_care_advice
 
 from app.multi_agent.booking_actions import (
     format_report_reply,

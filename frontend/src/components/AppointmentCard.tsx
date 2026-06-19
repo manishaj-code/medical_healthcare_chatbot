@@ -37,11 +37,13 @@ export function apptDateParts(dateStr: string): { month: string; day: string } {
 interface Props {
   appointment: AppointmentItem;
   showStatus?: boolean;
+  onJoinVideo?: (appointmentId: string) => void;
 }
 
 export default function AppointmentCard({
   appointment: a,
   showStatus = false,
+  onJoinVideo,
 }: Props) {
   const navigate = useNavigate();
   const { month, day } = apptDateParts(a.date);
@@ -49,7 +51,9 @@ export default function AppointmentCard({
   const isActive = normalizedStatus === "confirmed" || normalizedStatus === "pending";
   const isCompleted = normalizedStatus === "completed";
   const isCancelled = normalizedStatus === "cancelled" || normalizedStatus === "canceled";
-  const isVideoConsultation = a.consultation_mode === "video";
+  const isVideoConsultation =
+    a.consultation_mode === "video" || Boolean(a.video_room_id);
+  const videoCallAvailable = isActive && normalizedStatus === "confirmed";
   const statusLabel =
     normalizedStatus === "cancelled" || normalizedStatus === "canceled"
       ? "Cancelled"
@@ -74,7 +78,10 @@ export default function AppointmentCard({
             <span className={`pd-appt-status pd-appt-status--${normalizedStatus}`}>{statusLabel}</span>
           )}
         </div>
-        <p className="pd-appt-meta">Consultation · MediAI Clinic</p>
+        <p className="pd-appt-meta">
+          {a.apt_id ? <span className="pd-appt-id">{a.apt_id}</span> : null}
+          Consultation · MediAI Clinic
+        </p>
         <div className="pd-appt-tags">
           <span>
             <span className="material-symbols-outlined">schedule</span>
@@ -82,9 +89,13 @@ export default function AppointmentCard({
           </span>
           <span>
             <span className="material-symbols-outlined">
-              {isVideoConsultation ? "videocam" : "location_on"}
+              {isVideoConsultation ? "videocam" : videoCallAvailable ? "video_call" : "location_on"}
             </span>
-            {isVideoConsultation ? "Video consultation" : "In-person visit"}
+            {isVideoConsultation
+              ? "Video consultation"
+              : videoCallAvailable
+                ? "In-person · video available"
+                : "In-person visit"}
           </span>
         </div>
       </div>
@@ -92,19 +103,20 @@ export default function AppointmentCard({
       <div className="pd-appt-actions">
         {isActive && (
           <>
-            {isVideoConsultation ? (
-              <Link
-                to={`/video/${a.id}`}
+            {videoCallAvailable ? (
+              <button
+                type="button"
                 className="pd-appt-btn pd-appt-btn--video"
+                onClick={() => onJoinVideo?.(a.id)}
               >
                 Join Video
-              </Link>
+              </button>
             ) : (
               <button
                 type="button"
                 className="pd-appt-btn pd-appt-btn--video pd-appt-btn--disabled"
                 disabled
-                title="Online consultation has not been approved for this appointment"
+                title="Video join is available for confirmed appointments"
               >
                 Join Video
               </button>

@@ -1,5 +1,6 @@
 export interface DoctorAppointment {
   appointment_id: string;
+  apt_id?: string;
   patient_id: string;
   patient_name: string;
   date: string;

@@ -8,6 +8,7 @@ import {
 
 export interface AppointmentRow {
   appointment_id: string;
+  apt_id?: string;
   patient_id?: string;
   patient_name?: string;
   date: string;
@@ -117,6 +118,7 @@ export default function DoctorAppointmentsSections({ appointments, showPatient =
             <table className="dp-table">
               <thead>
                 <tr>
+                  <th>ID</th>
                   {showPatient && <th>Patient</th>}
                   <th>Date</th>
                   <th>Time</th>
@@ -128,6 +130,13 @@ export default function DoctorAppointmentsSections({ appointments, showPatient =
               <tbody>
                 {section.items.map((a) => (
                   <tr key={a.appointment_id}>
+                    <td>
+                      {a.apt_id ? (
+                        <span className="dp-table-apt-id">{a.apt_id}</span>
+                      ) : (
+                        <span className="dp-muted-note">—</span>
+                      )}
+                    </td>
                     {showPatient && (
                       <td className="dp-table-patient">{a.patient_name ?? "—"}</td>
                     )}
