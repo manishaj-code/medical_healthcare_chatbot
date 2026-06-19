@@ -8,13 +8,14 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models import Appointment, Consultation, DoctorNote, Patient, PatientSummary, Report, SymptomAssessment, User
-from app.services.appointment_service import format_apt_id, is_active_appointment_status, is_slot_past
+from app.services.appointment_service import format_apt_id, is_active_appointment_status, appointment_supports_video_call, is_slot_past
 from app.services.medication_timeline_service import (
     build_patient_medication_timeline,
     load_prescription_items_by_appointment,
 )
 from app.services.patient_context import load_patient_context
 from app.services.symptom_service import assessment_payload_from_row
+from app.services.consultation_transcript_service import load_transcript_cards_by_consultation_ids
 
 
 def _appt_datetime(appt: Appointment) -> datetime:
@@ -124,6 +125,9 @@ async def list_visit_records_for_doctor(
         for row in consultation_rows.scalars().all():
             consultations_by_appt[str(row.appointment_id)] = row
 
+    consultation_ids = [c.id for c in consultations_by_appt.values()]
+    transcript_cards = await load_transcript_cards_by_consultation_ids(db, consultation_ids)
+
     linked_report_ids = {a.linked_report_id for a in appointments if a.linked_report_id}
     reports_by_id: dict = {}
     if linked_report_ids:
@@ -165,7 +169,7 @@ async def list_visit_records_for_doctor(
             "status": status,
             "completed_at": appt.completed_at.isoformat() if appt.completed_at else None,
             "consultation_mode": appt.consultation_mode or "in_person",
-            "is_video": bool(appt.video_room_id),
+            "is_video": appointment_supports_video_call(appt),
             "appointment_reason": appt.appointment_reason,
             "visit_type": "report_discussion" if appt.linked_report_id else "symptom",
             "linked_report": linked_report,
@@ -181,6 +185,11 @@ async def list_visit_records_for_doctor(
             "soap_note": notes_by_appt.get(appt_key),
             "assessment": assessment_payload_from_row(matched) if matched else None,
             "prescription_items": prescription_items_by_appt.get(appt_key, []),
+            **(
+                transcript_cards.get(str(consultation.id), {})
+                if consultation and appointment_supports_video_call(appt)
+                else {}
+            ),
         })
 
     medication_timeline = await build_patient_medication_timeline(db, doctor_id, patient_id)
@@ -305,7 +314,7 @@ async def list_consultation_history_for_doctor(
             "is_overdue": slot_past and is_active_appointment_status(status),
             "completed_at": appt.completed_at.isoformat() if appt.completed_at else None,
             "consultation_mode": appt.consultation_mode or "in_person",
-            "is_video": bool(appt.video_room_id),
+            "is_video": appointment_supports_video_call(appt),
             "appointment_reason": appt.appointment_reason,
             "symptoms": symptoms,
             "risk_level": assessment.get("risk_level") if assessment else None,

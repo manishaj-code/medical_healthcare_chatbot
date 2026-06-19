@@ -356,6 +356,7 @@ function UrgentHistoryTable({
 }
 
 export default function DoctorUrgentConsultPanel() {
+  const navigate = useNavigate();
   const [tab, setTab] = useState<UrgentTab>("pending");
   const [pending, setPending] = useState<UrgentConsultItem[]>([]);
   const [history, setHistory] = useState<Record<Exclude<UrgentTab, "pending">, UrgentConsultItem[]>>({
@@ -424,13 +425,14 @@ export default function DoctorUrgentConsultPanel() {
   const accept = async (requestId: string) => {
     setActingId(requestId);
     try {
-      const res = await api<{ doctor_join_url?: string; join_url?: string }>(
+      const res = await api<{ appointment_id?: string }>(
         `/api/v1/doctor/urgent-consult/${requestId}/accept`,
         { method: "POST" }
       );
       await loadAll(true);
-      const url = res.doctor_join_url || res.join_url;
-      if (url) window.open(url, "_blank", "noopener,noreferrer");
+      if (res.appointment_id) {
+        navigate(`/doctor/consultation/${res.appointment_id}`);
+      }
       setTab("attended");
     } catch (err) {
       console.error(err);

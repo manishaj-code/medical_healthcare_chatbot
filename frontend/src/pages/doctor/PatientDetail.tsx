@@ -11,6 +11,9 @@ import DoctorPatientConsultSummary, {
 } from "../../components/doctor/DoctorPatientConsultSummary";
 import DoctorPatientLabSection from "../../components/doctor/DoctorPatientLabSection";
 import ClinicalSummaryPanel from "../../components/doctor/ClinicalSummaryPanel";
+import DoctorPatientVideoTranscripts, {
+  type VideoTranscriptRow,
+} from "../../components/doctor/DoctorPatientVideoTranscripts";
 import {
   ageFromDob,
   canStartConsultation,
@@ -35,6 +38,7 @@ interface PatientDetailData {
   blood_group: string | null;
   appointments: {
     appointment_id: string;
+    apt_id?: string;
     date: string;
     time: string;
     status: string;
@@ -87,6 +91,7 @@ export default function PatientDetail() {
   const [healthVitals, setHealthVitals] = useState<HealthVital[]>([]);
   const [consultSummary, setConsultSummary] = useState<ConsultationSummaryData | null>(null);
   const [visitRecords, setVisitRecords] = useState<VisitRecordsPayload | null>(null);
+  const [videoTranscripts, setVideoTranscripts] = useState<VideoTranscriptRow[]>([]);
   const [loading, setLoading] = useState(true);
   const viewRef = useRef<HTMLDivElement>(null);
 
@@ -108,16 +113,20 @@ export default function PatientDetail() {
       api<ReportRow[]>(`/api/v1/doctor/patients/${patientId}/reports`).catch(() => []),
       api<ConsultationSummaryData>(`/api/v1/doctor/patients/${patientId}/consultation-summary`).catch(() => null),
       api<VisitRecordsPayload>(`/api/v1/doctor/patients/${patientId}/visit-records`).catch(() => null),
+      api<{ items: VideoTranscriptRow[] }>(
+        `/api/v1/doctor/patients/${patientId}/video-transcripts`,
+      ).catch(() => ({ items: [] })),
       api<{ vitals: HealthVital[] }>(`/api/v1/doctor/patients/${patientId}/health-vitals`).catch(() => ({
         vitals: [],
       })),
     ])
-      .then(([d, chats, reps, consult, visits, vitalsRes]) => {
+      .then(([d, chats, reps, consult, visits, videoTx, vitalsRes]) => {
         setDetail(d);
         setConversations(chats);
         setReports(reps);
         setConsultSummary(consult);
         setVisitRecords(visits);
+        setVideoTranscripts(videoTx.items ?? []);
         setHealthVitals(vitalsRes.vitals ?? []);
       })
       .catch((err) => {
@@ -131,6 +140,10 @@ export default function PatientDetail() {
     if (!patientId) return;
     const visits = await api<VisitRecordsPayload>(`/api/v1/doctor/patients/${patientId}/visit-records`);
     setVisitRecords(visits);
+    const videoTx = await api<{ items: VideoTranscriptRow[] }>(
+      `/api/v1/doctor/patients/${patientId}/video-transcripts`,
+    ).catch(() => ({ items: [] }));
+    setVideoTranscripts(videoTx.items ?? []);
     const d = await api<PatientDetailData>(`/api/v1/doctor/patients/${patientId}`);
     setDetail(d);
   };
@@ -206,6 +219,8 @@ export default function PatientDetail() {
   const reportReviewVisit = detail.appointments.find(
     (a) => a.linked_report && a.appointment_reason && canStartConsultation(a.date, a.status),
   );
+
+  const videoTranscriptRows = videoTranscripts;
 
   const tabs: { id: PatientTab; label: string; icon: string }[] = [
     { id: "summary", label: "Overview", icon: "info" },
@@ -323,6 +338,12 @@ export default function PatientDetail() {
                 </div>
               )}
 
+              <DoctorPatientVideoTranscripts
+                patientName={detail.name}
+                rows={videoTranscriptRows}
+                loading={loading}
+              />
+
               {reportReviewVisit?.linked_report && (
                 <div className="dp-glass dp-report-review-card">
                   <h2 className="dp-panel-title dp-panel-title--spaced">Report for upcoming visit</h2>
@@ -439,7 +460,7 @@ export default function PatientDetail() {
                 <div>
                   <h2 className="dp-panel-title">Chat history</h2>
                   <p className="dp-panel-desc" style={{ margin: "4px 0 0" }}>
-                    Transcripts between {detail.name} and the AI health assistant.
+                    AI health assistant conversations with {detail.name} (not video visit transcripts).
                   </p>
                 </div>
                 <span className="dp-date-pill">

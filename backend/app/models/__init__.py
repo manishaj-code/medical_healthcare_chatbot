@@ -16,6 +16,10 @@ from app.models.consultation import (
     Prescription,
     PrescriptionItem,
 )
+from app.models.consultation_transcript import (
+    ConsultationTranscriptSegment,
+    ConsultationTranscriptSession,
+)
 from app.models.urgent_consult import UrgentConsultOffer, UrgentConsultRequest
 from app.models.enums import (
     AppointmentStatus,
@@ -54,6 +58,8 @@ __all__ = [
     "Consultation",
     "ConsultationIntake",
     "ConsultationAiAudit",
+    "ConsultationTranscriptSession",
+    "ConsultationTranscriptSegment",
     "Prescription",
     "PrescriptionItem",
     "LabOrder",

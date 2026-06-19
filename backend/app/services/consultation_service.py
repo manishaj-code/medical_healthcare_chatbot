@@ -27,7 +27,8 @@ from app.schemas.consultation import CompleteConsultationIn, ConsultationDraftIn
 from app.services.appointment_service import format_apt_id
 from app.services.pre_visit_intake_service import ensure_consultation_intake
 from app.services.lab_catalog_service import list_active_lab_catalog
-from app.services.video_consultation_service import build_join_url, video_room_id_for_appointment
+from app.services.appointment_service import appointment_supports_video_call
+from app.services.video_consultation_service import video_room_id_for_appointment
 
 
 async def _get_appointment_for_doctor(
@@ -127,13 +128,11 @@ async def get_consultation_prep(
 
     structured = intake.structured_intake or {}
     consultation_mode = appt.consultation_mode or "in_person"
-    is_video = consultation_mode == "video" or bool(appt.video_room_id)
-    video_room_id = appt.video_room_id or (
-        video_room_id_for_appointment(appt.id) if is_video else None
-    )
-    video_join_url = (
-        build_join_url(video_room_id, doctor_name) if video_room_id and is_video else None
-    )
+    video_available = appointment_supports_video_call(appt)
+    video_room_id = appt.video_room_id or video_room_id_for_appointment(appt.id)
+    from app.services.consultation_transcript_service import get_transcript_prep_payload
+
+    transcript = await get_transcript_prep_payload(db, consultation.id)
     return {
         "appointment": {
             "appointment_id": str(appt.id),
@@ -142,8 +141,8 @@ async def get_consultation_prep(
             "time": str(appt.slot_time),
             "status": appt.status.value if hasattr(appt.status, "value") else str(appt.status),
             "consultation_mode": consultation_mode,
-            "is_video": is_video,
-            "video_join_url": video_join_url,
+            "is_video": video_available,
+            "video_room_id": video_room_id if video_available else appt.video_room_id,
             "appointment_reason": appt.appointment_reason,
         },
         "patient": {
@@ -163,6 +162,7 @@ async def get_consultation_prep(
         "lab_catalog": await list_active_lab_catalog(db),
         "can_start": _can_start_consultation(appt),
         "is_completed": appt.status == AppointmentStatus.completed,
+        "transcript": transcript,
     }
 
 
@@ -345,6 +345,10 @@ async def complete_consultation(
     )
 
     await _sync_medications_from_prescription(db, appt.patient_id, data.prescription_items)
+
+    from app.services.consultation_transcript_service import stop_transcript_for_consultation
+
+    await stop_transcript_for_consultation(db, consultation.id)
 
     db.add(
         Notification(

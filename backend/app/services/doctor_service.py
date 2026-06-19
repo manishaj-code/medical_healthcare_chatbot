@@ -9,7 +9,29 @@ from app.models.enums import AppointmentStatus
 from app.utils.clinic_time import clinic_today, is_slot_past
 from app.utils.doctor_avatar import resolve_doctor_profile_image_url
 
-DEFAULT_SLOT_TIMES = [time(9, 0), time(11, 0), time(14, 0), time(16, 0), time(17, 30), time(18, 0), time(18, 30)]
+_LATE_EVENING_SLOT_TIMES = [
+    time(17, 30),
+    time(18, 0),
+    time(18, 30),
+    time(19, 0),
+    time(19, 30),
+    time(20, 0),
+    time(20, 30),
+    time(21, 0),
+    time(21, 30),
+    time(22, 0),
+    time(22, 30),
+    time(23, 0),
+    time(23, 30),
+]
+
+DEFAULT_SLOT_TIMES = [
+    time(9, 0),
+    time(11, 0),
+    time(14, 0),
+    time(16, 0),
+    *_LATE_EVENING_SLOT_TIMES,
+]
 
 
 def _doctor_payload(doctor: Doctor, user: User, specializations: list[str]) -> dict:

@@ -28,7 +28,11 @@ from app.services.symptom_extraction import resolve_detected_symptoms
 from app.models import DoctorAvailability
 from app.models.enums import AppointmentStatus
 from app.schemas.common import ResponseEnvelope
-from app.services.appointment_service import cancel_appointment_by_doctor, format_apt_id
+from app.services.appointment_service import (
+    appointment_supports_video_call,
+    cancel_appointment_by_doctor,
+    format_apt_id,
+)
 from app.services.doctor_service import create_default_availability, get_availability
 from app.schemas.notifications import (
     MarkNotificationsReadRequest,
@@ -57,6 +61,7 @@ from app.services.visit_records_service import (
     list_consultation_history_for_doctor,
     list_visit_records_for_doctor,
 )
+from app.services.consultation_transcript_service import list_patient_video_transcripts
 
 router = APIRouter(prefix="/doctor", tags=["doctor-portal"])
 
@@ -114,13 +119,14 @@ def _format_appt_row(
     status = a.status.value if hasattr(a.status, "value") else str(a.status)
     row = {
         "appointment_id": str(a.id),
+        "apt_id": format_apt_id(a.id),
         "patient_id": str(patient_id),
         "patient_name": patient_name,
         "date": str(a.slot_date),
         "time": str(a.slot_time),
         "status": status,
         "consultation_mode": a.consultation_mode or "in_person",
-        "is_video": bool(a.video_room_id),
+        "is_video": appointment_supports_video_call(a),
         "appointment_reason": a.appointment_reason,
         "linked_report_id": str(a.linked_report_id) if a.linked_report_id else None,
     }
@@ -274,7 +280,7 @@ async def patient_detail(
             "status": a.status.value if hasattr(a.status, "value") else str(a.status),
             "completed_at": a.completed_at.isoformat() if a.completed_at else None,
             "consultation_mode": a.consultation_mode or "in_person",
-            "is_video": bool(a.video_room_id),
+            "is_video": appointment_supports_video_call(a),
             "appointment_reason": a.appointment_reason,
             "linked_report_id": str(a.linked_report_id) if a.linked_report_id else None,
             "linked_report": _linked_report_payload(reports_by_id.get(a.linked_report_id))
@@ -341,6 +347,16 @@ async def patient_visit_records(
         raise HTTPException(status_code=403, detail="Forbidden")
     data = await list_visit_records_for_doctor(db, doctor.id, patient_id)
     return ResponseEnvelope(data=data)
+
+
+@router.get("/patients/{patient_id}/video-transcripts")
+async def patient_video_transcripts(
+    patient_id: UUID, doctor: Doctor = Depends(get_doctor_profile), db: AsyncSession = Depends(get_db)
+):
+    if not await _verify_access(db, doctor.id, patient_id):
+        raise HTTPException(status_code=403, detail="Forbidden")
+    items = await list_patient_video_transcripts(db, doctor.id, patient_id)
+    return ResponseEnvelope(data={"items": items})
 
 
 @router.get("/patients/{patient_id}/consultation-summary")

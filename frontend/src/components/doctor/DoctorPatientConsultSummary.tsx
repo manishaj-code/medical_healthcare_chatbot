@@ -202,7 +202,7 @@ export default function DoctorPatientConsultSummary({
         <div className="dp-panel-head">
           <h2 className="dp-panel-title">Consultation History</h2>
           <button type="button" className="dp-link" onClick={onOpenChats}>
-            Full transcripts →
+            AI chat transcripts →
           </button>
         </div>
         {consult.consultation_history.length === 0 ? (

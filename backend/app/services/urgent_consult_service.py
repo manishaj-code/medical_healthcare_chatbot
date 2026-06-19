@@ -27,8 +27,8 @@ from app.models.enums import (
 from app.services.agent_tools import tool_search_doctors
 from app.services.appointment_service import format_apt_id
 from app.services.video_consultation_service import (
-    build_join_url,
     enable_video_consultation,
+    get_doctor_video_session,
     video_room_id_for_appointment,
 )
 
@@ -428,8 +428,8 @@ async def get_request_for_patient(
         patient_user = await db.get(Patient, patient_id)
         user = await db.get(User, patient_user.user_id) if patient_user else None
         appt = await db.get(Appointment, request.appointment_id)
-        if appt and appt.video_room_id and user:
-            join_url = build_join_url(appt.video_room_id, user.name.split()[0])
+        if appt and appt.video_room_id:
+            join_url = f"/video/{appt.id}"
 
     return await _serialize_for_patient(
         db,
@@ -618,19 +618,28 @@ async def accept_urgent_request(
     )
     await db.flush()
 
+    doctor_video = await get_doctor_video_session(
+        db,
+        appt.id,
+        doctor_id,
+        doctor_user_id,
+        doctor_name=doctor_name,
+    )
+
     return {
         "success": True,
         "request": serialize_request(
             request,
             accepted_doctor_name=doctor_name,
-            join_url=video.get("join_url"),
+            join_url=f"/video/{appt.id}",
             appointment_id=str(appt.id),
         ),
         "appointment_id": str(appt.id),
         "apt_id": format_apt_id(appt.id),
         "doctor_name": doctor_name,
-        "join_url": video.get("join_url"),
-        "doctor_join_url": build_join_url(appt.video_room_id or "", doctor_name),
+        "join_url": f"/video/{appt.id}",
+        "video": video,
+        "doctor_video": doctor_video,
     }
 
 

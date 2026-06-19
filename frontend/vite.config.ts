@@ -5,6 +5,13 @@ const proxyTarget = process.env.VITE_PROXY_TARGET || "http://localhost:8000";
 
 export default defineConfig({
   plugins: [react()],
+  define: {
+    global: "globalThis",
+    "process.env": "{}",
+  },
+  optimizeDeps: {
+    include: ["@deepgram/sdk"],
+  },
   server: {
     host: "0.0.0.0",
     port: 5173,

@@ -1,6 +1,10 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { api } from "../../api/client";
+import VideoCallModal from "../../components/VideoCallModal";
+import PreVisitPrepPanel from "../../components/doctor/PreVisitPrepPanel";
+import ConsultationVisitSummaries from "../../components/doctor/ConsultationVisitSummaries";
+import { useVideoConsultation } from "../../hooks/useVideoConsultation";
 import {
   consultationModeIcon,
   consultationModeLabel,
@@ -15,6 +19,7 @@ import {
   formatRiskLevelLabel,
   riskLevelCssVariant,
 } from "../../utils/clinicalSummaryFormat";
+import type { TranscriptAiSuggestions } from "../../types/consultationTranscript";
 
 interface PrescriptionItem {
   medicine_name: string;
@@ -64,7 +69,7 @@ interface PrepData {
     status: string;
     consultation_mode: string;
     is_video?: boolean;
-    video_join_url?: string | null;
+    video_room_id?: string | null;
     appointment_reason?: string | null;
   };
   patient: { patient_id: string; name: string };
@@ -95,6 +100,9 @@ interface AiSuggestions {
   }[];
   allergy_warnings: string[];
   disclaimer: string;
+  patient_concerns?: string[];
+  transcript_summary?: string | null;
+  chief_complaint_suggestion?: string | null;
 }
 
 type AiFilledFields = {
@@ -564,6 +572,8 @@ export default function ConsultationSession() {
     meds: PrescriptionItem[];
     selectedLabs: Set<string>;
   } | null>(null);
+  const transcriptApplyOnStartRef = useRef<TranscriptAiSuggestions | null>(null);
+  const [transcriptQueuedForApply, setTranscriptQueuedForApply] = useState(false);
 
   const [chiefComplaint, setChiefComplaint] = useState("");
   const [clinicalFindings, setClinicalFindings] = useState("");
@@ -575,6 +585,14 @@ export default function ConsultationSession() {
   const [selectedLabs, setSelectedLabs] = useState<Set<string>>(new Set());
   const [labSectionMode, setLabSectionMode] = useState<"unset" | "none" | "pick">("unset");
   const [labCatalog, setLabCatalog] = useState<LabCatalogItem[]>([]);
+  const [videoOpen, setVideoOpen] = useState(false);
+  const {
+    session: videoSession,
+    loading: videoLoading,
+    error: videoError,
+    joinAppointment: joinVideo,
+    reset: resetVideo,
+  } = useVideoConsultation("doctor");
 
   const progress = useMemo(
     () =>
@@ -591,9 +609,15 @@ export default function ConsultationSession() {
     [chiefComplaint, clinicalFindings, diagnosis, treatmentPlan, followUpDate, meds, selectedLabs, labSectionMode],
   );
 
+  const prepRef = useRef<PrepData | null>(null);
+  prepRef.current = prep;
+
   const loadPrep = useCallback(async () => {
     if (!appointmentId) return;
-    setLoading(true);
+    const silentRefresh = Boolean(prepRef.current);
+    if (!silentRefresh) {
+      setLoading(true);
+    }
     setError(null);
     try {
       const data = await api<PrepData>(
@@ -623,7 +647,9 @@ export default function ConsultationSession() {
     } catch (e) {
       setError(e instanceof Error ? e.message : "Failed to load consultation");
     } finally {
-      setLoading(false);
+      if (!silentRefresh) {
+        setLoading(false);
+      }
     }
   }, [appointmentId]);
 
@@ -698,6 +724,10 @@ export default function ConsultationSession() {
         labs: false,
         meds: false,
       };
+
+      if (data.chief_complaint_suggestion && !chiefComplaint.trim()) {
+        setChiefComplaint(data.chief_complaint_suggestion);
+      }
 
       if (data.clinical_notes_draft) {
         setClinicalFindings((prev) =>
@@ -831,11 +861,34 @@ export default function ConsultationSession() {
       await api(`/api/v1/doctor/appointments/${appointmentId}/consultation/start`, { method: "POST" });
       setPhase("active");
       await loadPrep();
+      const queued = transcriptApplyOnStartRef.current;
+      if (queued) {
+        const suggestions = queued as AiSuggestions;
+        setAi(suggestions);
+        applyAiToForm(suggestions, false);
+        transcriptApplyOnStartRef.current = null;
+        setTranscriptQueuedForApply(false);
+      }
     } catch (e) {
       setError(e instanceof Error ? e.message : "Could not start consultation");
     } finally {
       setSaving(false);
     }
+  };
+
+  const handleJoinVideo = async () => {
+    if (!appointmentId) return;
+    setVideoOpen(true);
+    try {
+      await joinVideo(appointmentId);
+    } catch {
+      // handled in hook
+    }
+  };
+
+  const closeVideo = () => {
+    setVideoOpen(false);
+    resetVideo();
   };
 
   const saveDraft = async () => {
@@ -883,23 +936,75 @@ export default function ConsultationSession() {
     }
   };
 
-  if (loading) {
+  const handleTranscriptAnalyze = useCallback(
+    (data: TranscriptAiSuggestions) => {
+      const suggestions = data as AiSuggestions;
+      setAi(suggestions);
+      applyAiToForm(suggestions, false);
+      setVideoOpen(false);
+    },
+    [applyAiToForm],
+  );
+
+  const handleInVisitTranscriptAnalyze = useCallback((data: TranscriptAiSuggestions) => {
+    setAi(data as AiSuggestions);
+  }, []);
+
+  const handleApplyInVisitToForm = useCallback(
+    (data: TranscriptAiSuggestions) => {
+      const suggestions = data as AiSuggestions;
+      setAi(suggestions);
+      applyAiToForm(suggestions, false);
+    },
+    [applyAiToForm],
+  );
+
+  const handlePrepTranscriptAnalyze = useCallback((data: TranscriptAiSuggestions) => {
+    setAi(data as AiSuggestions);
+  }, []);
+
+  const handlePrepApplyTranscriptToForm = useCallback((data: TranscriptAiSuggestions) => {
+    setAi(data as AiSuggestions);
+    transcriptApplyOnStartRef.current = data;
+    setTranscriptQueuedForApply(true);
+  }, []);
+
+  const videoModal = (
+    <VideoCallModal
+      open={videoOpen}
+      loading={videoLoading}
+      error={videoError}
+      session={videoSession}
+      role="doctor"
+      appointmentId={appointmentId}
+      onClose={closeVideo}
+      onTranscriptAnalyze={handleTranscriptAnalyze}
+    />
+  );
+
+  if (loading && !prep) {
     return (
-      <div className="dp-consult-workspace">
-        <div className="dp-loading">
-          <div className="dp-spinner" />
-          Loading consultation…
+      <>
+        <div className="dp-consult-workspace">
+          <div className="dp-loading">
+            <div className="dp-spinner" />
+            Loading consultation…
+          </div>
         </div>
-      </div>
+        {videoModal}
+      </>
     );
   }
 
   if (!prep) {
     return (
-      <div className="dp-consult-workspace">
-        <p className="dp-error-text">{error || "Consultation not found"}</p>
-        <Link to="/doctor" className="dp-btn dp-btn--outline">Back to dashboard</Link>
-      </div>
+      <>
+        <div className="dp-consult-workspace">
+          <p className="dp-error-text">{error || "Consultation not found"}</p>
+          <Link to="/doctor" className="dp-btn dp-btn--outline">Back to dashboard</Link>
+        </div>
+        {videoModal}
+      </>
     );
   }
 
@@ -1002,8 +1107,20 @@ export default function ConsultationSession() {
         </div>
       )}
 
-      {phase === "prep" && (
-        <section className="dp-consult-prep-stage">
+      {phase === "prep" && prep && (
+        <PreVisitPrepPanel
+          appointmentId={appointmentId!}
+          patientId={prep.patient.patient_id}
+          patientName={prep.patient.name}
+          isVideo={visitIsVideo}
+          reportVisit={reportVisit}
+          canStart={prep.can_start}
+          saving={saving}
+          onStartConsultation={startConsultation}
+          onTranscriptAnalyze={handlePrepTranscriptAnalyze}
+          onApplyTranscriptToForm={handlePrepApplyTranscriptToForm}
+          transcriptApplyQueued={transcriptQueuedForApply}
+        >
           {reportVisit && linkedReport ? (
             <ReportPreVisitSummary
               consultFor={consultFor}
@@ -1013,23 +1130,12 @@ export default function ConsultationSession() {
           ) : (
             <PreVisitSummary summary={prep.ai_summary} riskLevel={prep.ai_risk_level} />
           )}
-          <div className="dp-consult-prep-cta">
-            <p>
-              {reportVisit
-                ? "Review the uploaded report and AI summary, then start documenting your discussion with the patient."
-                : "Review pre-visit data, then start — the form will pre-fill from triage and you can refine with one-click AI assist."}
-            </p>
-            <button type="button" className="dp-btn dp-btn--primary" disabled={!prep.can_start || saving} onClick={startConsultation}>
-              <span className="material-symbols-outlined">play_circle</span>
-              {saving ? "Starting…" : reportVisit ? "Start report discussion" : "Start consultation"}
-            </button>
-          </div>
-        </section>
+        </PreVisitPrepPanel>
       )}
 
       {(phase === "active" || phase === "done") && (
         <>
-          {visitIsVideo && prep.appointment.video_join_url && phase === "active" && (
+          {visitIsVideo && phase === "active" && (
             <section className="dp-consult-video-panel" aria-label="Video room">
               <div className="dp-consult-video-panel-head">
                 <span className="material-symbols-outlined">videocam</span>
@@ -1037,22 +1143,37 @@ export default function ConsultationSession() {
                   <strong>Video room</strong>
                   <p>Join the live call while documenting this consultation.</p>
                 </div>
-                <a
-                  href={prep.appointment.video_join_url}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="dp-btn dp-btn--outline dp-btn--sm"
-                >
-                  Open video room
-                </a>
+                <div className="dp-consult-video-panel-actions">
+                  <button
+                    type="button"
+                    className="dp-btn dp-btn--outline dp-btn--sm"
+                    onClick={() => void handleJoinVideo()}
+                  >
+                    Join video call
+                  </button>
+                </div>
               </div>
             </section>
           )}
 
           {reportVisit && linkedReport ? (
-            <ReportPreVisitRibbon consultFor={consultFor} linkedReport={linkedReport} />
+            <ConsultationVisitSummaries
+              appointmentId={appointmentId!}
+              layout="active"
+              autoAnalyzeEnabled={phase === "active"}
+              onTranscriptAnalyze={handleInVisitTranscriptAnalyze}
+              onApplyTranscriptToForm={handleApplyInVisitToForm}
+              preVisit={<ReportPreVisitRibbon consultFor={consultFor} linkedReport={linkedReport} />}
+            />
           ) : (
-            <PreVisitRibbon summary={prep.ai_summary} riskLevel={prep.ai_risk_level} />
+            <ConsultationVisitSummaries
+              appointmentId={appointmentId!}
+              layout="active"
+              autoAnalyzeEnabled={phase === "active"}
+              onTranscriptAnalyze={handleInVisitTranscriptAnalyze}
+              onApplyTranscriptToForm={handleApplyInVisitToForm}
+              preVisit={<PreVisitRibbon summary={prep.ai_summary} riskLevel={prep.ai_risk_level} />}
+            />
           )}
 
           {phase === "active" && (
@@ -1559,6 +1680,8 @@ export default function ConsultationSession() {
           )}
         </>
       )}
+
+      {videoModal}
     </div>
   );
 }

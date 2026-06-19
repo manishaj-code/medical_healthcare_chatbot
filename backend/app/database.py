@@ -65,9 +65,26 @@ class Settings(BaseSettings):
     cors_origins: str = "http://localhost:5173,http://localhost:3000"
     guest_session_persist: bool = True
     clinic_timezone: str = "Asia/Kolkata"
+    video_bypass_time_window: bool = False
+    livekit_url: str = ""
+    livekit_api_key: str = ""
+    livekit_api_secret: str = ""
     rate_limit_chat_per_minute: int = 60
     rate_limit_auth_per_minute: int = 10
     secure_headers_enabled: bool = False
+
+    transcript_enabled: bool = True
+    # groq = Groq Whisper chunk upload | deepgram = Deepgram prerecorded chunks | deepgram_live = browser streams to Deepgram
+    transcript_stt_provider: str = "groq"
+    transcript_chunk_ms: int = 5_000
+    deepgram_api_key: str = ""
+    deepgram_project_id: str = ""
+    deepgram_model: str = "nova-3-medical"
+    deepgram_language: str = "en"
+    deepgram_smart_format: bool = True
+    deepgram_interim_results: bool = True
+    deepgram_token_ttl_seconds: int = 3_600
+    deepgram_log_requests: bool = False
 
     @field_validator("cors_origins", mode="before")
     @classmethod

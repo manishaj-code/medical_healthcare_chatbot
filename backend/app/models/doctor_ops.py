@@ -51,7 +51,7 @@ class Appointment(Base):
     completed_at: Mapped[datetime | None] = mapped_column(nullable=True)
     consultation_mode: Mapped[str] = mapped_column(String(20), default="in_person")
     video_room_id: Mapped[str | None] = mapped_column(String(64), nullable=True)
-    video_enabled_at: Mapped[datetime | None] = mapped_column(nullable=True)
+    video_enabled_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     appointment_reason: Mapped[str | None] = mapped_column(Text, nullable=True)
     linked_report_id: Mapped[uuid.UUID | None] = mapped_column(
         UUID(as_uuid=True), ForeignKey("reports.id", ondelete="SET NULL"), nullable=True

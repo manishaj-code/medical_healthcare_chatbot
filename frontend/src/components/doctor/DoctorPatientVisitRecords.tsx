@@ -1,4 +1,5 @@
 import { useState, type ReactNode } from "react";
+import VisitTranscriptExcerpt from "./VisitTranscriptExcerpt";
 import { Link } from "react-router-dom";
 import DoctorMedicationTimeline, {
   type MedicationTimelinePayload,
@@ -64,6 +65,11 @@ export interface VisitRecord {
   completed_at?: string | null;
   consultation_mode: string;
   is_video: boolean;
+  /** Transcript fields from visit-records API (video visits) */
+  has_transcript?: boolean;
+  transcript_preview?: string | null;
+  transcript_summary?: string | null;
+  transcript_segment_count?: number;
   appointment_reason?: string | null;
   visit_type?: "symptom" | "report_discussion";
   linked_report?: VisitLinkedReport | null;
@@ -789,6 +795,17 @@ function VisitCard({
               soap={visit.soap_note}
               isCompleted={isCompleted}
               assessment={visit.assessment}
+            />
+          )}
+
+          {visit.is_video && (
+            <VisitTranscriptExcerpt
+              aptId={visit.apt_id}
+              preview={visit.transcript_preview}
+              summary={visit.transcript_summary}
+              segmentCount={visit.transcript_segment_count}
+              hasTranscript={visit.has_transcript}
+              compact={!isCompleted}
             />
           )}
 
