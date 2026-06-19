@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import TranscriptPanel from "./doctor/TranscriptPanel";
+import { VideoModalSkeleton } from "./skeleton";
 import { VideoProvider } from "../modules/video/context/VideoProvider";
 import { VideoRoom } from "../modules/video/components/VideoRoom";
 import {
@@ -102,7 +103,7 @@ export default function VideoCallModal({
         </header>
 
         <div className={`video-call-modal-body${splitLayout ? " video-call-modal-body--split" : ""}`}>
-          {loading && !hasSession && <p className="pd-muted">Preparing video room…</p>}
+          {loading && !hasSession && <VideoModalSkeleton />}
           {!loading && error && <p className="aura-chat-error">{error}</p>}
           {!loading && !error && !hasSession && (
             <p className="pd-muted">No video session available. Check LiveKit settings on the API.</p>

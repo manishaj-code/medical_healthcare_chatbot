@@ -6,6 +6,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models import Appointment, Doctor, DoctorAvailability, DoctorSpecialization, Specialization, User
 from app.models.enums import AppointmentStatus
+from app.services.appointment_service import active_appointment_statuses, normalize_slot_time
 from app.utils.clinic_time import clinic_today, is_slot_past
 from app.utils.doctor_avatar import resolve_doctor_profile_image_url
 
@@ -71,7 +72,21 @@ def _filter_bookable_slots(slot_date: date, slot_time: time) -> bool:
     return not is_slot_past(slot_date, slot_time)
 
 
-_ACTIVE_APPOINTMENT_STATUSES = (AppointmentStatus.confirmed, AppointmentStatus.pending)
+_ACTIVE_APPOINTMENT_STATUSES = active_appointment_statuses()
+
+
+async def _occupied_slot_keys(
+    db: AsyncSession, doctor_id: UUID, *, from_date: date | None = None
+) -> set[tuple[date, time]]:
+    from_date = from_date or clinic_today()
+    rows = await db.execute(
+        select(Appointment.slot_date, Appointment.slot_time).where(
+            Appointment.doctor_id == doctor_id,
+            Appointment.slot_date >= from_date,
+            Appointment.status.in_(_ACTIVE_APPOINTMENT_STATUSES),
+        )
+    )
+    return {(row.slot_date, row.slot_time) for row in rows.all()}
 
 
 async def reconcile_doctor_availability(
@@ -183,40 +198,52 @@ async def list_doctors(db: AsyncSession) -> list[dict]:
 
 
 async def _fetch_doctor_slots(
-    db: AsyncSession, doctor_id: UUID, doctor_name: str, limit: int = 30
+    db: AsyncSession,
+    doctor_id: UUID,
+    doctor_name: str,
+    limit: int = 120,
+    days_ahead: int = 14,
 ) -> list[dict]:
     today = clinic_today()
+    end = today + timedelta(days=max(days_ahead - 1, 0))
     await reconcile_doctor_availability(db, doctor_id, from_date=today)
+    occupied = await _occupied_slot_keys(db, doctor_id, from_date=today)
     rows = await db.execute(
         select(DoctorAvailability)
         .where(
             DoctorAvailability.doctor_id == doctor_id,
             DoctorAvailability.slot_date >= today,
+            DoctorAvailability.slot_date <= end,
             DoctorAvailability.status == "available",
         )
         .order_by(DoctorAvailability.slot_date, DoctorAvailability.slot_time)
-        .limit(max(limit * 4, 40))
+        .limit(max(limit * 2, 200))
     )
     slots = []
     for s in rows.scalars().all():
+        if (s.slot_date, s.slot_time) in occupied:
+            s.status = "booked"
+            continue
         if not _filter_bookable_slots(s.slot_date, s.slot_time):
             continue
         slots.append({
             "doctor_id": str(doctor_id),
             "doctor_name": doctor_name,
             "slot_date": s.slot_date.isoformat(),
-            "slot_time": s.slot_time.isoformat(),
+            "slot_time": normalize_slot_time(s.slot_time),
             "label": f"{_day_label(s.slot_date)}: {_format_time(s.slot_time)}",
         })
         if len(slots) >= limit:
             break
+    if occupied:
+        await db.flush()
     return slots
 
 
 async def list_doctors_with_availability(
     db: AsyncSession,
     specialty: str | None = None,
-    slots_per_doctor: int = 30,
+    slots_per_doctor: int = 120,
     include_without_slots: bool = False,
 ) -> list[dict]:
     """All doctors from PostgreSQL with live availability slots."""
@@ -274,6 +301,7 @@ async def get_recommended_doctors(db: AsyncSession, specialty: str) -> list[dict
 
 async def get_availability(db: AsyncSession, doctor_id: UUID, from_date: date | None = None) -> list[dict]:
     from_date = from_date or clinic_today()
+    occupied = await _occupied_slot_keys(db, doctor_id, from_date=from_date)
     result = await db.execute(
         select(DoctorAvailability)
         .where(
@@ -283,8 +311,13 @@ async def get_availability(db: AsyncSession, doctor_id: UUID, from_date: date | 
         )
         .order_by(DoctorAvailability.slot_date, DoctorAvailability.slot_time)
     )
-    return [
-        {"date": str(s.slot_date), "time": str(s.slot_time), "status": s.status}
-        for s in result.scalars().all()
-        if _filter_bookable_slots(s.slot_date, s.slot_time)
-    ]
+    rows = []
+    for s in result.scalars().all():
+        if (s.slot_date, s.slot_time) in occupied:
+            s.status = "booked"
+            continue
+        if _filter_bookable_slots(s.slot_date, s.slot_time):
+            rows.append({"date": str(s.slot_date), "time": str(s.slot_time), "status": s.status})
+    if occupied:
+        await db.flush()
+    return rows

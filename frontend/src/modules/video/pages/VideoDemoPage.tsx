@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { VideoRoom } from '../components/VideoRoom';
 import { VideoProvider } from '../context/VideoProvider';
 import { getToken } from '../../../api/client';
+import { VideoModalSkeleton } from '../../../components/skeleton';
 
 /**
  * Demo page showing how to use the reusable video module.
@@ -57,7 +58,7 @@ export const VideoDemoPage = () => {
   }, [roomId]);
 
   if (loading) {
-    return <div>Loading video token…</div>;
+    return <VideoModalSkeleton />;
   }
   if (error) {
     return <div style={{ color: '#d00', padding: '20px' }}>Error: {error}</div>;

@@ -9,6 +9,7 @@ import type {
 } from "../../types/consultationTranscript";
 import type { DoctorConversation } from "./DoctorChatHistory";
 import ConsultationVisitSummaries from "./ConsultationVisitSummaries";
+import { PrepTabSkeleton } from "../skeleton";
 
 type PrepTab = "summary" | "chats" | "transcript";
 
@@ -78,8 +79,7 @@ function PreVisitChatsTab({
   if (loading) {
     return (
       <div className="dp-consult-prep-tab-empty">
-        <div className="dp-spinner" />
-        <p>Loading chat history…</p>
+        <PrepTabSkeleton />
       </div>
     );
   }
@@ -219,8 +219,7 @@ function PreVisitTranscriptTab({
   if (loading) {
     return (
       <div className="dp-consult-prep-tab-empty">
-        <div className="dp-spinner" />
-        <p>Loading transcript…</p>
+        <PrepTabSkeleton />
       </div>
     );
   }

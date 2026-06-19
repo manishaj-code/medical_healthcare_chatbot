@@ -1,5 +1,5 @@
 import logging
-from datetime import date, datetime, time
+from datetime import date, datetime, time, timedelta, timezone
 from uuid import UUID
 
 from fastapi import HTTPException
@@ -7,6 +7,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models import Appointment, Doctor, DoctorAvailability, Notification, User
+from app.models.doctor_ops import AppointmentReminder
 from app.models.enums import AppointmentStatus, NotificationType
 from app.services.appointment_email_service import (
     send_appointment_cancelled_emails,
@@ -30,6 +31,24 @@ def is_slot_past(slot_date: date, slot_time: time) -> bool:
 def is_active_appointment_status(status: AppointmentStatus | str) -> bool:
     value = status.value if hasattr(status, "value") else str(status)
     return value.lower() not in {"cancelled", "canceled", "completed"}
+
+
+def active_appointment_statuses() -> tuple[AppointmentStatus, ...]:
+    """Statuses that still hold a doctor slot."""
+    return (AppointmentStatus.confirmed, AppointmentStatus.pending, AppointmentStatus.rescheduled)
+
+
+def reschedulable_appointment_statuses() -> tuple[AppointmentStatus, ...]:
+    return (AppointmentStatus.confirmed, AppointmentStatus.rescheduled)
+
+
+def normalize_slot_time(value: time | str) -> str:
+    if isinstance(value, time):
+        return value.isoformat()
+    text = str(value).strip()
+    if len(text) == 5:
+        return f"{text}:00"
+    return text
 
 
 def appointment_supports_video_call(appt: Appointment) -> bool:
@@ -68,7 +87,7 @@ async def book_appointment(
             Appointment.doctor_id == doctor_id,
             Appointment.slot_date == slot_date,
             Appointment.slot_time == slot_time,
-            Appointment.status.in_([AppointmentStatus.confirmed, AppointmentStatus.pending]),
+            Appointment.status.in_(list(active_appointment_statuses())),
         )
     )
     if existing.scalar_one_or_none():
@@ -124,7 +143,7 @@ async def get_latest_confirmed(db: AsyncSession, patient_id: UUID) -> Appointmen
         select(Appointment)
         .where(
             Appointment.patient_id == patient_id,
-            Appointment.status == AppointmentStatus.confirmed,
+            Appointment.status.in_(list(reschedulable_appointment_statuses())),
         )
         .order_by(Appointment.slot_date.desc(), Appointment.slot_time.desc())
         .limit(1)
@@ -144,11 +163,26 @@ async def reschedule_appointment(
         select(Appointment).where(Appointment.id == appointment_id, Appointment.patient_id == patient_id)
     )
     appt = result.scalar_one_or_none()
-    if not appt or appt.status != AppointmentStatus.confirmed:
+    if not appt or appt.status not in reschedulable_appointment_statuses():
         raise HTTPException(status_code=404, detail="Appointment not found")
 
     previous_date = appt.slot_date
     previous_time = appt.slot_time
+
+    if new_date == appt.slot_date and normalize_slot_time(new_time) == normalize_slot_time(appt.slot_time):
+        raise HTTPException(status_code=400, detail="That is already your current appointment time")
+
+    taken = await db.execute(
+        select(Appointment.id).where(
+            Appointment.doctor_id == appt.doctor_id,
+            Appointment.slot_date == new_date,
+            Appointment.slot_time == new_time,
+            Appointment.id != appointment_id,
+            Appointment.status.in_(list(active_appointment_statuses())),
+        )
+    )
+    if taken.scalar_one_or_none():
+        raise HTTPException(status_code=409, detail="Slot already booked")
 
     new_slot = await db.execute(
         select(DoctorAvailability).where(
@@ -185,12 +219,25 @@ async def reschedule_appointment(
 
     appt.slot_date = new_date
     appt.slot_time = new_time
+    appt.status = AppointmentStatus.rescheduled
+
+    pending_reminder = await db.execute(
+        select(AppointmentReminder).where(
+            AppointmentReminder.appointment_id == appointment_id,
+            AppointmentReminder.sent.is_(False),
+        )
+    )
+    reminder_row = pending_reminder.scalar_one_or_none()
+    if reminder_row:
+        new_start = datetime.combine(new_date, new_time).replace(tzinfo=timezone.utc)
+        reminder_row.remind_at = new_start - timedelta(minutes=reminder_row.minutes_before or 30)
+
     when_time = new_time.strftime("%I:%M %p").lstrip("0")
     apt_id = format_apt_id(appt.id)
     db.add(
         Notification(
             user_id=user_id,
-            type=NotificationType.booking_confirmation,
+            type=NotificationType.appointment_rescheduled,
             message=f"Appointment {apt_id} rescheduled to {new_date} at {when_time}",
         )
     )
@@ -205,11 +252,15 @@ async def reschedule_appointment(
         db.add(
             Notification(
                 user_id=doctor_user_id,
-                type=NotificationType.booking_confirmation,
+                type=NotificationType.appointment_rescheduled,
                 message=f"Appointment {apt_id} rescheduled to {new_date} at {when_time}.",
             )
         )
     await db.flush()
+
+    from app.services.appointment_card_service import sync_appointment_status_on_patient_cards
+
+    await sync_appointment_status_on_patient_cards(db, appt.id)
 
     try:
         await send_appointment_rescheduled_emails(

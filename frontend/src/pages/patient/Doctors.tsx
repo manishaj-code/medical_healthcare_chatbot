@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { api } from "../../api/client";
 import {
   buildBannerCopy,
@@ -8,6 +8,8 @@ import {
 } from "../../utils/recommendedSpecialty";
 import DoctorAvatar from "../../components/DoctorAvatar";
 import { CalendarSlotsSkeleton, DoctorGridSkeleton } from "../../components/skeleton";
+import { useToast } from "../../components/toast/ToastProvider";
+import { notifyAppointmentBooked } from "../../utils/notificationToast";
 
 interface Slot {
   doctor_id: string;
@@ -144,6 +146,7 @@ export default function PatientDoctors() {
   const [search, setSearch] = useState("");
   const [loading, setLoading] = useState(true);
   const [booking, setBooking] = useState(false);
+  const { showToast } = useToast();
   const [selectedDoctorId, setSelectedDoctorId] = useState<string | null>(null);
   const [selectedDate, setSelectedDate] = useState<string | null>(null);
   const [selectedSlot, setSelectedSlot] = useState<Slot | null>(null);
@@ -153,6 +156,7 @@ export default function PatientDoctors() {
     const t = new Date();
     return { year: t.getFullYear(), month: t.getMonth() };
   });
+  const userPickedDoctorRef = useRef(false);
   const todayKey = localDateKey();
   const querySpecialty = specialty;
 
@@ -162,10 +166,7 @@ export default function PatientDoctors() {
     api<Doctor[]>(`/api/v1/doctors/with-availability${q}`)
       .then((list) => {
         setDoctors(list);
-        const pick = list[0];
-        if (pick) {
-          setSelectedDoctorId(pick.id);
-        } else {
+        if (!list.length) {
           setSelectedDoctorId(null);
           setSelectedDate(null);
           setSelectedSlot(null);
@@ -189,6 +190,7 @@ export default function PatientDoctors() {
 
   useEffect(() => {
     if (!historyLoaded) return;
+    userPickedDoctorRef.current = false;
     load();
   }, [specialty, historyLoaded]);
 
@@ -241,13 +243,32 @@ export default function PatientDoctors() {
   const matchSpecialty = specialty || historyRec?.bookableSpecialty || "";
 
   const recommendedDoctors = useMemo(() => {
-    const pool = matchSpecialty
-      ? filtered.filter((d) => d.specialty === matchSpecialty)
-      : [...filtered].sort((a, b) => b.rating - a.rating);
-    return pool.slice(0, 3);
+    if (!matchSpecialty) return [];
+    return filtered
+      .filter((d) => d.specialty === matchSpecialty)
+      .sort((a, b) => b.rating - a.rating);
   }, [filtered, matchSpecialty]);
 
+  const allDoctors = useMemo(
+    () => [...filtered].sort((a, b) => a.name.localeCompare(b.name)),
+    [filtered],
+  );
+
+  useEffect(() => {
+    if (loading || !doctors.length) return;
+    if (userPickedDoctorRef.current && doctors.some((d) => d.id === selectedDoctorId)) return;
+
+    const pool = matchSpecialty
+      ? doctors.filter((d) => d.specialty === matchSpecialty)
+      : doctors;
+    const pick = [...pool].sort((a, b) => b.rating - a.rating)[0] ?? doctors[0];
+    if (pick) setSelectedDoctorId(pick.id);
+  }, [doctors, loading, matchSpecialty, historyRec?.bookableSpecialty]);
+
   const selectedDoctor = doctors.find((d) => d.id === selectedDoctorId) ?? null;
+  const isSelectedRecommended = Boolean(
+    selectedDoctor && recommendedDoctors.some((d) => d.id === selectedDoctor.id),
+  );
 
   const availableDates = useMemo(() => {
     const dates = [...new Set(doctorSlots.map((s) => s.slot_date))];
@@ -280,11 +301,14 @@ export default function PatientDoctors() {
   };
 
   const selectDoctor = (doc: Doctor) => {
+    userPickedDoctorRef.current = true;
     setSelectedDoctorId(doc.id);
   };
 
   const confirmBooking = async () => {
     if (!selectedDoctor || !selectedSlot) return;
+    const bookedDoctorId = selectedDoctor.id;
+    const bookedDoctor = selectedDoctor;
     setBooking(true);
     try {
       await api("/api/v1/appointments", {
@@ -295,7 +319,16 @@ export default function PatientDoctors() {
           slot_time: selectedSlot.slot_time.length === 5 ? `${selectedSlot.slot_time}:00` : selectedSlot.slot_time,
         }),
       });
-      alert(`Appointment confirmed with ${selectedDoctor.name} — ${selectedSlot.label}`);
+      notifyAppointmentBooked(showToast, {
+        doctorName: selectedDoctor.name,
+        label: selectedSlot.label,
+      });
+      setSelectedSlot(null);
+      setSlotsLoading(true);
+      api<AvailabilityRow[]>(`/api/v1/doctors/${bookedDoctorId}/availability`)
+        .then((rows) => setDoctorSlots(availabilityToSlots(rows, bookedDoctor)))
+        .catch(console.error)
+        .finally(() => setSlotsLoading(false));
       load();
     } catch (e: unknown) {
       alert(e instanceof Error ? e.message : "Booking failed");
@@ -416,52 +449,67 @@ export default function PatientDoctors() {
             <p className="fd-muted">No doctors with open slots right now.</p>
           ) : (
             <>
-          {recommendedDoctors.length > 0 && (
-            <div className="fd-section">
-              <div className="fd-section-head">
-                <h3>Recommended for You</h3>
-              </div>
-              <div className="fd-doctor-list">
-                {recommendedDoctors.map((d) => renderDoctorCard(d, true))}
-              </div>
-            </div>
-          )}
+              {recommendedDoctors.length > 0 && (
+                <div className="fd-section">
+                  <div className="fd-section-head">
+                    <h3>Recommended for You</h3>
+                    {matchSpecialty && (
+                      <span className="fd-count">{matchSpecialty}</span>
+                    )}
+                  </div>
+                  <div className="fd-doctor-list">
+                    {recommendedDoctors.map((d) => renderDoctorCard(d, true))}
+                  </div>
+                </div>
+              )}
 
-          {filtered.length > 0 && (
-            <div className="fd-section">
-              <div className="fd-section-head">
-                <h3>All Specialists</h3>
-                <span className="fd-count">{filtered.length} available</span>
+              <div className="fd-section">
+                <div className="fd-section-head">
+                  <h3>All Doctors</h3>
+                  <span className="fd-count">{allDoctors.length} available</span>
+                </div>
+                <div className="fd-search-wrap">
+                  <span className="material-symbols-outlined">search</span>
+                  <input
+                    type="search"
+                    placeholder="Search doctors, clinics..."
+                    value={search}
+                    onChange={(e) => setSearch(e.target.value)}
+                  />
+                </div>
+                <div className="fd-doctor-list">
+                  {allDoctors.map((d) => renderDoctorCard(d, false))}
+                </div>
               </div>
-              <div className="fd-search-wrap">
-                <span className="material-symbols-outlined">search</span>
-                <input
-                  type="search"
-                  placeholder="Search doctors, clinics..."
-                  value={search}
-                  onChange={(e) => setSearch(e.target.value)}
-                />
-              </div>
-              <div className="fd-doctor-list">
-                {filtered.map((d) =>
-                  renderDoctorCard(d, recommendedDoctors.some((r) => r.id === d.id))
-                )}
-              </div>
-            </div>
-          )}
             </>
           )}
-
         </div>
 
-        <aside className="fd-booking-panel">
-          <h3>Select Appointment</h3>
-          {selectedDoctor ? (
-            <>
-              <p className="fd-selected-doc">
-                <strong>{selectedDoctor.name}</strong>
-                <span>{selectedDoctor.specialty}</span>
-              </p>
+        <div className="fd-booking-col">
+          <aside className="fd-booking-panel">
+            <div className="fd-section-head fd-booking-panel-head">
+              <h3>Select Appointment</h3>
+            </div>
+            <div className="fd-booking-panel-body fd-scroll">
+              {selectedDoctor ? (
+                <>
+                  <div className={`fd-selected-doc${isSelectedRecommended ? " fd-selected-doc--recommended" : ""}`}>
+                    <div className="fd-selected-doc-head">
+                      <div className="fd-selected-doc-info">
+                        <strong>{selectedDoctor.name}</strong>
+                        <span className="fd-selected-spec">{selectedDoctor.specialty}</span>
+                      </div>
+                      {isSelectedRecommended && (
+                        <span className="fd-selected-rec-badge" title="Based on your reported symptoms">
+                          <span className="material-symbols-outlined" aria-hidden="true">auto_awesome</span>
+                          AI Recommended
+                        </span>
+                      )}
+                    </div>
+                    {isSelectedRecommended && (
+                      <p className="fd-selected-rec-hint">Matched to your reported symptoms</p>
+                    )}
+                  </div>
 
               <div className="fd-calendar-block">
                 <div className="fd-calendar-head">
@@ -554,11 +602,13 @@ export default function PatientDoctors() {
                 <span className="material-symbols-outlined">calendar_today</span>
               </button>
               <p className="fd-booking-note">No payment required until the visit.</p>
-            </>
-          ) : (
-            <p className="fd-muted">Select a doctor to view available times.</p>
-          )}
-        </aside>
+                </>
+              ) : (
+                <p className="fd-muted">Select a doctor to view available times.</p>
+              )}
+            </div>
+          </aside>
+        </div>
       </div>
 
       <section className="fd-trust-row">

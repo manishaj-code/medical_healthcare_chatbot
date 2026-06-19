@@ -7,39 +7,83 @@ export interface NotificationItem {
   is_read?: boolean;
 }
 
+export type NotificationToastVariant = "info" | "success" | "error" | "urgent";
+
+export interface NotificationToastMeta {
+  title: string;
+  icon: string;
+  variant: NotificationToastVariant;
+  chip: string;
+}
+
 export function typeLabel(type: string): string {
-  if (type === "refill_approved") return "Refill approved";
-  if (type === "refill_denied") return "Refill denied";
-  if (type === "refill_request") return "Refill request";
-  if (type === "booking_confirmation") return "Appointment";
-  if (type === "reminder" || type === "reminder_scheduled") return "Reminder";
-  if (type === "video_consultation") return "Video consult";
-  if (type === "urgent_consult_assigned") return "Urgent consult approved";
-  if (type === "urgent_consult_declined") return "Urgent consult update";
-  if (type === "urgent_consult_expanded") return "More doctors notified";
-  if (type === "urgent_consult_unavailable") return "No doctors available";
-  if (type === "urgent_consult_request") return "Urgent consult";
-  if (type === "urgent_consult_superseded") return "Urgent consult";
-  if (type === "cancellation") return "Cancelled";
-  if (type === "system") return "System";
-  return "Update";
+  return getNotificationToastMeta(type).title;
 }
 
 export function typeIcon(type: string): string {
-  if (type === "refill_approved") return "check_circle";
-  if (type === "refill_denied") return "cancel";
-  if (type === "refill_request") return "medication";
-  if (type === "booking_confirmation") return "event";
-  if (type === "reminder" || type === "reminder_scheduled") return "alarm";
-  if (type === "video_consultation") return "videocam";
-  if (type === "urgent_consult_assigned") return "check_circle";
-  if (type === "urgent_consult_declined") return "person_cancel";
-  if (type === "urgent_consult_expanded") return "group_add";
-  if (type === "urgent_consult_unavailable") return "error";
-  if (type === "urgent_consult_request" || type === "urgent_consult_superseded") return "emergency";
-  if (type === "cancellation") return "event_busy";
-  if (type === "system") return "info";
-  return "notifications";
+  return getNotificationToastMeta(type).icon;
+}
+
+export function toastVariantForNotificationType(type: string, message = ""): NotificationToastVariant {
+  return getNotificationToastMeta(type, message).variant;
+}
+
+export function getNotificationToastMeta(type: string, message = ""): NotificationToastMeta {
+  const lower = message.toLowerCase();
+
+  if (type === "consultation_completed" || (type === "system" && lower.includes("consultation") && lower.includes("completed"))) {
+    return { title: "Consultation complete", icon: "task_alt", variant: "success", chip: "Completed" };
+  }
+  if (type === "appointment_rescheduled" || (type === "booking_confirmation" && lower.includes("rescheduled"))) {
+    return { title: "Appointment rescheduled", icon: "event_repeat", variant: "info", chip: "Rescheduled" };
+  }
+  if (type === "cancellation" || (type === "booking_confirmation" && lower.includes("cancelled"))) {
+    return { title: "Appointment cancelled", icon: "event_busy", variant: "error", chip: "Cancelled" };
+  }
+  if (type === "booking_confirmation") {
+    return { title: "Appointment booked", icon: "event_available", variant: "success", chip: "Booked" };
+  }
+  if (type === "reminder_scheduled") {
+    return { title: "Reminder set", icon: "notifications_active", variant: "info", chip: "Reminder" };
+  }
+  if (type === "reminder") {
+    return { title: "Appointment reminder", icon: "alarm", variant: "urgent", chip: "Due soon" };
+  }
+  if (type === "refill_approved") {
+    return { title: "Refill approved", icon: "check_circle", variant: "success", chip: "Approved" };
+  }
+  if (type === "refill_denied") {
+    return { title: "Refill denied", icon: "cancel", variant: "error", chip: "Denied" };
+  }
+  if (type === "refill_request") {
+    return { title: "Refill request", icon: "medication", variant: "info", chip: "Refill" };
+  }
+  if (type === "video_consultation") {
+    return { title: "Video consultation", icon: "videocam", variant: "info", chip: "Video" };
+  }
+  if (type === "urgent_consult_assigned") {
+    return { title: "Urgent consult approved", icon: "check_circle", variant: "success", chip: "Urgent" };
+  }
+  if (type === "urgent_consult_declined") {
+    return { title: "Urgent consult update", icon: "person_cancel", variant: "error", chip: "Urgent" };
+  }
+  if (type === "urgent_consult_expanded") {
+    return { title: "More doctors notified", icon: "group_add", variant: "info", chip: "Urgent" };
+  }
+  if (type === "urgent_consult_unavailable") {
+    return { title: "No doctors available", icon: "error", variant: "error", chip: "Urgent" };
+  }
+  if (type === "urgent_consult_request") {
+    return { title: "Urgent consult request", icon: "emergency", variant: "urgent", chip: "Urgent" };
+  }
+  if (type === "urgent_consult_superseded") {
+    return { title: "Urgent consult update", icon: "emergency", variant: "info", chip: "Urgent" };
+  }
+  if (type === "system") {
+    return { title: "System update", icon: "info", variant: "info", chip: "Update" };
+  }
+
+  return { title: "Notification", icon: "notifications", variant: "info", chip: "Update" };
 }
 
 export function formatNotificationTime(sentAt: string | null): string {

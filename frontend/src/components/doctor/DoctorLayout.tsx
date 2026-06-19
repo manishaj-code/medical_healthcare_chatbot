@@ -13,11 +13,11 @@ export interface DoctorOutletContext {
 }
 
 const NAV: { tab?: DoctorTab; to?: string; label: string; icon: string; hash?: string }[] = [
-  { tab: "overview", to: "/doctor", label: "Dashboard", icon: "dashboard" },
-  { tab: "overview", label: "Schedule", icon: "event", hash: "#schedule" },
-  { tab: "patients", label: "Patients", icon: "group" },
-  { tab: "history", label: "Consultation history", icon: "history" },
+  { tab: "overview", to: "/doctor", label: "Dashboards", icon: "dashboard" },
   { tab: "refills", label: "Refills", icon: "medication" },
+  { tab: "patients", label: "Patients", icon: "group" },
+  { tab: "appointments", label: "Appointments", icon: "event" },
+  { tab: "history", label: "Consultation History", icon: "history" },
   { tab: "slots", label: "Availability", icon: "schedule" },
 ];
 

@@ -20,6 +20,7 @@ import {
   riskLevelCssVariant,
 } from "../../utils/clinicalSummaryFormat";
 import type { TranscriptAiSuggestions } from "../../types/consultationTranscript";
+import { ConsultationSessionSkeleton } from "../../components/skeleton";
 
 interface PrescriptionItem {
   medicine_name: string;
@@ -268,9 +269,11 @@ function RibbonFact({
 function PreVisitRibbon({
   summary,
   riskLevel,
+  hideTitle = false,
 }: {
   summary: Record<string, unknown>;
   riskLevel: string | null;
+  hideTitle?: boolean;
 }) {
   const symptoms = (summary.symptoms as string[]) || [];
   const allergies = (summary.allergies as string[]) || [];
@@ -283,7 +286,7 @@ function PreVisitRibbon({
         <span className="material-symbols-outlined filled-icon">auto_awesome</span>
       </div>
       <div className="dp-consult-ribbon-body">
-        <p className="dp-consult-ribbon-title">Pre-visit summary</p>
+        {!hideTitle && <p className="dp-consult-ribbon-title">Pre-visit summary</p>}
         <div className="dp-consult-ribbon-facts">
           {symptoms.length > 0 && (
             <RibbonFact label="Symptom" value={symptoms.join(", ")} icon="healing" />
@@ -478,9 +481,11 @@ function ReportPreVisitSummary({
 function ReportPreVisitRibbon({
   consultFor,
   linkedReport,
+  hideTitle = false,
 }: {
   consultFor: string;
   linkedReport: LinkedReportPrep;
+  hideTitle?: boolean;
 }) {
   return (
     <div className="dp-consult-ribbon dp-consult-ribbon--report">
@@ -488,7 +493,7 @@ function ReportPreVisitRibbon({
         <span className="material-symbols-outlined filled-icon">description</span>
       </div>
       <div className="dp-consult-ribbon-body">
-        <p className="dp-consult-ribbon-title">Report discussion</p>
+        {!hideTitle && <p className="dp-consult-ribbon-title">Report discussion</p>}
         <div className="dp-consult-ribbon-facts">
           <RibbonFact label="Consult for" value={consultFor} icon="medical_information" wide />
           <RibbonFact label="Report" value={linkedReport.filename} icon="upload_file" wide />
@@ -986,10 +991,7 @@ export default function ConsultationSession() {
     return (
       <>
         <div className="dp-consult-workspace">
-          <div className="dp-loading">
-            <div className="dp-spinner" />
-            Loading consultation…
-          </div>
+          <ConsultationSessionSkeleton />
         </div>
         {videoModal}
       </>
@@ -1163,7 +1165,7 @@ export default function ConsultationSession() {
               autoAnalyzeEnabled={phase === "active"}
               onTranscriptAnalyze={handleInVisitTranscriptAnalyze}
               onApplyTranscriptToForm={handleApplyInVisitToForm}
-              preVisit={<ReportPreVisitRibbon consultFor={consultFor} linkedReport={linkedReport} />}
+              preVisit={<ReportPreVisitRibbon consultFor={consultFor} linkedReport={linkedReport} hideTitle />}
             />
           ) : (
             <ConsultationVisitSummaries
@@ -1172,7 +1174,7 @@ export default function ConsultationSession() {
               autoAnalyzeEnabled={phase === "active"}
               onTranscriptAnalyze={handleInVisitTranscriptAnalyze}
               onApplyTranscriptToForm={handleApplyInVisitToForm}
-              preVisit={<PreVisitRibbon summary={prep.ai_summary} riskLevel={prep.ai_risk_level} />}
+              preVisit={<PreVisitRibbon summary={prep.ai_summary} riskLevel={prep.ai_risk_level} hideTitle />}
             />
           )}
 

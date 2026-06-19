@@ -214,6 +214,57 @@ export function VideoConsultSkeleton() {
   );
 }
 
+export function VideoModalSkeleton() {
+  return (
+    <SkeletonPage label="Preparing video room">
+      <Skeleton width="100%" height={360} rounded />
+      <div style={{ display: "flex", gap: 8, marginTop: 12 }}>
+        <Skeleton width={120} height={36} rounded />
+        <Skeleton width={100} height={36} rounded />
+      </div>
+    </SkeletonPage>
+  );
+}
+
+export function PrepTabSkeleton() {
+  return (
+    <SkeletonPage label="Loading content">
+      <Skeleton width="40%" height={18} style={{ marginBottom: 12 }} />
+      <Skeleton width="100%" height={14} />
+      <Skeleton width="92%" height={14} style={{ marginTop: 8 }} />
+      <Skeleton width="88%" height={14} style={{ marginTop: 8 }} />
+      <Skeleton width="75%" height={14} style={{ marginTop: 8 }} />
+    </SkeletonPage>
+  );
+}
+
+export function ReportModalSkeleton() {
+  return (
+    <SkeletonPage label="Loading report">
+      <Skeleton width="50%" height={20} style={{ marginBottom: 16 }} />
+      <Skeleton width="100%" height={14} />
+      <Skeleton width="95%" height={14} style={{ marginTop: 8 }} />
+      <Skeleton width="80%" height={14} style={{ marginTop: 8 }} />
+    </SkeletonPage>
+  );
+}
+
+export function DropdownNotificationsSkeleton({ count = 3 }: { count?: number }) {
+  return (
+    <SkeletonPage label="Loading notifications">
+      {Array.from({ length: count }, (_, i) => (
+        <div key={i} style={{ display: "flex", gap: 10, alignItems: "center", padding: "8px 0" }}>
+          <Skeleton width={28} height={28} rounded />
+          <div style={{ flex: 1 }}>
+            <Skeleton width="70%" height={12} />
+            <Skeleton width="50%" height={10} style={{ marginTop: 6 }} />
+          </div>
+        </div>
+      ))}
+    </SkeletonPage>
+  );
+}
+
 export function PatientDetailSkeleton() {
   return (
     <SkeletonPage label="Loading patient record">

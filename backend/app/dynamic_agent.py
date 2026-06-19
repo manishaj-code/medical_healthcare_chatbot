@@ -643,7 +643,7 @@ class DynamicHealthcareAgent:
             })
             conversation.active_agent = "appointment"
             return (
-                f"Before booking, please confirm:\n\nPatient Name: {pname}\n"
+                f"Before booking, please confirm:\n\n"
                 f"Doctor: {doc_name}\nDate & Time: {chosen['label']}\n\nConfirm booking? (Yes/No)"
             ), "appointment", False, None
 
@@ -1097,7 +1097,7 @@ class DynamicHealthcareAgent:
                 doc_name = chosen.get("doctor_name", "")
                 await update_flow(conv_id, step="confirm", data={**data, "doctor_name": doc_name, "chosen": chosen})
                 return (
-                    f"Before booking, please confirm:\n\nPatient Name: {pname}\n"
+                    f"Before booking, please confirm:\n\n"
                     f"Doctor: {doc_name}\nDate & Time: {chosen['label']}\n\nConfirm booking? (Yes/No)"
                 ), "appointment", False, None
 
@@ -1132,7 +1132,7 @@ class DynamicHealthcareAgent:
                 stored["label"] = chosen["label"]
             await update_flow(conv_id, step="confirm", data={**data, "chosen": stored})
             return (
-                f"Before booking, please confirm:\n\nPatient Name: {pname}\n"
+                f"Before booking, please confirm:\n\n"
                 f"Doctor: {data.get('doctor_name')}\nDate & Time: {stored['label']}\n\n"
                 f"Confirm booking? (Yes/No)"
             ), "appointment", False, None

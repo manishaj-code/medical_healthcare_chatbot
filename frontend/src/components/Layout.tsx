@@ -2,6 +2,7 @@ import { Link, Outlet, useLocation, useNavigate } from "react-router-dom";
 import { clearTokens } from "../api/client";
 import PatientLayout from "./PatientLayout";
 import DoctorLayout from "./doctor/DoctorLayout";
+import NotificationToastListener from "./NotificationToastListener";
 
 export default function Layout() {
   const loc = useLocation();
@@ -9,11 +10,21 @@ export default function Layout() {
   const role = localStorage.getItem("user_role") || "patient";
 
   if (role === "patient") {
-    return <PatientLayout />;
+    return (
+      <>
+        <NotificationToastListener apiPrefix="/api/v1/patients/me" />
+        <PatientLayout />
+      </>
+    );
   }
 
   if (role === "doctor") {
-    return <DoctorLayout />;
+    return (
+      <>
+        <NotificationToastListener apiPrefix="/api/v1/doctor" />
+        <DoctorLayout />
+      </>
+    );
   }
 
   const links: Record<string, { to: string; label: string }[]> = {

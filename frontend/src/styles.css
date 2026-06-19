@@ -1680,103 +1680,122 @@ body {
 /* ── Reschedule confirm card ── */
 .reschedule-confirm-card {
   background: #ffffff;
-  border: 1.5px solid #b6dce8;
-  border-radius: 12px;
+  border: 1px solid #c5dce8;
+  border-radius: 10px;
   overflow: hidden;
   font-family: "Inter", "Segoe UI", system-ui, sans-serif;
-  box-shadow: 0 2px 10px rgba(0, 80, 110, 0.07);
+  box-shadow: 0 1px 6px rgba(0, 80, 110, 0.06);
   width: 100%;
+  max-width: 22rem;
 }
 
 .reschedule-confirm-header {
   display: flex;
   align-items: center;
   gap: 0.4rem;
-  padding: 0.55rem 0.85rem;
+  padding: 0.45rem 0.7rem;
   background: linear-gradient(135deg, #1a6b7a 0%, #1a5f6a 100%);
   color: #ffffff;
+}
+
+.reschedule-confirm-header-text {
+  flex: 1;
+  min-width: 0;
 }
 
 .reschedule-confirm-header-icon {
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 1.55rem;
-  height: 1.55rem;
-  border-radius: 8px;
+  width: 1.35rem;
+  height: 1.35rem;
+  border-radius: 7px;
   background: rgba(255, 255, 255, 0.16);
-}
-
-.reschedule-confirm-header-icon .material-symbols-outlined {
-  font-size: 1.05rem;
-}
-
-.reschedule-confirm-title {
-  font-size: 0.92rem;
-  font-weight: 700;
-}
-
-.reschedule-confirm-details {
-  padding: 0.45rem 0.85rem;
-  background: #f5fbfd;
-  display: flex;
-  flex-direction: column;
-  gap: 0.3rem;
-}
-
-.reschedule-confirm-row {
-  display: flex;
-  align-items: flex-start;
-  flex-wrap: wrap;
-  gap: 0.2rem 0.55rem;
-  font-size: 0.84rem;
-  line-height: 1.35;
-}
-
-.reschedule-confirm-row--new {
-  padding: 0.42rem 0.55rem;
-  border-radius: 8px;
-  background: rgba(26, 95, 106, 0.08);
-  border: 1px solid rgba(26, 95, 106, 0.14);
-}
-
-.reschedule-confirm-label {
-  font-size: 0.78rem;
-  font-weight: 600;
-  color: #1a5f6a;
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
-  min-width: 5.5rem;
   flex-shrink: 0;
 }
 
+.reschedule-confirm-header-icon .material-symbols-outlined {
+  font-size: 0.95rem;
+}
+
+.reschedule-confirm-title {
+  display: block;
+  font-size: 0.8rem;
+  font-weight: 700;
+  letter-spacing: 0.01em;
+  line-height: 1.25;
+}
+
+.reschedule-confirm-details {
+  padding: 0.5rem 0.55rem;
+  background: #f8fcfd;
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.reschedule-confirm-row {
+  display: grid;
+  grid-template-columns: 3.75rem minmax(0, 1fr);
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.32rem 0.45rem;
+  border-radius: 7px;
+  min-height: 1.75rem;
+}
+
+.reschedule-confirm-row--new {
+  background: rgba(26, 95, 106, 0.07);
+  border: 1px solid rgba(26, 95, 106, 0.12);
+}
+
+.reschedule-confirm-label {
+  font-size: 0.65rem;
+  font-weight: 700;
+  color: #3d6f7a;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  line-height: 1.2;
+}
+
 .reschedule-confirm-value {
+  font-size: 0.78rem;
   font-weight: 600;
   color: #0d2d3d;
-  flex: 1;
-  min-width: 0;
+  text-align: right;
+  line-height: 1.25;
   word-break: break-word;
+}
+
+.reschedule-confirm-row--new .reschedule-confirm-label {
+  color: #1a5f6a;
+}
+
+.reschedule-confirm-row--new .reschedule-confirm-value {
+  color: #1a5f6a;
+  font-weight: 700;
 }
 
 .reschedule-confirm-actions {
   display: flex;
   flex-direction: column;
-  gap: 0.35rem;
-  padding: 0.5rem 0.65rem 0.6rem;
+  gap: 0.3rem;
+  padding: 0.45rem 0.55rem 0.5rem;
   background: #ffffff;
-  border-top: 1px solid #daedf5;
+  border-top: 1px solid #e4f0f5;
 }
 
 .reschedule-confirm-btn {
   width: 100%;
-  padding: 0.52rem 0.85rem;
-  border-radius: 8px;
+  padding: 0.45rem 0.7rem;
+  border-radius: 7px;
   border: none;
-  font-size: 0.88rem;
+  font-size: 0.8rem;
   font-weight: 600;
   font-family: inherit;
   cursor: pointer;
   transition: background 0.15s, transform 0.1s;
+  line-height: 1.25;
 }
 
 .reschedule-confirm-btn--yes {
@@ -2015,6 +2034,14 @@ body {
   background: linear-gradient(135deg, #2d6a5a 0%, #1f5648 100%);
 }
 
+.appt-confirmed-card--rescheduled {
+  border-color: #d4c48a;
+}
+
+.appt-confirmed-card--rescheduled .appt-confirmed-header {
+  background: linear-gradient(135deg, #8a6d1f 0%, #6b5518 100%);
+}
+
 .appt-confirmed-card--superseded {
   border-color: #d4e8ee;
   box-shadow: 0 2px 10px rgba(0, 80, 110, 0.06);
@@ -2225,6 +2252,67 @@ body {
   letter-spacing: 0.1em;
   color: #4a7a8f;
   margin-bottom: 0.15rem;
+}
+
+.medai-booking-panel--reschedule .medai-doctor-col {
+  gap: 0.55rem;
+}
+
+.reschedule-context-card {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  padding: 0.55rem 0.65rem;
+  border-radius: 10px;
+  background: linear-gradient(145deg, #fff9eb 0%, #fff4d6 100%);
+  border: 1px solid #e8d49a;
+}
+
+.reschedule-context-row {
+  display: flex;
+  flex-direction: column;
+  gap: 0.12rem;
+}
+
+.reschedule-context-row--current {
+  padding-top: 0.35rem;
+  border-top: 1px dashed rgba(138, 109, 31, 0.25);
+}
+
+.reschedule-context-label {
+  font-size: 0.66rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: #8a6d1f;
+}
+
+.reschedule-context-apt {
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: #5c4a14;
+  letter-spacing: 0.04em;
+}
+
+.reschedule-context-value {
+  font-size: 0.88rem;
+  font-weight: 700;
+  color: #3d3010;
+}
+
+.reschedule-context-hint {
+  margin: 0.15rem 0 0;
+  font-size: 0.72rem;
+  line-height: 1.45;
+  color: #7a6528;
+}
+
+.medai-booking-panel--reschedule {
+  background: linear-gradient(160deg, #f3f9fc 0%, #eef6fa 55%, #faf6ea 100%);
+}
+
+.medai-booking-panel--reschedule .medai-picker-col {
+  border-left-color: rgba(138, 109, 31, 0.18);
 }
 
 /* Doctor card */
@@ -2570,6 +2658,9 @@ body {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
   gap: 0.5rem;
+  max-height: 240px;
+  overflow-y: auto;
+  padding-right: 0.15rem;
 }
 
 .appt-slots-empty {
@@ -4106,6 +4197,11 @@ th { font-weight: 600; background: #f8f9fa; }
 .pd-appt-status--confirmed {
   background: rgba(0, 104, 123, 0.12);
   color: #00687b;
+}
+
+.pd-appt-status--rescheduled {
+  background: rgba(255, 193, 7, 0.18);
+  color: #8a6d1f;
 }
 
 .pd-appt-status--cancelled {
@@ -5716,6 +5812,7 @@ th { font-weight: 600; background: #f8f9fa; }
   flex-direction: column;
   gap: 1.75rem;
   max-width: 1200px;
+  --fd-booking-sticky-top: 5.25rem;
 }
 
 .fd-ai-banner {
@@ -5808,16 +5905,43 @@ th { font-weight: 600; background: #f8f9fa; }
 
 .fd-main-grid {
   display: grid;
-  grid-template-columns: 1fr 340px;
+  grid-template-columns: minmax(0, 1fr) minmax(320px, 380px);
   gap: 1.5rem;
-  align-items: start;
+  align-items: stretch;
 }
 
 .fd-doctors-col {
   display: flex;
   flex-direction: column;
-  gap: 1.5rem;
+  gap: 1.25rem;
   min-width: 0;
+}
+
+.fd-booking-col {
+  min-width: 0;
+  min-height: 0;
+}
+
+.fd-scroll {
+  scrollbar-width: thin;
+  scrollbar-color: #92bd92 transparent;
+}
+
+.fd-scroll::-webkit-scrollbar {
+  width: 5px;
+}
+
+.fd-scroll::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.fd-scroll::-webkit-scrollbar-thumb {
+  background: #92bd92;
+  border-radius: 10px;
+}
+
+.fd-section {
+  margin: 0;
 }
 
 .fd-section-head {
@@ -5826,6 +5950,7 @@ th { font-weight: 600; background: #f8f9fa; }
   justify-content: space-between;
   gap: 0.75rem;
   margin-bottom: 0.85rem;
+  min-height: 1.65rem;
 }
 
 .fd-section h3 {
@@ -6040,15 +6165,40 @@ th { font-weight: 600; background: #f8f9fa; }
 
 .fd-booking-panel {
   position: sticky;
-  top: 80px;
+  top: var(--fd-booking-sticky-top);
+  display: flex;
+  flex-direction: column;
+  max-height: calc(100vh - var(--fd-booking-sticky-top) - 1.5rem);
   background: #fff;
   border: 1px solid var(--pd-outline);
   border-radius: 18px;
-  padding: 1.35rem;
+  padding: 0 1.35rem 1.35rem;
   box-shadow: 0 4px 20px rgba(0, 55, 76, 0.08);
 }
 
-.fd-booking-panel h3 {
+.fd-booking-panel-head {
+  flex-shrink: 0;
+  margin-bottom: 0.85rem;
+  min-height: 1.65rem;
+  padding-top: 1.35rem;
+}
+
+.fd-booking-panel-body {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding-right: 0.1rem;
+}
+
+.fd-booking-panel-head h3 {
+  margin: 0;
+  font-size: 1.1rem;
+  font-weight: 700;
+  color: var(--pd-primary);
+}
+
+.fd-booking-panel > h3 {
   margin: 0 0 1rem;
   font-size: 1.05rem;
   font-weight: 700;
@@ -6057,11 +6207,69 @@ th { font-weight: 600; background: #f8f9fa; }
 
 .fd-selected-doc {
   margin: 0 0 1rem;
-  padding-bottom: 0.85rem;
-  border-bottom: 1px solid var(--pd-surface-container);
+  padding: 0.75rem 0.85rem;
+  border-radius: 12px;
+  background: var(--pd-surface-container);
+  border: 1px solid var(--pd-surface-container);
+}
+
+.fd-selected-doc--recommended {
+  background: linear-gradient(145deg, #f0faf8 0%, #e8f6fa 100%);
+  border-color: rgba(0, 104, 128, 0.22);
+}
+
+.fd-selected-doc-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.65rem;
+}
+
+.fd-selected-doc-info {
   display: flex;
   flex-direction: column;
   gap: 0.15rem;
+  min-width: 0;
+}
+
+.fd-selected-doc-info strong {
+  font-size: 0.95rem;
+  color: var(--pd-on-surface);
+  line-height: 1.3;
+}
+
+.fd-selected-spec {
+  font-size: 0.8rem;
+  color: var(--pd-on-surface-variant);
+}
+
+.fd-selected-rec-badge {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.2rem;
+  padding: 0.22rem 0.5rem;
+  border-radius: 8px;
+  background: rgba(0, 104, 128, 0.08);
+  border: 1px solid rgba(0, 104, 128, 0.16);
+  color: var(--pd-primary);
+  font-size: 0.68rem;
+  font-weight: 600;
+  line-height: 1.2;
+  white-space: nowrap;
+}
+
+.fd-selected-rec-badge .material-symbols-outlined {
+  font-size: 0.8rem;
+}
+
+.fd-selected-rec-hint {
+  margin: 0.45rem 0 0;
+  padding-top: 0.45rem;
+  border-top: 1px solid rgba(0, 104, 128, 0.1);
+  font-size: 0.72rem;
+  color: var(--pd-on-surface-variant);
+  line-height: 1.35;
 }
 
 .fd-selected-doc strong {
@@ -6069,7 +6277,7 @@ th { font-weight: 600; background: #f8f9fa; }
   color: var(--pd-on-surface);
 }
 
-.fd-selected-doc span {
+.fd-selected-doc span:not(.fd-selected-rec-badge):not(.material-symbols-outlined) {
   font-size: 0.8rem;
   color: var(--pd-on-surface-variant);
 }
@@ -6342,7 +6550,13 @@ th { font-weight: 600; background: #f8f9fa; }
 
 @media (max-width: 1024px) {
   .fd-main-grid { grid-template-columns: 1fr; }
-  .fd-booking-panel { position: static; }
+  .fd-booking-panel {
+    position: static;
+    max-height: none;
+  }
+  .fd-booking-panel-body {
+    overflow: visible;
+  }
 }
 
 @media (max-width: 768px) {
@@ -7029,6 +7243,14 @@ th { font-weight: 600; background: #f8f9fa; }
   max-width: min(820px, 95vw);
   width: 100%;
   padding: 0.75rem;
+}
+
+.aura-chat-bubble:has(.reschedule-confirm-card),
+.aura-chat-bubble:has(.confirm-booking-card),
+.aura-chat-bubble:has(.appt-confirmed-card) {
+  max-width: min(420px, 95vw);
+  width: 100%;
+  padding: 0.65rem;
 }
 
 /* Fallback for browsers without :has() support */

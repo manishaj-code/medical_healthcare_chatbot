@@ -11,8 +11,10 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models import Appointment, Doctor, User
 from app.models.enums import AppointmentStatus
-from app.services.appointment_service import format_apt_id
+from app.services.appointment_service import format_apt_id, normalize_slot_time
 from app.services.agent_tools import (
+    _day_label,
+    _format_time,
     _match_doctor,
     match_slot_from_text,
     slot_for_storage,
@@ -34,7 +36,6 @@ from app.services.chat_ui import (
     build_video_consultation_ui,
     build_confirm_booking_ui,
     build_confirm_reschedule_ui,
-    build_reschedule_slots_ui,
     build_doctor_list_ui,
     build_report_doctor_choice_ui,
     build_slot_list_ui,
@@ -209,14 +210,33 @@ def _is_appointment_management_message(text: str) -> bool:
 
 async def _handle_reminder_request(ctx: AgentContext) -> AgentResponse | None:
     session = ctx.session
-    if not (
-        session.get("care_goal") in ("post_booking_reminder", "manage_appointment")
-        or _last_assistant_offered_reminder(ctx.history)
-        or _wants_reminder(ctx.text)
+    awaiting = session.get("awaiting")
+
+    if awaiting in (
+        "confirm_booking",
+        "confirm_reschedule",
+        "confirm_cancel",
+        "reschedule_pick_slot",
+        "pick_slot",
+    ):
+        return None
+    if _last_assistant_awaiting_confirm(ctx.history) or _last_assistant_awaiting_reschedule_confirm(
+        ctx.history
     ):
         return None
 
-    if not (_yes(ctx.text) or _wants_reminder(ctx.text)):
+    offered_reminder = _last_assistant_offered_reminder(ctx.history)
+    wants_reminder = _wants_reminder(ctx.text)
+    post_booking = session.get("care_goal") == "post_booking_reminder"
+
+    if not (post_booking or offered_reminder or wants_reminder):
+        return None
+
+    # "Yes" alone must never set a reminder — only after an explicit reminder offer.
+    if _yes(ctx.text) and not (offered_reminder or post_booking):
+        return None
+
+    if not (_yes(ctx.text) or wants_reminder):
         if _no(ctx.text):
             return AgentResponse(
                 reply="No problem! Your appointment is confirmed. Take care!",
@@ -385,6 +405,226 @@ async def _handle_cancel_appointment(ctx: AgentContext) -> AgentResponse | None:
     )
 
 
+async def _appointment_when_label(appt: Appointment) -> str:
+    return f"{_day_label(appt.slot_date)}: {_format_time(appt.slot_time)}"
+
+
+async def _build_slot_change_confirm_response(
+    ctx: AgentContext,
+    stored: dict,
+    doc_name: str,
+    display_name: str,
+    *,
+    reason_line: str = "",
+    mode_line: str = "",
+) -> AgentResponse:
+    """If the patient already has an active appointment, confirm a reschedule — not a new booking."""
+    appt = await _find_appointment(ctx, None)
+    if appt and ctx.patient and not ctx.is_guest:
+        current = await _appointment_when_label(appt)
+        return AgentResponse(
+            reply=(
+                f"Confirm rescheduling?\n\n"
+                f"Current: **{current}**\n"
+                f"New: **{stored['label']}**"
+            ),
+            agent="scheduling_agent",
+            ui=build_confirm_reschedule_ui(current, stored["label"]),
+            session_patch={
+                "awaiting": "confirm_reschedule",
+                "manage_appointment_id": str(appt.id),
+                "pending_slot": stored,
+                "reschedule_current": current,
+                "care_goal": "manage_appointment",
+            },
+        )
+
+    return AgentResponse(
+        reply=(
+            f"Before booking, please confirm:\n\n"
+            f"Doctor: {doc_name}\n"
+            f"Date & Time: {stored['label']}{reason_line}{mode_line}"
+        ),
+        agent="scheduling_agent",
+        ui=build_confirm_booking_ui(doc_name, stored["label"]),
+        session_patch={"awaiting": "confirm_booking", "pending_slot": stored},
+    )
+
+
+async def _handle_confirm_booking_yes(ctx: AgentContext) -> AgentResponse | None:
+    session = ctx.session
+    awaiting = session.get("awaiting")
+    confirming = (
+        awaiting == "confirm_booking" or _last_assistant_awaiting_confirm(ctx.history)
+    ) and session.get("care_goal") != "post_booking_reminder"
+
+    if awaiting == "confirm_booking" and _no(ctx.text):
+        await clear_flow(ctx.conv_id)
+        return AgentResponse(
+            reply="Booking cancelled. Let me know if you'd like to choose another time.",
+            agent="scheduling_agent",
+            clear_session=True,
+        )
+
+    if not confirming or not _yes(ctx.text):
+        return None
+
+    pending = _recover_pending_slot(ctx) or session.get("pending_slot")
+    if pending and not pending.get("label"):
+        pending = slot_for_storage(pending)
+    if ctx.is_guest:
+        if pending:
+            session["pending_slot"] = pending
+            await set_flow(ctx.conv_id, {"session": session})
+        detail = None
+        if pending:
+            detail = (
+                f"{pending.get('doctor_name', 'your doctor')} "
+                f"on {pending.get('label', 'your selected time')}"
+            )
+        return guest_auth_gate(ctx, "book", detail)
+    if not pending or ctx.patient is None:
+        return None
+
+    appt = await _find_appointment(ctx, None)
+    if appt:
+        try:
+            result = await tool_reschedule(
+                ctx.db,
+                ctx.patient.id,
+                ctx.patient.user_id,
+                appt.id,
+                pending,
+            )
+        except HTTPException as exc:
+            return AgentResponse(
+                reply=(
+                    f"Sorry, that slot could not be used ({exc.detail}). "
+                    "Please pick another time."
+                ),
+                agent="scheduling_agent",
+                session_patch={"awaiting": "pick_slot", "pending_slot": None},
+            )
+        if result.get("success"):
+            card = await build_card_from_appointment(
+                ctx.db,
+                appt.id,
+                user_id=ctx.patient.user_id,
+                display_status="rescheduled",
+            )
+            doctor_name = card.get("doctor_name", "your doctor")
+            label = result.get("label", card.get("label", "the new time"))
+            return AgentResponse(
+                reply=f"✅ Appointment rescheduled with **{doctor_name}** — **{label}**.",
+                agent="scheduling_agent",
+                ui=card,
+                session_patch={
+                    "awaiting": None,
+                    "care_goal": "manage_appointment",
+                    "pending_slot": None,
+                    "manage_appointment_id": str(appt.id),
+                    "last_appointment_id": str(appt.id),
+                },
+            )
+        return None
+
+    try:
+        result = await tool_book_slot(
+            ctx.db,
+            ctx.patient,
+            ctx.patient.user_id,
+            pending,
+            ctx.conv_id,
+            booking_context=_booking_context_from_session(session),
+        )
+    except HTTPException as exc:
+        return AgentResponse(
+            reply=(
+                f"Sorry, that slot could not be booked ({exc.detail}). "
+                "Please pick another time from the list."
+            ),
+            agent="scheduling_agent",
+            session_patch={"awaiting": "pick_slot", "pending_slot": None},
+        )
+    if result.get("success"):
+        return await _build_booking_confirmed_response(ctx, result)
+    return None
+
+
+async def _begin_reschedule_flow(ctx: AgentContext, appt: Appointment) -> AgentResponse:
+    from app.services.doctor_service import _fetch_doctor_slots, list_doctors_with_availability
+
+    doctors = await list_doctors_with_availability(ctx.db, include_without_slots=True)
+    doc = next((d for d in doctors if d["id"] == str(appt.doctor_id)), None)
+    doctor = await ctx.db.get(Doctor, appt.doctor_id)
+    doctor_user = await ctx.db.get(User, doctor.user_id) if doctor else None
+    doctor_name = doc["name"] if doc else (doctor_user.name if doctor_user else "Doctor")
+
+    all_slots = await _fetch_doctor_slots(
+        ctx.db, appt.doctor_id, doctor_name, limit=120, days_ahead=14
+    )
+
+    current_date = appt.slot_date.isoformat()
+    current_time = normalize_slot_time(appt.slot_time)
+    alternatives = [
+        s
+        for s in all_slots
+        if not (
+            s["slot_date"] == current_date
+            and normalize_slot_time(s["slot_time"]) == current_time
+        )
+    ]
+
+    if not alternatives:
+        return AgentResponse(
+            reply=(
+                f"No other open slots for **{doctor_name}** right now. Try again later."
+            ),
+            agent="scheduling_agent",
+            session_patch={
+                "awaiting": None,
+                "pending_slot": None,
+                "reschedule_alternatives": None,
+            },
+        )
+
+    current_label = f"{_day_label(appt.slot_date)}: {_format_time(appt.slot_time)}"
+    ui = build_slot_list_ui(
+        doctor_name,
+        str(appt.doctor_id),
+        alternatives,
+        specialty=(doc or {}).get("specialty", "General Physician"),
+        experience_years=(doc or {}).get("experience_years", 0),
+        rating=(doc or {}).get("rating"),
+        profile_image_url=(doc or {}).get("profile_image_url"),
+        consultation_fee=(doc or {}).get("consultation_fee"),
+        hospital_name=(doc or {}).get("hospital_name"),
+        professional_summary=(doc or {}).get("professional_summary") or (doc or {}).get("bio"),
+        next_available=(doc or {}).get("next_available"),
+        booking_mode="reschedule",
+        current_slot_date=current_date,
+        current_slot_time=current_time,
+        apt_id=format_apt_id(appt.id),
+        current_time=current_label,
+    )
+
+    return AgentResponse(
+        reply=slot_list_intro(doctor_name),
+        agent="scheduling_agent",
+        ui=ui,
+        session_patch={
+            "awaiting": "reschedule_pick_slot",
+            "manage_appointment_id": str(appt.id),
+            "reschedule_doctor_id": str(appt.doctor_id),
+            "reschedule_doctor_name": doctor_name,
+            "reschedule_current": current_label,
+            "reschedule_alternatives": alternatives,
+            "pending_slot": None,
+            "care_goal": "manage_appointment",
+        },
+    )
+
+
 async def _handle_reschedule_appointment(ctx: AgentContext) -> AgentResponse | None:
     session = ctx.session
     awaiting = session.get("awaiting")
@@ -405,10 +645,18 @@ async def _handle_reschedule_appointment(ctx: AgentContext) -> AgentResponse | N
                     pending,
                 )
             except HTTPException as exc:
+                appt = await _find_appointment(ctx, None)
+                if appt:
+                    refreshed = await _begin_reschedule_flow(ctx, appt)
+                    refreshed.reply = (
+                        f"Sorry, that slot is no longer available ({exc.detail}). "
+                        "Here are the latest open times:"
+                    )
+                    return refreshed
                 return AgentResponse(
-                    reply=f"Sorry, that slot is no longer available ({exc.detail}). Please pick another time.",
+                    reply=f"Sorry, that slot is no longer available ({exc.detail}). Please try again.",
                     agent="scheduling_agent",
-                    session_patch={"awaiting": "reschedule_pick_slot"},
+                    session_patch={"awaiting": None, "pending_slot": None},
                 )
             if result.get("success"):
                 card = await build_card_from_appointment(
@@ -427,6 +675,7 @@ async def _handle_reschedule_appointment(ctx: AgentContext) -> AgentResponse | N
                         "awaiting": None,
                         "care_goal": "manage_appointment",
                         "pending_slot": None,
+                        "reschedule_alternatives": None,
                         "manage_appointment_id": appt_id,
                         "last_appointment_id": appt_id,
                     },
@@ -439,6 +688,18 @@ async def _handle_reschedule_appointment(ctx: AgentContext) -> AgentResponse | N
             agent="scheduling_agent",
             session_patch={"awaiting": None, "pending_slot": None},
         )
+
+    if _wants_reschedule_appointment(ctx.text):
+        if ctx.is_guest:
+            return guest_auth_gate(ctx, "reschedule", "appointment rescheduling")
+
+        appt = await _find_appointment(ctx, _extract_apt_display_id(ctx.text))
+        if not appt:
+            return AgentResponse(
+                reply="I couldn't find an active appointment to reschedule.",
+                agent="scheduling_agent",
+            )
+        return await _begin_reschedule_flow(ctx, appt)
 
     if awaiting == "reschedule_pick_slot":
         alt = session.get("reschedule_alternatives") or []
@@ -458,57 +719,11 @@ async def _handle_reschedule_appointment(ctx: AgentContext) -> AgentResponse | N
                 session_patch={"awaiting": "confirm_reschedule", "pending_slot": stored},
             )
         return AgentResponse(
-            reply="Please pick one of the available times shown above.",
+            reply="Please pick one of the available times shown above, or tap Reschedule again for fresh slots.",
             agent="scheduling_agent",
         )
 
-    if not _wants_reschedule_appointment(ctx.text):
-        return None
-
-    if ctx.is_guest:
-        return guest_auth_gate(ctx, "reschedule", "appointment rescheduling")
-
-    appt = await _find_appointment(ctx, _extract_apt_display_id(ctx.text))
-    if not appt:
-        return AgentResponse(
-            reply="I couldn't find an active appointment to reschedule.",
-            agent="scheduling_agent",
-        )
-
-    alt_result = await tool_reschedule_alternatives(ctx.db, ctx.patient.id, appt.id)
-    if not alt_result.get("success"):
-        return AgentResponse(
-            reply=alt_result.get("message", "No appointment available to reschedule."),
-            agent="scheduling_agent",
-        )
-
-    alternatives = alt_result.get("alternatives", [])
-    if not alternatives:
-        return AgentResponse(
-            reply=f"No other open slots for **{alt_result.get('doctor_name', 'this doctor')}** right now. Try again later.",
-            agent="scheduling_agent",
-        )
-
-    return AgentResponse(
-        reply="Choose a new time for your appointment below.",
-        agent="scheduling_agent",
-        ui=build_reschedule_slots_ui(
-            alt_result.get("apt_id", ""),
-            alt_result.get("doctor_name", "Doctor"),
-            str(appt.doctor_id),
-            alt_result.get("current", ""),
-            alternatives,
-        ),
-        session_patch={
-            "awaiting": "reschedule_pick_slot",
-            "manage_appointment_id": str(appt.id),
-            "reschedule_doctor_id": str(appt.doctor_id),
-            "reschedule_doctor_name": alt_result.get("doctor_name", "Doctor"),
-            "reschedule_current": alt_result.get("current", ""),
-            "reschedule_alternatives": alternatives,
-            "care_goal": "manage_appointment",
-        },
-    )
+    return None
 
 
 def _wants_reminder(text: str) -> bool:
@@ -551,6 +766,11 @@ def _last_assistant_awaiting_confirm(history: list[dict]) -> bool:
     return "before booking, please confirm" in content or (
         "confirm booking" in content and ("yes/no" in content or "please confirm" in content)
     )
+
+
+def _last_assistant_awaiting_reschedule_confirm(history: list[dict]) -> bool:
+    content = _last_assistant_content(history)
+    return "confirm rescheduling" in content
 
 
 def _last_assistant_refill_confirm(history: list[dict]) -> bool:
@@ -965,7 +1185,7 @@ async def _show_previous_consultant_slots(
             break
 
     doc_name = doc_meta["name"] if doc_meta else "your doctor"
-    slots = await _fetch_doctor_slots(ctx.db, UUID(doctor_id), doc_name, limit=30)
+    slots = await _fetch_doctor_slots(ctx.db, UUID(doctor_id), doc_name, limit=120, days_ahead=14)
     mode_label = "video" if consultation_mode == "video" else "in-person"
 
     if not slots:
@@ -1365,6 +1585,10 @@ async def resolve_booking_session(ctx: AgentContext) -> AgentResponse | None:
     if reschedule_resp:
         return reschedule_resp
 
+    confirm_resp = await _handle_confirm_booking_yes(ctx)
+    if confirm_resp:
+        return confirm_resp
+
     reminder_resp = await _handle_reminder_request(ctx)
     if reminder_resp:
         return reminder_resp
@@ -1435,54 +1659,6 @@ async def resolve_booking_session(ctx: AgentContext) -> AgentResponse | None:
             },
         )
 
-    confirming = (
-        awaiting == "confirm_booking" or _last_assistant_awaiting_confirm(ctx.history)
-    ) and session.get("care_goal") != "post_booking_reminder"
-    if confirming and _yes(ctx.text):
-        pending = _recover_pending_slot(ctx) or session.get("pending_slot")
-        if pending and not pending.get("label"):
-            pending = slot_for_storage(pending)
-        if ctx.is_guest:
-            if pending:
-                session["pending_slot"] = pending
-                await set_flow(ctx.conv_id, {"session": session})
-            detail = None
-            if pending:
-                detail = (
-                    f"{pending.get('doctor_name', 'your doctor')} "
-                    f"on {pending.get('label', 'your selected time')}"
-                )
-            return guest_auth_gate(ctx, "book", detail)
-        if pending:
-            try:
-                result = await tool_book_slot(
-                    ctx.db,
-                    ctx.patient,
-                    ctx.patient.user_id,
-                    pending,
-                    ctx.conv_id,
-                    booking_context=_booking_context_from_session(session),
-                )
-            except HTTPException as exc:
-                return AgentResponse(
-                    reply=(
-                        f"Sorry, that slot could not be booked ({exc.detail}). "
-                        "Please pick another time from the list."
-                    ),
-                    agent="scheduling_agent",
-                    session_patch={"awaiting": "pick_slot", "pending_slot": None},
-                )
-            if result.get("success"):
-                return await _build_booking_confirmed_response(ctx, result)
-
-    if awaiting == "confirm_booking" and _no(ctx.text):
-            await clear_flow(ctx.conv_id)
-            return AgentResponse(
-                reply="Booking cancelled. Let me know if you'd like to choose another time.",
-                agent="scheduling_agent",
-                clear_session=True,
-            )
-
     if awaiting == "pick_slot" and session.get("selected_doctor"):
         doc = session["selected_doctor"]
         slots_result = await tool_get_doctor_slots(ctx.db, UUID(doc["id"]))
@@ -1503,15 +1679,13 @@ async def resolve_booking_session(ctx: AgentContext) -> AgentResponse | None:
                 mode_line = "\nConsultation: Video"
             elif session.get("pending_consultation_mode") == "in_person":
                 mode_line = "\nConsultation: In-person"
-            return AgentResponse(
-                reply=(
-                    f"Before booking, please confirm:\n\nPatient Name: {display_name}\n"
-                    f"Doctor: {doc_name}\n"
-                    f"Date & Time: {stored['label']}{reason_line}{mode_line}"
-                ),
-                agent="scheduling_agent",
-                ui=build_confirm_booking_ui(display_name, doc_name, stored["label"]),
-                session_patch={"awaiting": "confirm_booking", "pending_slot": stored},
+            return await _build_slot_change_confirm_response(
+                ctx,
+                stored,
+                doc_name,
+                display_name,
+                reason_line=reason_line,
+                mode_line=mode_line,
             )
 
     if awaiting in ("offer_booking", "pick_doctor"):
@@ -1540,9 +1714,6 @@ async def resolve_booking_session(ctx: AgentContext) -> AgentResponse | None:
         chosen = match_slot_from_text(ctx.text, all_slots)
         if chosen:
             stored = slot_for_storage(chosen)
-            session["pending_slot"] = stored
-            session["awaiting"] = "confirm_booking"
-            await set_flow(ctx.conv_id, {"session": session})
             doc_name = stored.get("doctor_name", "")
             display_name = patient_display_name(ctx.patient_ctx.get("name"))
             reason_line = f"\nReason: {session['appointment_reason']}" if session.get("appointment_reason") else ""
@@ -1551,14 +1722,13 @@ async def resolve_booking_session(ctx: AgentContext) -> AgentResponse | None:
                 mode_line = "\nConsultation: Video"
             elif session.get("pending_consultation_mode") == "in_person":
                 mode_line = "\nConsultation: In-person"
-            return AgentResponse(
-                reply=(
-                    f"Before booking, please confirm:\n\nPatient Name: {display_name}\n"
-                    f"Doctor: {doc_name}\nDate & Time: {stored['label']}{reason_line}{mode_line}"
-                ),
-                agent="scheduling_agent",
-                ui=build_confirm_booking_ui(display_name, doc_name, stored["label"]),
-                session_patch={"awaiting": "confirm_booking", "pending_slot": stored},
+            return await _build_slot_change_confirm_response(
+                ctx,
+                stored,
+                doc_name,
+                display_name,
+                reason_line=reason_line,
+                mode_line=mode_line,
             )
 
         doc = _match_doctor(ctx.text, doctor_rows)
@@ -1570,7 +1740,19 @@ async def resolve_booking_session(ctx: AgentContext) -> AgentResponse | None:
             return AgentResponse(
                 reply=slot_list_intro(doc["name"]),
                 agent="scheduling_agent",
-                ui=build_slot_list_ui(doc["name"], str(doc["id"]), slots),
+                ui=build_slot_list_ui(
+                    doc["name"],
+                    str(doc["id"]),
+                    slots,
+                    specialty=doc.get("specialty"),
+                    experience_years=doc.get("experience_years", 0),
+                    rating=doc.get("rating"),
+                    profile_image_url=doc.get("profile_image_url"),
+                    consultation_fee=doc.get("consultation_fee"),
+                    hospital_name=doc.get("hospital_name"),
+                    professional_summary=doc.get("professional_summary") or doc.get("bio"),
+                    next_available=doc.get("next_available"),
+                ),
                 session_patch={
                     "awaiting": "pick_slot",
                     "selected_doctor": {"id": str(doc["id"]), "name": doc["name"]},
@@ -1600,7 +1782,19 @@ async def resolve_booking_session(ctx: AgentContext) -> AgentResponse | None:
             return AgentResponse(
                 reply=slot_list_intro(doc["name"]),
                 agent="scheduling_agent",
-                ui=build_slot_list_ui(doc["name"], str(doc["id"]), slots),
+                ui=build_slot_list_ui(
+                    doc["name"],
+                    str(doc["id"]),
+                    slots,
+                    specialty=doc.get("specialty"),
+                    experience_years=doc.get("experience_years", 0),
+                    rating=doc.get("rating"),
+                    profile_image_url=doc.get("profile_image_url"),
+                    consultation_fee=doc.get("consultation_fee"),
+                    hospital_name=doc.get("hospital_name"),
+                    professional_summary=doc.get("professional_summary") or doc.get("bio"),
+                    next_available=doc.get("next_available"),
+                ),
                 session_patch={
                     "awaiting": "pick_slot",
                     "selected_doctor": {"id": str(doc["id"]), "name": doc["name"]},

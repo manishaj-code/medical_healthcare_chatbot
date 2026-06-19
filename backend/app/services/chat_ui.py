@@ -51,15 +51,24 @@ def _slot_entries(doctor_name: str, doctor_id: str, slots: list[dict]) -> list[d
     ]
 
 
-def build_slot_list_ui(doctor_name: str, doctor_id: str, slots: list[dict]) -> dict | None:
+def build_slot_list_ui(
+    doctor_name: str,
+    doctor_id: str,
+    slots: list[dict],
+    **extra: object,
+) -> dict | None:
     if not slots:
         return None
-    return {
+    payload: dict = {
         "type": "slot_list",
         "doctor_id": doctor_id,
         "doctor_name": doctor_name,
         "slots": _slot_entries(doctor_name, doctor_id, slots),
     }
+    for key, value in extra.items():
+        if value is not None:
+            payload[key] = value
+    return payload
 
 
 def build_reschedule_slots_ui(
@@ -68,10 +77,14 @@ def build_reschedule_slots_ui(
     doctor_id: str,
     current_time: str,
     slots: list[dict],
+    *,
+    current_slot_date: str | None = None,
+    current_slot_time: str | None = None,
+    specialty: str | None = None,
 ) -> dict | None:
     if not slots:
         return None
-    return {
+    payload = {
         "type": "reschedule_slots",
         "apt_id": apt_id,
         "doctor_id": doctor_id,
@@ -79,6 +92,13 @@ def build_reschedule_slots_ui(
         "current_time": current_time,
         "slots": _slot_entries(doctor_name, doctor_id, slots),
     }
+    if specialty:
+        payload["specialty"] = specialty
+    if current_slot_date:
+        payload["current_slot_date"] = current_slot_date
+    if current_slot_time:
+        payload["current_slot_time"] = current_slot_time
+    return payload
 
 
 def doctor_list_intro(count: int) -> str:
@@ -111,10 +131,9 @@ def _choice_options(pairs: list[tuple[str, str]]) -> list[dict]:
     return [{"label": label, "message": message} for label, message in pairs]
 
 
-def build_confirm_booking_ui(patient_name: str, doctor_name: str, slot_label: str) -> dict:
+def build_confirm_booking_ui(doctor_name: str, slot_label: str) -> dict:
     return {
         "type": "confirm_booking",
-        "patient_name": patient_name,
         "doctor_name": doctor_name,
         "label": slot_label,
         "options": _choice_options([

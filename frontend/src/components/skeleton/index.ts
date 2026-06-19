@@ -16,4 +16,8 @@ export {
   ReportsListSkeleton,
   UrgentPanelSkeleton,
   VideoConsultSkeleton,
+  VideoModalSkeleton,
+  PrepTabSkeleton,
+  ReportModalSkeleton,
+  DropdownNotificationsSkeleton,
 } from "./presets";

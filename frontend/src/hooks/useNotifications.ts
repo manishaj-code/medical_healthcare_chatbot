@@ -54,10 +54,13 @@ export function useNotifications(apiPrefix: string) {
     void fetchUnreadCount();
     const timer = window.setInterval(() => void fetchUnreadCount(), POLL_MS);
     const onFocus = () => void fetchUnreadCount();
+    const onChanged = () => void fetchUnreadCount();
     window.addEventListener("focus", onFocus);
+    window.addEventListener("mediai:notifications-changed", onChanged);
     return () => {
       window.clearInterval(timer);
       window.removeEventListener("focus", onFocus);
+      window.removeEventListener("mediai:notifications-changed", onChanged);
     };
   }, [fetchUnreadCount]);
 

@@ -167,9 +167,6 @@ async def send_appointment_scheduled_emails(db: AsyncSession, appt: Appointment)
         when_time=ctx.when_time,
     )
 
-    await send_email(ctx.patient_email, patient_subject, patient_body, html_body=patient_html)
-    await send_email(ctx.doctor_email, doctor_subject, doctor_body, html_body=doctor_html)
-
     db.add(
         Notification(
             user_id=ctx.doctor_user_id,
@@ -180,6 +177,9 @@ async def send_appointment_scheduled_emails(db: AsyncSession, appt: Appointment)
         )
     )
     await db.flush()
+
+    await send_email(ctx.patient_email, patient_subject, patient_body, html_body=patient_html)
+    await send_email(ctx.doctor_email, doctor_subject, doctor_body, html_body=doctor_html)
 
 
 async def send_appointment_cancelled_emails(
@@ -241,9 +241,6 @@ async def send_appointment_cancelled_emails(
         cancellation_reason=reason_label,
     )
 
-    await send_email(ctx.patient_email, patient_subject, patient_body, html_body=patient_html)
-    await send_email(ctx.doctor_email, doctor_subject, doctor_body, html_body=doctor_html)
-
     db.add(
         Notification(
             user_id=ctx.doctor_user_id,
@@ -261,6 +258,9 @@ async def send_appointment_cancelled_emails(
         )
     )
     await db.flush()
+
+    await send_email(ctx.patient_email, patient_subject, patient_body, html_body=patient_html)
+    await send_email(ctx.doctor_email, doctor_subject, doctor_body, html_body=doctor_html)
 
 
 async def send_appointment_rescheduled_emails(
@@ -322,24 +322,3 @@ async def send_appointment_rescheduled_emails(
 
     await send_email(ctx.patient_email, patient_subject, patient_body, html_body=patient_html)
     await send_email(ctx.doctor_email, doctor_subject, doctor_body, html_body=doctor_html)
-
-    db.add(
-        Notification(
-            user_id=ctx.doctor_user_id,
-            type=NotificationType.booking_confirmation,
-            message=(
-                f"Appointment {ctx.apt_id} with {ctx.patient_name} rescheduled to "
-                f"{appt.slot_date} at {ctx.when_time} (was {previous_date} at {previous_time})."
-            ),
-        )
-    )
-    db.add(
-        Notification(
-            user_id=ctx.patient_user_id,
-            type=NotificationType.booking_confirmation,
-            message=(
-                f"Your appointment {ctx.apt_id} was rescheduled to {ctx.when_date} at {ctx.when_time}."
-            ),
-        )
-    )
-    await db.flush()
