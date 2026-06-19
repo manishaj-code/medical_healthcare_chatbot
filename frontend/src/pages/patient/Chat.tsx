@@ -9,6 +9,7 @@ import ChatFileAttachment, {
   userMessageCaption,
 } from "../../components/ChatFileAttachment";
 import ChatReportFollowUp from "../../components/ChatReportFollowUp";
+import { ChatPageSkeleton } from "../../components/skeleton";
 import {
   CHAT_LIST_TITLE,
   Conversation,
@@ -653,9 +654,7 @@ export default function PatientChat() {
           )}
 
           <div className="consult-messages consult-scroll">
-            {initializing && (
-              <p className="consult-empty">Loading your consultation...</p>
-            )}
+            {initializing && <ChatPageSkeleton />}
             {!initializing && messages.length === 0 && (
               <div className="consult-welcome-msg">
                 <div className="consult-msg consult-msg--ai">

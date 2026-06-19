@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { Link, useParams, useSearchParams } from "react-router-dom";
 import { api } from "../../api/client";
+import { VideoConsultSkeleton } from "../../components/skeleton";
 
 export default function VideoConsultation() {
   const { appointmentId } = useParams<{ appointmentId: string }>();
@@ -48,7 +49,7 @@ export default function VideoConsultation() {
           allow="camera; microphone; fullscreen; display-capture"
         />
       ) : (
-        <p className="pd-muted">Loading video room…</p>
+        <VideoConsultSkeleton />
       )}
     </div>
   );

@@ -23,6 +23,7 @@ import {
   todayIso,
 } from "../../utils/doctorPortal";
 import type { HealthVital } from "../../utils/healthVitals";
+import { PatientDetailSkeleton } from "../../components/skeleton";
 
 type PatientTab = "summary" | "chats" | "appointments";
 
@@ -156,9 +157,8 @@ export default function PatientDetail() {
 
   if (loading) {
     return (
-      <div className="dp-loading">
-        <div className="dp-spinner" />
-        Loading patient record…
+      <div className="dp-patient-detail">
+        <PatientDetailSkeleton />
       </div>
     );
   }

@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { api } from "../../api/client";
 import AppointmentCard, { AppointmentItem } from "../../components/AppointmentCard";
+import { AppointmentListSkeleton } from "../../components/skeleton";
 
 export default function PatientAppointments() {
   const [appts, setAppts] = useState<AppointmentItem[]>([]);
@@ -44,21 +45,21 @@ export default function PatientAppointments() {
           </button>
         </div>
 
-        {loading && <p className="pd-muted">Loading appointments...</p>}
-
-        {!loading && appts.length === 0 && (
+        {loading ? (
+          <AppointmentListSkeleton count={4} />
+        ) : appts.length === 0 ? (
           <div className="pd-empty-card">
             <span className="material-symbols-outlined pd-empty-icon">event_busy</span>
             <p>No appointments yet.</p>
             <Link to="/doctors" className="pd-outline-btn">Book a doctor</Link>
           </div>
+        ) : (
+          <div className="pd-appt-list">
+            {appts.map((a) => (
+              <AppointmentCard key={a.id} appointment={a} showStatus />
+            ))}
+          </div>
         )}
-
-        <div className="pd-appt-list">
-          {appts.map((a) => (
-            <AppointmentCard key={a.id} appointment={a} showStatus />
-          ))}
-        </div>
       </section>
     </div>
   );

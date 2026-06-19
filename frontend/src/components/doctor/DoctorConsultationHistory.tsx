@@ -9,6 +9,7 @@ import {
   patientInitials,
 } from "../../utils/doctorPortal";
 import { formatRiskLevelLabel, riskLevelCssVariant } from "../../utils/clinicalSummaryFormat";
+import { ConsultationHistorySkeleton } from "../../components/skeleton";
 
 export interface ConsultationHistoryRecord {
   appointment_id: string;
@@ -385,7 +386,7 @@ export default function DoctorConsultationHistory({
   };
 
   if (loading) {
-    return <p className="dp-consult-muted">Loading consultation history…</p>;
+    return <ConsultationHistorySkeleton count={5} />;
   }
 
   return (

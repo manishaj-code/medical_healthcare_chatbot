@@ -6,6 +6,7 @@ import {
   consultationModeLabel,
 } from "../../utils/consultationMode";
 import { formatDisplayDate, formatDoctorDisplayName, formatDoctorTime } from "../../utils/doctorPortal";
+import { HealthRecordsSkeleton } from "../../components/skeleton";
 
 interface ConsultationRecord {
   id: string;
@@ -367,14 +368,9 @@ export default function HealthRecords() {
         )}
       </header>
 
-      {loading && (
-        <div className="phr-loading">
-          <div className="phr-spinner" />
-          <p>Loading your health records…</p>
-        </div>
-      )}
-
-      {!loading && records.length === 0 && (
+      {loading ? (
+        <HealthRecordsSkeleton />
+      ) : records.length === 0 ? (
         <div className="phr-empty">
           <span className="material-symbols-outlined">folder_open</span>
           <strong>No completed consultations yet</strong>
@@ -383,9 +379,7 @@ export default function HealthRecords() {
             View appointments
           </Link>
         </div>
-      )}
-
-      {!loading && records.length > 0 && (
+      ) : (
         <>
           <CareSummaryPanel records={records} />
           <div className="phr-list">

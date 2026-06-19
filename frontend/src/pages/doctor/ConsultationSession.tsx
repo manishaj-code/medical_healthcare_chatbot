@@ -15,6 +15,7 @@ import {
   formatRiskLevelLabel,
   riskLevelCssVariant,
 } from "../../utils/clinicalSummaryFormat";
+import { ConsultationSessionSkeleton } from "../../components/skeleton";
 
 interface PrescriptionItem {
   medicine_name: string;
@@ -886,10 +887,7 @@ export default function ConsultationSession() {
   if (loading) {
     return (
       <div className="dp-consult-workspace">
-        <div className="dp-loading">
-          <div className="dp-spinner" />
-          Loading consultation…
-        </div>
+        <ConsultationSessionSkeleton />
       </div>
     );
   }

@@ -7,6 +7,7 @@ import {
   type HistoryRecommendation,
 } from "../../utils/recommendedSpecialty";
 import DoctorAvatar from "../../components/DoctorAvatar";
+import { CalendarSlotsSkeleton, DoctorGridSkeleton } from "../../components/skeleton";
 
 interface Slot {
   doctor_id: string;
@@ -409,12 +410,13 @@ export default function PatientDoctors() {
 
       <div className="fd-main-grid">
         <div className="fd-doctors-col">
-          {loading && <p className="fd-muted">Loading doctors...</p>}
-          {!loading && filtered.length === 0 && (
+          {loading ? (
+            <DoctorGridSkeleton count={4} />
+          ) : filtered.length === 0 ? (
             <p className="fd-muted">No doctors with open slots right now.</p>
-          )}
-
-          {!loading && recommendedDoctors.length > 0 && (
+          ) : (
+            <>
+          {recommendedDoctors.length > 0 && (
             <div className="fd-section">
               <div className="fd-section-head">
                 <h3>Recommended for You</h3>
@@ -425,7 +427,7 @@ export default function PatientDoctors() {
             </div>
           )}
 
-          {!loading && filtered.length > 0 && (
+          {filtered.length > 0 && (
             <div className="fd-section">
               <div className="fd-section-head">
                 <h3>All Specialists</h3>
@@ -446,6 +448,8 @@ export default function PatientDoctors() {
                 )}
               </div>
             </div>
+          )}
+            </>
           )}
 
         </div>
@@ -485,7 +489,7 @@ export default function PatientDoctors() {
                   </button>
                 </div>
                 {slotsLoading ? (
-                  <p className="fd-muted fd-cal-loading">Loading available dates...</p>
+                  <CalendarSlotsSkeleton />
                 ) : (
                   <>
                     <div className="fd-calendar-weekdays">

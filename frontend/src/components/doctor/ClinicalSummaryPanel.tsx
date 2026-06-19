@@ -5,6 +5,7 @@ import {
   isStructuredClinicalSummaryText,
 } from "../../utils/clinicalSummaryFormat";
 import StructuredClinicalSummary from "./StructuredClinicalSummary";
+import { Skeleton } from "../skeleton";
 
 interface Props {
   summaryText: string;
@@ -41,7 +42,11 @@ export default function ClinicalSummaryPanel({
       </div>
 
       {loading ? (
-        <p className="dp-clinical-panel-loading">Loading clinical summary…</p>
+        <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+          <Skeleton width="90%" height={14} />
+          <Skeleton width="75%" height={14} />
+          <Skeleton width="85%" height={14} />
+        </div>
       ) : !useStructured ? (
         <div className="dp-clinical-fallback-note">
           <p>{summaryText}</p>
