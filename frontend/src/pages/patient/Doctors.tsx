@@ -180,10 +180,7 @@ export default function PatientDoctors() {
     api<Specialization[]>("/api/v1/doctors/specializations").then(setSpecialties).catch(console.error);
     resolveRecommendedFromHistory()
       .then((rec) => {
-        if (rec) {
-          setHistoryRec(rec);
-          setSpecialty((prev) => prev || rec.bookableSpecialty);
-        }
+        if (rec) setHistoryRec(rec);
       })
       .catch(console.error)
       .finally(() => setHistoryLoaded(true));

@@ -1,4 +1,5 @@
 import hashlib
+import logging
 import secrets
 from datetime import datetime, timezone
 from uuid import UUID
@@ -35,6 +36,8 @@ from app.services.otp_service import (
     otp_bypass_enabled,
 )
 router = APIRouter(prefix="/guest", tags=["guest"])
+logger = logging.getLogger(__name__)
+logger = logging.getLogger(__name__)
 
 
 class GuestSessionResponse(BaseModel):
@@ -150,9 +153,10 @@ async def guest_chat_message(data: GuestMessageCreate, db: AsyncSession = Depend
         raise HTTPException(status_code=404, detail=str(exc)) from exc
     except HTTPException:
         raise
-    except Exception:
+    except Exception as exc:
         await db.rollback()
-        raise HTTPException(status_code=500, detail="Guest chat processing failed.") from None
+        logger.exception("Guest chat processing failed: %s", exc)
+        raise HTTPException(status_code=500, detail="Guest chat processing failed.") from exc
     return ResponseEnvelope(data=GuestChatReply(**result))
 
 

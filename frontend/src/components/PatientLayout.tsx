@@ -95,6 +95,7 @@ export default function PatientLayout() {
               <NotificationDropdown
                 apiPrefix="/api/v1/patients/me"
                 viewAllPath="/notifications"
+                variant="icon"
               />
               <div className="patient-topbar-user" aria-label={`Signed in as ${name}`}>
                 <span className="patient-topbar-user-name">{name}</span>
