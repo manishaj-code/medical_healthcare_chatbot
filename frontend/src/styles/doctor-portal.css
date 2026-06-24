@@ -6305,11 +6305,125 @@
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: 1rem;
-  align-items: start;
+  align-items: stretch;
 }
 
 .dp-consult-visit-summaries--active {
   margin-bottom: 1rem;
+  gap: 1.25rem;
+}
+
+.dp-consult-visit-summaries--active .dp-consult-visit-summary {
+  border: 1px solid var(--dp-outline-variant);
+  border-radius: 14px;
+  background: var(--dp-surface);
+  padding: 1rem 1.1rem 1.1rem;
+  box-shadow: 0 2px 10px rgba(14, 116, 144, 0.06);
+  overflow: hidden;
+}
+
+.dp-consult-visit-summaries--active .dp-consult-visit-summary--pre {
+  border-color: rgba(124, 58, 237, 0.2);
+  background: linear-gradient(
+    180deg,
+    rgba(139, 92, 246, 0.07) 0%,
+    var(--dp-surface) 3.5rem
+  );
+}
+
+.dp-consult-visit-summaries--active .dp-consult-visit-summary--in {
+  border-color: rgba(14, 116, 144, 0.22);
+  background: linear-gradient(
+    180deg,
+    rgba(14, 116, 144, 0.07) 0%,
+    var(--dp-surface) 3.5rem
+  );
+}
+
+.dp-consult-visit-summary {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.dp-consult-visit-column-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.75rem;
+  min-height: 4.25rem;
+  margin-bottom: 0.85rem;
+  padding-bottom: 0.85rem;
+  border-bottom: 1px solid rgba(14, 116, 144, 0.12);
+}
+
+.dp-consult-visit-summaries--active .dp-consult-visit-summary--pre .dp-consult-visit-column-head {
+  border-bottom-color: rgba(124, 58, 237, 0.14);
+}
+
+.dp-consult-visit-summaries--active .dp-consult-visit-summary--in .dp-consult-visit-column-head {
+  border-bottom-color: rgba(14, 116, 144, 0.14);
+}
+
+.dp-consult-section-head--flush {
+  margin-bottom: 0;
+  flex: 1;
+  min-width: 0;
+}
+
+.dp-consult-visit-summaries--active .dp-consult-visit-summary--pre .dp-consult-section-head > .material-symbols-outlined {
+  background: rgba(139, 92, 246, 0.12);
+  color: #7c3aed;
+}
+
+.dp-consult-visit-summaries--active .dp-consult-visit-summary--in .dp-consult-section-head > .material-symbols-outlined {
+  background: rgba(14, 116, 144, 0.12);
+  color: var(--dp-primary);
+}
+
+.dp-consult-visit-summary-body {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.dp-consult-visit-summaries--active .dp-consult-ribbon {
+  margin-bottom: 0;
+  flex: 1;
+  min-height: 200px;
+  padding: 0;
+  border: none;
+  background: transparent;
+  border-radius: 0;
+  box-shadow: none;
+}
+
+.dp-consult-visit-summaries--active .dp-consult-ribbon-icon {
+  display: none;
+}
+
+.dp-consult-visit-summaries--active .dp-in-visit-summary {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.dp-consult-visit-summaries--active .dp-in-visit-summary-empty {
+  flex: 1;
+  min-height: 200px;
+  border: 1px dashed rgba(14, 116, 144, 0.28);
+  background: rgba(14, 116, 144, 0.03);
+}
+
+.dp-consult-visit-summary-label {
+  margin: 0 0 0.5rem;
+  font-size: 0.72rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--dp-on-surface-variant);
 }
 
 /* Patient chart — video transcript skeleton (task 3.1) */
@@ -6448,19 +6562,6 @@
   width: 72px;
   height: 22px;
   border-radius: 999px;
-}
-
-.dp-consult-visit-summary {
-  min-width: 0;
-}
-
-.dp-consult-visit-summary-label {
-  margin: 0 0 0.5rem;
-  font-size: 0.72rem;
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.06em;
-  color: var(--dp-on-surface-variant);
 }
 
 .dp-in-visit-summary-head {

@@ -115,7 +115,7 @@ async def process_due_reminders(db: AsyncSession) -> int:
         .where(
             AppointmentReminder.sent.is_(False),
             AppointmentReminder.remind_at <= now,
-            Appointment.status == AppointmentStatus.confirmed,
+            Appointment.status.in_((AppointmentStatus.confirmed, AppointmentStatus.rescheduled)),
         )
     )
     sent_count = 0

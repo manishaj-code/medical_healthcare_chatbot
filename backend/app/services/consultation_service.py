@@ -353,7 +353,7 @@ async def complete_consultation(
     db.add(
         Notification(
             user_id=patient.user_id,
-            type=NotificationType.system,
+            type=NotificationType.consultation_completed,
             message=(
                 "Your consultation with your doctor has been completed. "
                 "View your health records for diagnosis, prescription, and follow-up details."

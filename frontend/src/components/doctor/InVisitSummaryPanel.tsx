@@ -12,6 +12,7 @@ interface Props {
   applyLabel?: string;
   onAnalyzeNow?: () => void;
   compact?: boolean;
+  hideHeader?: boolean;
 }
 
 function formatAnalyzedWhen(iso?: string | null): string | null {
@@ -32,43 +33,46 @@ export default function InVisitSummaryPanel({
   applyLabel,
   onAnalyzeNow,
   compact,
+  hideHeader = false,
 }: Props) {
   const analyzedLabel = formatAnalyzedWhen(lastAnalyzedAt);
 
   return (
     <div className={`dp-in-visit-summary${compact ? " dp-in-visit-summary--compact" : ""}`}>
-      <header className="dp-in-visit-summary-head">
-        <div className="dp-consult-section-head" style={{ marginBottom: 0 }}>
-          <span className="material-symbols-outlined filled-icon">record_voice_over</span>
-          <div>
-            <h2>In-visit summary</h2>
-            <p>
-              {sessionActive
-                ? "Updates automatically from the live video transcript."
-                : "Built from the consultation transcript."}
-              {analyzedLabel ? ` Last updated ${analyzedLabel}.` : ""}
-            </p>
+      {!hideHeader && (
+        <header className="dp-in-visit-summary-head">
+          <div className="dp-consult-section-head" style={{ marginBottom: 0 }}>
+            <span className="material-symbols-outlined filled-icon">record_voice_over</span>
+            <div>
+              <h2>In-visit summary</h2>
+              <p>
+                {sessionActive
+                  ? "Updates automatically from the live video transcript."
+                  : "Built from the consultation transcript."}
+                {analyzedLabel ? ` Last updated ${analyzedLabel}.` : ""}
+              </p>
+            </div>
           </div>
-        </div>
-        <div className="dp-in-visit-summary-actions">
-          {analyzing && (
-            <span className="dp-in-visit-summary-status">
-              <span className="dp-spinner dp-spinner--sm" aria-hidden />
-              Analyzing…
-            </span>
-          )}
-          {onAnalyzeNow && (
-            <button
-              type="button"
-              className="dp-btn dp-btn--sm dp-btn--outline"
-              disabled={analyzing || segmentCount < 2}
-              onClick={() => void onAnalyzeNow()}
-            >
-              Refresh
-            </button>
-          )}
-        </div>
-      </header>
+          <div className="dp-in-visit-summary-actions">
+            {analyzing && (
+              <span className="dp-in-visit-summary-status">
+                <span className="dp-spinner dp-spinner--sm" aria-hidden />
+                Analyzing…
+              </span>
+            )}
+            {onAnalyzeNow && (
+              <button
+                type="button"
+                className="dp-btn dp-btn--sm dp-btn--outline"
+                disabled={analyzing || segmentCount < 2}
+                onClick={() => void onAnalyzeNow()}
+              >
+                Refresh
+              </button>
+            )}
+          </div>
+        </header>
+      )}
 
       {error && (
         <p className="dp-consult-prep-transcript-analyze-error" role="alert">

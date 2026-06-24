@@ -7,6 +7,9 @@ from app.multi_agent.booking_actions import (
     _extract_appointment_uuid,
     _extract_apt_display_id,
     _is_appointment_management_message,
+    _last_assistant_awaiting_confirm,
+    _last_assistant_awaiting_reschedule_confirm,
+    _last_assistant_offered_reminder,
     _parse_set_reminder_token,
     _parse_specialty_from_text,
     _patient_picked_doctor_for_slots,
@@ -15,6 +18,36 @@ from app.multi_agent.booking_actions import (
     synthesize_tool_result,
 )
 from app.multi_agent.types import AgentContext
+
+
+def test_bare_yes_does_not_count_as_reminder_request():
+    assert not _wants_reminder("Yes")
+    assert not _wants_reminder("yes")
+
+
+def test_booking_confirm_prompt_not_reminder_offer():
+    history = [
+        {
+            "role": "assistant",
+            "content": (
+                "Before booking, please confirm:\n\n"
+                "Doctor: Dr. Rajesh Sharma\nDate & Time: Today: 6:00 PM"
+            ),
+        }
+    ]
+    assert _last_assistant_awaiting_confirm(history)
+    assert not _last_assistant_offered_reminder(history)
+
+
+def test_reschedule_confirm_prompt_not_reminder_offer():
+    history = [
+        {
+            "role": "assistant",
+            "content": "Confirm rescheduling?\n\nCurrent: **Today 5:30 PM**\nNew: **Today 6:00 PM**",
+        }
+    ]
+    assert _last_assistant_awaiting_reschedule_confirm(history)
+    assert not _last_assistant_offered_reminder(history)
 
 
 def test_reminder_message_is_appointment_management():

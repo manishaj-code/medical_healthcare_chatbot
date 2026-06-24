@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { api } from "../../api/client";
+import { AdminPanelSkeleton } from "../../components/skeleton";
 
 interface Analytics {
   total_users: number;
@@ -231,9 +232,9 @@ export default function AdminPanel() {
         </button>
       </div>
 
-      {loading && <p className="muted-text">Loading...</p>}
-
-      {!loading && tab === "patients" && (
+      {loading ? (
+        <AdminPanelSkeleton />
+      ) : tab === "patients" ? (
         <div className="card admin-card">
           <h3>Patient accounts</h3>
           <p className="admin-card-hint">Delete removes the patient, chats, reports, appointments, and profile data.</p>
@@ -277,9 +278,7 @@ export default function AdminPanel() {
             </div>
           )}
         </div>
-      )}
-
-      {!loading && tab === "doctors" && (
+      ) : tab === "doctors" ? (
         <div className="card admin-card">
           <h3>Doctor accounts</h3>
           <p className="admin-card-hint">
@@ -334,9 +333,7 @@ export default function AdminPanel() {
             </div>
           )}
         </div>
-      )}
-
-      {!loading && tab === "data" && (
+      ) : (
         <div className="admin-reset-grid">
           <div className="card admin-card">
             <h3>SMTP email test</h3>

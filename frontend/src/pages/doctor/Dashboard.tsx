@@ -7,6 +7,7 @@ import DoctorConsultationHistory, {
 import DoctorAppointmentsSections from "../../components/doctor/DoctorAppointmentsSections";
 import DoctorAvailabilityGrid from "../../components/doctor/DoctorAvailabilityGrid";
 import DoctorUrgentConsultPanel from "../../components/doctor/DoctorUrgentConsultPanel";
+import { RefillTableSkeleton } from "../../components/skeleton";
 import type { DoctorOutletContext, DoctorTab } from "../../components/doctor/DoctorLayout";
 import ClinicalSummaryPanel from "../../components/doctor/ClinicalSummaryPanel";
 import type { ConsultationSummaryData } from "../../components/doctor/DoctorPatientConsultSummary";
@@ -586,16 +587,11 @@ export default function DoctorDashboard() {
           <p className="dp-panel-desc">
             Approve so the patient can pick up at pharmacy, or deny with a note they will see in the app.
           </p>
-          {refillLoading && (
-            <div className="dp-loading">
-              <div className="dp-spinner" />
-              Loading requests…
-            </div>
-          )}
-          {!refillLoading && pendingRefills.length === 0 && (
+          {refillLoading ? (
+            <RefillTableSkeleton rows={4} />
+          ) : pendingRefills.length === 0 ? (
             <EmptyBlock icon="medication" title="No pending refills" desc="Refill requests from patients will show up here." />
-          )}
-          {!refillLoading && pendingRefills.length > 0 && (
+          ) : (
             <div className="dp-table-wrap">
               <table className="dp-table">
                 <thead>

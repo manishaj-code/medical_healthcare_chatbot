@@ -1,5 +1,61 @@
 import type { ChatUiPayload } from "../components/ChatBookingUI";
 
+export function formatSlotTime12h(slotTime?: string): string {
+  if (!slotTime) return "";
+  const normalized = slotTime.length === 5 ? slotTime : slotTime.slice(0, 5);
+  const [hStr, mStr] = normalized.split(":");
+  const h24 = Number(hStr);
+  const minutes = mStr ?? "00";
+  if (Number.isNaN(h24)) return slotTime;
+  const meridiem = h24 >= 12 ? "PM" : "AM";
+  const h12 = h24 % 12 || 12;
+  return `${h12}:${minutes} ${meridiem}`;
+}
+
+export function slotCalendarDate(slot: { slot_date?: string; label?: string }): Date | null {
+  if (slot.slot_date) {
+    const [y, m, d] = slot.slot_date.split("-").map(Number);
+    if (y && m && d) {
+      const date = new Date(y, m - 1, d);
+      date.setHours(0, 0, 0, 0);
+      return date;
+    }
+  }
+  if (!slot.label) return null;
+  const colonIdx = slot.label.indexOf(":");
+  if (colonIdx < 0) return null;
+  const datePart = slot.label.slice(0, colonIdx).trim();
+  const todayMidnight = new Date();
+  todayMidnight.setHours(0, 0, 0, 0);
+  const lower = datePart.toLowerCase();
+  if (lower === "today") return new Date(todayMidnight);
+  if (lower === "tomorrow") {
+    const tomorrow = new Date(todayMidnight);
+    tomorrow.setDate(todayMidnight.getDate() + 1);
+    return tomorrow;
+  }
+  const parsed = new Date(`${datePart}T00:00:00`);
+  if (Number.isNaN(parsed.getTime())) return null;
+  parsed.setHours(0, 0, 0, 0);
+  return parsed;
+}
+
+export function slotsForCalendarDate<
+  T extends { slot_date?: string; label?: string; slot_time?: string },
+>(slots: T[], date: Date): T[] {
+  return slots
+    .filter((s) => {
+      const day = slotCalendarDate(s);
+      if (!day) return false;
+      return (
+        day.getFullYear() === date.getFullYear() &&
+        day.getMonth() === date.getMonth() &&
+        day.getDate() === date.getDate()
+      );
+    })
+    .sort((a, b) => normalizeSlotTime(a.slot_time).localeCompare(normalizeSlotTime(b.slot_time)));
+}
+
 export function isChatSlotPast(slotDate?: string, slotTime?: string): boolean {
   if (!slotDate || !slotTime) return false;
   const normalized = slotTime.length === 5 ? `${slotTime}:00` : slotTime;
@@ -7,10 +63,28 @@ export function isChatSlotPast(slotDate?: string, slotTime?: string): boolean {
   return !Number.isNaN(slot.getTime()) && slot.getTime() < Date.now();
 }
 
+export function normalizeSlotTime(value?: string): string {
+  if (!value) return "";
+  const trimmed = value.trim();
+  return trimmed.length === 5 ? `${trimmed}:00` : trimmed;
+}
+
+export function isSameSlot(
+  a: { slot_date?: string; slot_time?: string },
+  b: { slot_date?: string; slot_time?: string },
+): boolean {
+  if (!a.slot_date || !a.slot_time || !b.slot_date || !b.slot_time) return false;
+  return a.slot_date === b.slot_date && normalizeSlotTime(a.slot_time) === normalizeSlotTime(b.slot_time);
+}
+
 export function filterChatBookableSlots<
-  T extends { slot_date?: string; slot_time?: string },
->(slots: T[]): T[] {
-  return slots.filter((s) => !isChatSlotPast(s.slot_date, s.slot_time));
+  T extends { slot_date?: string; slot_time?: string; label?: string },
+>(slots: T[], exclude?: { slot_date?: string; slot_time?: string }): T[] {
+  return slots.filter(
+    (s) =>
+      !isChatSlotPast(s.slot_date, s.slot_time) &&
+      !(exclude && isSameSlot(s, exclude)),
+  );
 }
 
 interface ReminderSyncMessage {
@@ -49,34 +123,64 @@ export function finalizeChatMessages<T extends ReminderSyncMessage>(messages: T[
   return markSupersededAppointmentCards(syncAppointmentReminderState(messages));
 }
 
-/** Keep all appointment cards in sync when any copy shows reminder_set. */
+/** Sync reminder_set on the latest active card only (not older superseded copies). */
 export function syncAppointmentReminderState<T extends ReminderSyncMessage>(messages: T[]): T[] {
+  const latestIndexByKey = new Map<string, number>();
+  messages.forEach((msg, index) => {
+    const key = msg.ui ? appointmentCardKey(msg.ui) : null;
+    if (key) latestIndexByKey.set(key, index);
+  });
+
   const reminded = new Set<string>();
-  for (const msg of messages) {
+  messages.forEach((msg, index) => {
     const ui = msg.ui;
-    if (ui?.type !== "appointment_confirmed") continue;
-    if (ui.reminder_set) {
-      if (ui.apt_id) reminded.add(`apt:${ui.apt_id}`);
-      if (ui.appointment_id) reminded.add(`id:${ui.appointment_id}`);
+    if (ui?.type === "appointment_confirmed") {
+      const key = appointmentCardKey(ui);
+      if (!key || latestIndexByKey.get(key) !== index) return;
+      if (ui.reminder_set) {
+        reminded.add(key);
+        if (ui.apt_id) reminded.add(`apt:${ui.apt_id}`);
+        if (ui.appointment_id) reminded.add(`id:${ui.appointment_id}`);
+      }
     }
-    if (
-      msg.role === "assistant" &&
-      /reminder set|already have a reminder/i.test(msg.content) &&
-      ui?.appointment_id
-    ) {
-      if (ui.apt_id) reminded.add(`apt:${ui.apt_id}`);
-      reminded.add(`id:${ui.appointment_id}`);
+    if (msg.role === "user") {
+      const match = (msg.content ?? "").match(
+        /\[set_reminder:(APT-[A-F0-9]{5}):([0-9a-f-]{36})\]/i,
+      );
+      if (match) {
+        reminded.add(`apt:${match[1].toUpperCase()}`);
+        reminded.add(`id:${match[2]}`);
+      }
     }
-  }
-  if (!reminded.size) return messages;
-  return messages.map((msg) => {
+  });
+
+  return messages.map((msg, index) => {
     const ui = msg.ui;
-    if (ui?.type !== "appointment_confirmed" || ui.reminder_set) return msg;
-    const matches =
+    if (ui?.type !== "appointment_confirmed") return msg;
+    const key = appointmentCardKey(ui);
+    if (!key) return msg;
+
+    const isLatest = latestIndexByKey.get(key) === index;
+    if (!isLatest) {
+      if (ui.reminder_set) {
+        return { ...msg, ui: { ...ui, reminder_set: false } };
+      }
+      return msg;
+    }
+
+    const shouldSet =
+      ui.reminder_set ||
+      reminded.has(key) ||
       (ui.apt_id && reminded.has(`apt:${ui.apt_id}`)) ||
       (ui.appointment_id && reminded.has(`id:${ui.appointment_id}`));
-    if (!matches) return msg;
-    return { ...msg, ui: { ...ui, reminder_set: true } };
+
+    if (shouldSet && !ui.reminder_set) {
+      return { ...msg, ui: { ...ui, reminder_set: true } };
+    }
+    if (!shouldSet && ui.reminder_set) {
+      return { ...msg, ui: { ...ui, reminder_set: false } };
+    }
+    return msg;
   });
 }
 
@@ -133,12 +237,10 @@ function isBookingOfferPrompt(content?: string): boolean {
 
 function parseConfirmBookingUi(content: string): ChatUiPayload | null {
   if (!/before booking, please confirm/i.test(content)) return null;
-  const patient = content.match(/Patient Name:\s*(.+)/i)?.[1]?.trim();
   const doctor = content.match(/Doctor:\s*(.+)/i)?.[1]?.trim();
   const slot = content.match(/Date & Time:\s*(.+)/i)?.[1]?.trim();
   return {
     type: "confirm_booking",
-    patient_name: patient,
     doctor_name: doctor,
     label: slot,
     options: [
@@ -269,10 +371,22 @@ export function shouldHideBookingCardCaption(ui?: ChatUiPayload | null): boolean
   return (
     ui?.type === "confirm_booking" ||
     ui?.type === "confirm_reschedule" ||
+    ui?.type === "slot_list" ||
     ui?.type === "reschedule_slots" ||
     ui?.type === "appointment_confirmed" ||
     ui?.type === "urgent_consult_pending" ||
     ui?.type === "urgent_consult_accepted"
+  );
+}
+
+/** Normalize "Today 4:00 PM" → "Today: 4:00 PM" for consistent card display. */
+export function normalizeAppointmentWhenLabel(value?: string): string {
+  if (!value) return "";
+  const trimmed = value.trim();
+  if (/^(Today|Tomorrow|\d{4}-\d{2}-\d{2}):/i.test(trimmed)) return trimmed;
+  return trimmed.replace(
+    /^(Today|Tomorrow|\d{4}-\d{2}-\d{2})\s+(\d{1,2}:\d{2}\s*[AP]M)/i,
+    "$1: $2",
   );
 }
 

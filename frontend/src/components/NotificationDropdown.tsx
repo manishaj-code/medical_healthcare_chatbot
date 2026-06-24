@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import { useNotifications } from "../hooks/useNotifications";
 import { formatNotificationTime, typeIcon, typeLabel } from "../utils/notifications";
+import { DropdownNotificationsSkeleton } from "./skeleton";
 
 interface Props {
   apiPrefix: string;
@@ -86,11 +87,11 @@ export default function NotificationDropdown({
           </div>
 
           <div className="notify-dropdown-body">
-            {loading && <p className="notify-dropdown-muted">Loading notifications...</p>}
-            {!loading && notifications.length === 0 && (
+            {loading ? (
+              <DropdownNotificationsSkeleton count={3} />
+            ) : notifications.length === 0 ? (
               <p className="notify-dropdown-muted">No notifications yet.</p>
-            )}
-            {!loading && notifications.length > 0 && (
+            ) : (
               <ul className="notify-dropdown-list">
                 {notifications.map((n) => (
                   <li

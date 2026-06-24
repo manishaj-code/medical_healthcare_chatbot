@@ -30,6 +30,7 @@ async def _has_reminder(db: AsyncSession, appointment_id: UUID, user_id: UUID) -
         select(AppointmentReminder.id).where(
             AppointmentReminder.appointment_id == appointment_id,
             AppointmentReminder.user_id == user_id,
+            AppointmentReminder.sent.is_(False),
         ).limit(1)
     )
     return result.scalar_one_or_none() is not None
@@ -96,15 +97,21 @@ async def sync_appointment_status_on_patient_cards(
     appointment_id: UUID,
 ) -> None:
     """Persist completed/cancelled status on in-chat appointment cards for the patient."""
-    from app.models import Conversation, Message
+    from app.models import Conversation, Message, Patient
 
     appt = await db.get(Appointment, appointment_id)
     if not appt:
         return
 
+    patient = await db.get(Patient, appt.patient_id)
+    reminder_set = (
+        await _has_reminder(db, appt.id, patient.user_id) if patient else False
+    )
+
     status = _display_status(appt)
     terminal = status in ("cancelled", "completed")
     appt_key = str(appointment_id)
+    label = f"{_day_label(appt.slot_date)}: {_format_time(appt.slot_time)}"
 
     result = await db.execute(
         select(Message)
@@ -123,6 +130,10 @@ async def sync_appointment_status_on_patient_cards(
         updates: dict = {}
         if ui.get("status") != status:
             updates["status"] = status
+        if status == "rescheduled" and ui.get("label") != label:
+            updates["label"] = label
+        if ui.get("reminder_set") != reminder_set:
+            updates["reminder_set"] = reminder_set
         if terminal and not ui.get("actions_disabled"):
             updates["actions_disabled"] = True
         if not updates:

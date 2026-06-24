@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { api } from "../../api/client";
+import { UrgentPanelSkeleton } from "../skeleton";
 
 export interface UrgentConsultItem {
   offer_id: string;
@@ -455,8 +456,8 @@ export default function DoctorUrgentConsultPanel() {
 
   if (loading) {
     return (
-      <section className="dp-panel dp-urgent-panel dp-urgent-panel--loading">
-        <div className="dp-urgent-skeleton" />
+      <section className="dp-panel dp-urgent-panel">
+        <UrgentPanelSkeleton />
       </section>
     );
   }

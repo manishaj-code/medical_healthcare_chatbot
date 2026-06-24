@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { api } from "../../api/client";
 import { NotificationItem, typeIcon, typeLabel } from "../../utils/notifications";
+import { NotificationsPageSkeleton } from "../../components/skeleton";
 
 interface RefillRequest {
   id: string;
@@ -70,19 +71,20 @@ export default function PatientNotifications() {
           </div>
         </div>
 
+        {loading ? (
+          <NotificationsPageSkeleton />
+        ) : (
         <div className="pd-notifications-grid">
           <div className="pd-notifications-panel">
             <h4 className="pd-notifications-panel-title">Prescription refill requests</h4>
-            {loading && <p className="pd-muted">Loading refill requests...</p>}
-            {!loading && refills.length === 0 && (
+            {refills.length === 0 ? (
               <div className="pd-empty-card pd-notifications-empty">
                 <span className="material-symbols-outlined pd-empty-icon">medication</span>
                 <p>No refill requests yet.</p>
                 <p className="pd-muted">Open AI Consultation and ask for a prescription refill.</p>
                 <Link to="/chat" className="pd-outline-btn">Go to chat</Link>
               </div>
-            )}
-            {!loading && refills.length > 0 && (
+            ) : (
               <div className="pd-refill-list">
                 {refills.map((r) => (
                   <article key={r.id} className="pd-refill-card">
@@ -112,11 +114,9 @@ export default function PatientNotifications() {
 
           <div className="pd-notifications-panel">
             <h4 className="pd-notifications-panel-title">All notifications</h4>
-            {loading && <p className="pd-muted">Loading notifications...</p>}
-            {!loading && notifications.length === 0 && (
+            {notifications.length === 0 ? (
               <p className="pd-muted">No notifications yet.</p>
-            )}
-            {!loading && notifications.length > 0 && (
+            ) : (
               <ul className="pd-notification-list">
                 {notifications.map((n) => (
                   <li
@@ -137,6 +137,7 @@ export default function PatientNotifications() {
             )}
           </div>
         </div>
+        )}
       </section>
     </div>
   );

@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { api } from "../../api/client";
 import { NotificationItem, typeIcon, typeLabel } from "../../utils/notifications";
+import { DoctorNotificationsSkeleton } from "../../components/skeleton";
 
 export default function DoctorNotifications() {
   const [notifications, setNotifications] = useState<NotificationItem[]>([]);
@@ -43,11 +44,11 @@ export default function DoctorNotifications() {
       </div>
 
       <div className="dp-card dp-notifications-card">
-        {loading && <p className="dp-muted">Loading notifications...</p>}
-        {!loading && notifications.length === 0 && (
+        {loading ? (
+          <DoctorNotificationsSkeleton />
+        ) : notifications.length === 0 ? (
           <p className="dp-muted">No notifications yet.</p>
-        )}
-        {!loading && notifications.length > 0 && (
+        ) : (
           <ul className="pd-notification-list">
             {notifications.map((n) => (
               <li

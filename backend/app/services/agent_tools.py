@@ -15,7 +15,9 @@ from app.services.appointment_service import (
     cancel_appointment,
     format_apt_id,
     get_latest_confirmed,
+    normalize_slot_time,
     reschedule_appointment,
+    reschedulable_appointment_statuses,
     schedule_reminder,
 )
 from app.services.doctor_service import _fetch_doctor_slots, get_availability, list_doctors_with_availability
@@ -187,7 +189,7 @@ def match_slot_from_text(
 
 async def tool_search_doctors(db: AsyncSession, specialty: str | None = None) -> dict:
     """Load all doctors from PostgreSQL with live availability slots."""
-    doctors = await list_doctors_with_availability(db, specialty=specialty, slots_per_doctor=30)
+    doctors = await list_doctors_with_availability(db, specialty=specialty, slots_per_doctor=120)
     all_slots = [s for d in doctors for s in d.get("slots", [])]
     return {
         "doctors": doctors,
@@ -197,13 +199,13 @@ async def tool_search_doctors(db: AsyncSession, specialty: str | None = None) ->
     }
 
 
-async def tool_get_doctor_slots(db: AsyncSession, doctor_id: UUID, limit: int = 8) -> dict:
+async def tool_get_doctor_slots(db: AsyncSession, doctor_id: UUID, limit: int = 120) -> dict:
     doc = await db.get(Doctor, doctor_id)
     if not doc:
         return {"slots": [], "doctor_name": "Unknown"}
     user = await db.get(User, doc.user_id)
     doctor_name = user.name if user else "Doctor"
-    slots = await _fetch_doctor_slots(db, doctor_id, doctor_name, limit=limit)
+    slots = await _fetch_doctor_slots(db, doctor_id, doctor_name, limit=limit, days_ahead=14)
     return {"doctor_name": doctor_name, "slots": slots}
 
 
@@ -226,7 +228,7 @@ async def tool_list_appointments(db: AsyncSession, patient_id: UUID) -> dict:
             "id": str(appt.id),
             "apt_id": format_apt_id(appt.id),
             "doctor_name": doc_name,
-            "label": f"{_day_label(appt.slot_date)} {_format_time(appt.slot_time)}",
+            "label": f"{_day_label(appt.slot_date)}: {_format_time(appt.slot_time)}",
             "status": appt.status.value if hasattr(appt.status, "value") else str(appt.status),
         })
     return {"appointments": appts}
@@ -300,7 +302,7 @@ async def tool_reschedule_alternatives(
             select(Appointment).where(
                 Appointment.id == appointment_id,
                 Appointment.patient_id == patient_id,
-                Appointment.status == AppointmentStatus.confirmed,
+                Appointment.status.in_(list(reschedulable_appointment_statuses())),
             )
         )
         appt = result.scalar_one_or_none()
@@ -310,17 +312,31 @@ async def tool_reschedule_alternatives(
         return {"success": False, "message": "No active appointment to reschedule."}
     doc = await db.get(Doctor, appt.doctor_id)
     user = await db.get(User, doc.user_id) if doc else None
-    slots_result = await tool_get_doctor_slots(db, appt.doctor_id, limit=10)
+    slots_result = await tool_get_doctor_slots(db, appt.doctor_id, limit=120)
+    current_date = appt.slot_date.isoformat()
+    current_time = normalize_slot_time(appt.slot_time)
     alt = [
-        s for s in slots_result["slots"]
-        if s["slot_date"] != appt.slot_date.isoformat() or s["slot_time"] != appt.slot_time.isoformat()
-    ][:6]
+        s
+        for s in slots_result["slots"]
+        if not (
+            s["slot_date"] == current_date
+            and normalize_slot_time(s["slot_time"]) == current_time
+        )
+    ]
+    specialty = "General Physician"
+    if doc:
+        from app.services.appointment_card_service import _doctor_specialty
+
+        specialty = await _doctor_specialty(db, doc.id)
     return {
         "success": True,
         "appointment_id": str(appt.id),
         "apt_id": format_apt_id(appt.id),
         "doctor_name": user.name if user else "Doctor",
-        "current": f"{_day_label(appt.slot_date)} {_format_time(appt.slot_time)}",
+        "specialty": specialty,
+        "current": f"{_day_label(appt.slot_date)}: {_format_time(appt.slot_time)}",
+        "current_slot_date": current_date,
+        "current_slot_time": current_time,
         "alternatives": alt,
     }
 

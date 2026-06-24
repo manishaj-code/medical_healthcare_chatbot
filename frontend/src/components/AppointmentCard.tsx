@@ -48,12 +48,16 @@ export default function AppointmentCard({
   const navigate = useNavigate();
   const { month, day } = apptDateParts(a.date);
   const normalizedStatus = a.status.toLowerCase();
-  const isActive = normalizedStatus === "confirmed" || normalizedStatus === "pending";
+  const isActive =
+    normalizedStatus === "confirmed" ||
+    normalizedStatus === "pending" ||
+    normalizedStatus === "rescheduled";
   const isCompleted = normalizedStatus === "completed";
   const isCancelled = normalizedStatus === "cancelled" || normalizedStatus === "canceled";
   const isVideoConsultation =
     a.consultation_mode === "video" || Boolean(a.video_room_id);
-  const videoCallAvailable = isActive && normalizedStatus === "confirmed";
+  const videoCallAvailable =
+    normalizedStatus === "confirmed" || normalizedStatus === "rescheduled";
   const statusLabel =
     normalizedStatus === "cancelled" || normalizedStatus === "canceled"
       ? "Cancelled"

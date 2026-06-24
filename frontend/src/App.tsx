@@ -1,4 +1,5 @@
 import { Navigate, Route, Routes } from "react-router-dom";
+import { ToastProvider } from "./components/toast/ToastProvider";
 import Login from "./pages/Login";
 import Landing from "./pages/Landing";
 import PatientDashboard from "./pages/patient/Dashboard";
@@ -41,7 +42,8 @@ function HomeRoute() {
 
 export default function App() {
   return (
-    <Routes>
+    <ToastProvider>
+      <Routes>
       <Route path="/" element={<HomeRoute />} />
       <Route path="/login" element={<Login />} />
       <Route element={<Layout />}>
@@ -61,5 +63,6 @@ export default function App() {
         <Route path="/admin" element={<Protected roles={["admin"]}><AdminPanel /></Protected>} />
       </Route>
     </Routes>
+    </ToastProvider>
   );
 }

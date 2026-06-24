@@ -9,6 +9,9 @@ import ChatFileAttachment, {
   userMessageCaption,
 } from "../../components/ChatFileAttachment";
 import ChatReportFollowUp from "../../components/ChatReportFollowUp";
+import { ChatPageSkeleton } from "../../components/skeleton";
+import { useToast } from "../../components/toast/ToastProvider";
+import { notifyFromChatUi } from "../../utils/notificationToast";
 import {
   CHAT_LIST_TITLE,
   Conversation,
@@ -240,6 +243,7 @@ export default function PatientChat() {
   const [initializing, setInitializing] = useState(true);
   const [detectedSymptoms, setDetectedSymptoms] = useState<DetectedSymptom[]>([]);
   const [latestAssessment, setLatestAssessment] = useState<LatestAssessment | null>(null);
+  const { showToast } = useToast();
   const bottom = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const fileRef = useRef<HTMLInputElement>(null);
@@ -484,6 +488,7 @@ export default function PatientChat() {
         body: JSON.stringify(body),
       });
       setEmergency(res.emergency);
+      notifyFromChatUi(showToast, res.ui, trimmed);
       if (res.detected_symptoms?.length) {
         setDetectedSymptoms(toDetectedSymptoms(res.detected_symptoms));
       }
@@ -651,9 +656,7 @@ export default function PatientChat() {
           )}
 
           <div className="consult-messages consult-scroll">
-            {initializing && (
-              <p className="consult-empty">Loading your consultation...</p>
-            )}
+            {initializing && <ChatPageSkeleton />}
             {!initializing && messages.length === 0 && (
               <div className="consult-welcome-msg">
                 <div className="consult-msg consult-msg--ai">

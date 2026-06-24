@@ -6,6 +6,7 @@ import AppointmentCard, { AppointmentItem } from "../../components/AppointmentCa
 import { CHAT_LIST_TITLE, fetchConversations, formatChatDateLabel } from "../../utils/chatConversations";
 import { buildHealthInsightsPanel } from "../../utils/healthInsights";
 import { HealthVital } from "../../utils/healthVitals";
+import { PatientDashboardSkeleton } from "../../components/skeleton";
 
 interface Conversation {
   id: string;
@@ -172,16 +173,23 @@ export default function PatientDashboard() {
     return { greeting, message };
   }, [userName, upcoming, chats.length, reports.length, appts.length, loading]);
 
+  if (loading) {
+    return (
+      <div className="patient-dashboard">
+        <PatientDashboardSkeleton />
+      </div>
+    );
+  }
+
   return (
     <div className="patient-dashboard">
       <section className="pd-welcome">
         <div className="pd-welcome-copy">
           <h2>{dashboardWelcome.greeting}</h2>
-          {!loading && dashboardWelcome.message && (
+          {dashboardWelcome.message && (
             <p className="pd-welcome-sub">{formatChatText(dashboardWelcome.message)}</p>
           )}
-          {!loading && (
-            <div className="pd-welcome-stats">
+          <div className="pd-welcome-stats">
               {upcoming.length > 0 && (
                 <span className="pd-welcome-stat">
                   <span className="material-symbols-outlined">event</span>
@@ -201,7 +209,6 @@ export default function PatientDashboard() {
                 </span>
               )}
             </div>
-          )}
         </div>
         <Link to="/chat" className="pd-cta-btn">
           <span className="material-symbols-outlined">smart_toy</span>
@@ -209,7 +216,7 @@ export default function PatientDashboard() {
         </Link>
       </section>
 
-      {!loading && healthVitals.length > 0 && (
+      {healthVitals.length > 0 && (
         <section className="pd-section">
           <div className="pd-section-head">
             <h3>Live Health Vitals</h3>
@@ -253,8 +260,7 @@ export default function PatientDashboard() {
             <h3>Upcoming Appointments</h3>
             <Link to="/appointments" className="pd-link-btn">View all</Link>
           </div>
-          {loading && <p className="pd-muted">Loading appointments...</p>}
-          {!loading && upcoming.length === 0 && (
+          {upcoming.length === 0 && (
             <div className="pd-empty-card">
               <p>No upcoming appointments.</p>
               <Link to="/doctors" className="pd-outline-btn">Book a doctor</Link>
@@ -314,7 +320,7 @@ export default function PatientDashboard() {
               </tr>
             </thead>
             <tbody>
-              {activity.length === 0 && !loading && (
+              {activity.length === 0 && (
                 <tr>
                   <td colSpan={5} className="pd-muted" style={{ padding: "1.5rem" }}>
                     No recent activity yet. Start an AI consultation to begin.

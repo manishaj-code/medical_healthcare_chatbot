@@ -152,7 +152,7 @@ async def guest_chat_message(data: GuestMessageCreate, db: AsyncSession = Depend
         raise HTTPException(status_code=404, detail=str(exc)) from exc
     except HTTPException:
         raise
-    except Exception:
+    except Exception as exc:
         await db.rollback()
         logger.exception("Guest chat processing failed for session %s", data.session_id)
         raise HTTPException(status_code=500, detail="Guest chat processing failed.") from None

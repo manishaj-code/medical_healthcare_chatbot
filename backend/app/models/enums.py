@@ -39,6 +39,8 @@ class NotificationType(str, enum.Enum):
     refill_approved = "refill_approved"
     refill_denied = "refill_denied"
     video_consultation = "video_consultation"
+    appointment_rescheduled = "appointment_rescheduled"
+    consultation_completed = "consultation_completed"
     urgent_consult_request = "urgent_consult_request"
     urgent_consult_assigned = "urgent_consult_assigned"
     urgent_consult_superseded = "urgent_consult_superseded"

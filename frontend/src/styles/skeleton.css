@@ -1,0 +1,250 @@
+/* Shared shimmer skeleton blocks for loading states */
+.ui-skeleton {
+  display: block;
+  border-radius: 8px;
+  background: linear-gradient(90deg, #e8ecef 25%, #f4f6f8 50%, #e8ecef 75%);
+  background-size: 200% 100%;
+  animation: ui-skeleton-shimmer 1.2s ease-in-out infinite;
+}
+
+.ui-skeleton--circle {
+  border-radius: 50%;
+}
+
+.ui-skeleton--rounded {
+  border-radius: 12px;
+}
+
+.ui-skeleton-page {
+  width: 100%;
+}
+
+.ui-sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+@keyframes ui-skeleton-shimmer {
+  0% {
+    background-position: 200% 0;
+  }
+  100% {
+    background-position: -200% 0;
+  }
+}
+
+/* Patient portal presets */
+.sk-pd-welcome {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1.5rem;
+  padding: 1.75rem;
+  margin-bottom: 1.5rem;
+  border-radius: 16px;
+  background: var(--pd-surface, #fff);
+  border: 1px solid var(--pd-outline-variant, #e2e8f0);
+}
+
+.sk-pd-split {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1.25rem;
+  margin-bottom: 1.5rem;
+}
+
+@media (max-width: 900px) {
+  .sk-pd-split {
+    grid-template-columns: 1fr;
+  }
+}
+
+.sk-appt-card {
+  display: flex;
+  gap: 1rem;
+  padding: 1rem;
+  border-radius: 12px;
+  border: 1px solid var(--pd-outline-variant, #e2e8f0);
+  background: #fff;
+}
+
+.sk-appt-card-body {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.sk-insights-panel {
+  padding: 1.25rem;
+  border-radius: 12px;
+  border: 1px solid var(--pd-outline-variant, #e2e8f0);
+  background: #f8fafc;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.sk-table-rows {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.sk-table-row {
+  display: grid;
+  grid-template-columns: 2fr 1fr 1fr 1fr 0.5fr;
+  gap: 1rem;
+  align-items: center;
+  padding: 0.75rem 0;
+  border-bottom: 1px solid var(--pd-outline-variant, #e2e8f0);
+}
+
+.sk-doctor-card {
+  display: flex;
+  gap: 1rem;
+  padding: 1rem;
+  border-radius: 12px;
+  border: 1px solid var(--pd-outline-variant, #e2e8f0);
+  background: #fff;
+  margin-bottom: 0.75rem;
+}
+
+.sk-notifications-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1.25rem;
+}
+
+@media (max-width: 900px) {
+  .sk-notifications-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+.sk-notifications-panel {
+  padding: 1.25rem;
+  border-radius: 12px;
+  border: 1px solid var(--pd-outline-variant, #e2e8f0);
+  background: #fff;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.sk-report-card {
+  padding: 1.25rem;
+  border-radius: 12px;
+  border: 1px solid var(--pd-outline-variant, #e2e8f0);
+  background: #fff;
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+  margin-bottom: 0.75rem;
+}
+
+.sk-chat-messages {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  padding: 1rem 0;
+}
+
+.sk-chat-msg {
+  display: flex;
+  gap: 0.75rem;
+  align-items: flex-start;
+}
+
+.sk-chat-msg--right {
+  flex-direction: row-reverse;
+}
+
+.sk-video-frame {
+  width: 100%;
+  min-height: 420px;
+  border-radius: 12px;
+}
+
+/* Doctor portal presets */
+.sk-dp-patient-header {
+  display: flex;
+  gap: 1.25rem;
+  align-items: center;
+  margin-bottom: 1.5rem;
+}
+
+.sk-dp-tabs {
+  display: flex;
+  gap: 0.5rem;
+  margin-bottom: 1.25rem;
+}
+
+.sk-dp-consult {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1.25rem;
+}
+
+@media (max-width: 960px) {
+  .sk-dp-consult {
+    grid-template-columns: 1fr;
+  }
+}
+
+.sk-dp-panel {
+  padding: 1.25rem;
+  border-radius: var(--dp-radius, 12px);
+  border: 1px solid var(--dp-outline-variant, #dde3e1);
+  background: var(--dp-surface-container-low, #f8faf9);
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.sk-dp-history-card {
+  padding: 1rem 1.25rem;
+  border-radius: var(--dp-radius, 12px);
+  border: 1px solid var(--dp-outline-variant, #dde3e1);
+  background: #fff;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  margin-bottom: 0.75rem;
+}
+
+.sk-dp-urgent {
+  width: 100%;
+  padding: 1.25rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.sk-cal-slots {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 0.5rem;
+}
+
+/* Admin presets */
+.sk-admin-table {
+  display: flex;
+  flex-direction: column;
+  gap: 0.65rem;
+  margin-top: 1rem;
+}
+
+.sk-admin-row {
+  display: grid;
+  grid-template-columns: 1.2fr 1.5fr 0.6fr 0.6fr 0.8fr 0.8fr;
+  gap: 0.75rem;
+  align-items: center;
+}

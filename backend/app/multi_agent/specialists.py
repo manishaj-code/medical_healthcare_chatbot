@@ -38,6 +38,7 @@ from app.multi_agent.booking_actions import (
     synthesize_tool_result,
 )
 from app.services.symptom_extraction import _MID_TRIAGE_AWAITING
+from app.services.self_care_service import wants_self_care_advice
 from app.multi_agent.llm import llm
 from app.multi_agent.offline_fallback import (
     conversational_triage_turn,

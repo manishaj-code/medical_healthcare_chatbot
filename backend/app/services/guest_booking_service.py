@@ -449,7 +449,10 @@ async def process_guest_booking(
             history,
             text,
             "Please reply **Yes** to confirm this appointment or **No** to cancel.",
-            ui=build_confirm_booking_ui(patient_display_name(None), session.get("pending_slot", {}).get("doctor_name", ""), session.get("pending_slot", {}).get("label", "")),
+            ui=build_confirm_booking_ui(
+                session.get("pending_slot", {}).get("doctor_name", ""),
+                session.get("pending_slot", {}).get("label", ""),
+            ),
         )
 
     search = session.get("last_doctor_search") or {}
@@ -468,7 +471,7 @@ async def process_guest_booking(
             f"**Time:** {stored.get('label')}\n\n"
             f"Reply **Yes** to continue."
         )
-        ui = build_confirm_booking_ui(patient_display_name(None), doc_name, stored.get("label", ""))
+        ui = build_confirm_booking_ui(doc_name, stored.get("label", ""))
         return await _append_and_save(session_id, data, session, history, text, reply, ui=ui)
 
     if awaiting in ("pick_doctor", "pick_slot"):

@@ -3,7 +3,14 @@ import type { ReactNode } from "react";
 import DoctorAvatar from "./DoctorAvatar";
 import { api } from "../api/client";
 import { buildSetReminderMessage } from "../utils/chatTokens";
-import { filterChatBookableSlots } from "../utils/chatUiHelpers";
+import {
+  filterChatBookableSlots,
+  formatSlotTime12h,
+  normalizeAppointmentWhenLabel,
+  slotCalendarDate,
+  slotsForCalendarDate,
+  isChatSlotPast,
+} from "../utils/chatUiHelpers";
 import {
   buildCancelAppointmentMessage,
   buildRescheduleAppointmentMessage,
@@ -99,8 +106,16 @@ export interface ChatUiPayload {
   patient_name?: string;
   current?: string;
   current_time?: string;
+  current_slot_date?: string;
+  current_slot_time?: string;
   specialty?: string;
   hospital_name?: string;
+  professional_summary?: string | null;
+  profile_image_url?: string | null;
+  consultation_fee?: number | null;
+  next_available?: string | null;
+  experience_years?: number;
+  rating?: number | null;
   status?: "confirmed" | "rescheduled" | "cancelled" | "completed";
   reminder_set?: boolean;
   actions_disabled?: boolean;
@@ -114,6 +129,7 @@ export interface ChatUiPayload {
   availability_exhausted?: boolean;
   can_retry?: boolean;
   options?: ChoiceOption[];
+  booking_mode?: "book" | "reschedule";
 }
 
 interface Props {
@@ -184,29 +200,27 @@ function parseSlotDate(label: string): Date | null {
   }
 }
 
-function isSlotPast(label: string): boolean {
+function isSlotPastLabel(label: string): boolean {
   const d = parseSlotDate(label);
   return d ? d < new Date() : false;
 }
 
-function slotMidnight(label: string): Date | null {
-  const d = parseSlotDate(label);
-  if (!d) return null;
-  const m = new Date(d);
-  m.setHours(0, 0, 0, 0);
-  return m;
+function isSlotPastSlot(slot: SlotUi): boolean {
+  if (slot.slot_date && slot.slot_time) return isChatSlotPast(slot.slot_date, slot.slot_time);
+  return isSlotPastLabel(slot.label);
+}
+
+function slotDisplayTime(slot: SlotUi): string {
+  if (slot.slot_time) return formatSlotTime12h(slot.slot_time);
+  return slotTime(slot.label);
+}
+
+function slotMidnightFromSlot(slot: SlotUi): Date | null {
+  return slotCalendarDate(slot);
 }
 
 function getSlotsForDate(slots: SlotUi[], date: Date): SlotUi[] {
-  return slots.filter((s) => {
-    const m = slotMidnight(s.label);
-    if (!m) return false;
-    return (
-      m.getFullYear() === date.getFullYear() &&
-      m.getMonth() === date.getMonth() &&
-      m.getDate() === date.getDate()
-    );
-  });
+  return slotsForCalendarDate(slots, date);
 }
 
 /** Build a full month calendar grid (up to 6 weeks × 7 days) */
@@ -245,17 +259,25 @@ function AppointmentPicker({
   slots,
   disabled,
   onPick,
+  hideDoctorHeader = false,
+  pickerTitle = "Select Appointment",
+  confirmButtonLabel = "Book Appointment",
+  confirmNote = "No payment required until the visit.",
 }: {
   doctor: DoctorUi;
   slots: SlotUi[];
   disabled?: boolean;
   onPick: (message: string) => void;
+  hideDoctorHeader?: boolean;
+  pickerTitle?: string;
+  confirmButtonLabel?: string;
+  confirmNote?: string;
 }) {
   const firstSlotDate = useMemo(() => {
     // Find the earliest FUTURE slot date to open the calendar on
     const todayMs = new Date().setHours(0, 0, 0, 0);
     const dates = slots
-      .map((s) => slotMidnight(s.label))
+      .map((s) => slotMidnightFromSlot(s))
       .filter((d): d is Date => d !== null && d.getTime() >= todayMs)
       .sort((a, b) => a.getTime() - b.getTime());
     return dates[0] ?? new Date();
@@ -267,7 +289,7 @@ function AppointmentPicker({
   const slotDayKeys = useMemo(() => {
     const set = new Set<string>();
     for (const s of slots) {
-      const m = slotMidnight(s.label);
+      const m = slotMidnightFromSlot(s);
       if (m) set.add(`${m.getFullYear()}-${m.getMonth()}-${m.getDate()}`);
     }
     return set;
@@ -277,7 +299,7 @@ function AppointmentPicker({
     const todayMidnight = new Date();
     todayMidnight.setHours(0, 0, 0, 0);
     const days = slots
-      .map((s) => slotMidnight(s.label))
+      .map((s) => slotMidnightFromSlot(s))
       .filter((d): d is Date => d !== null && d >= todayMidnight)
       .sort((a, b) => a.getTime() - b.getTime());
     return days[0] ?? null;
@@ -316,7 +338,7 @@ function AppointmentPicker({
     else setCalMonth((m) => m + 1);
   }
 
-  const hasAvailableSlot = visibleSlots.some((s) => !isSlotPast(s.label));
+  const hasAvailableSlot = visibleSlots.some((s) => !isSlotPastSlot(s));
 
   // Track which specific slot the user has selected
   const [selectedSlot, setSelectedSlot] = useState<SlotUi | null>(null);
@@ -328,27 +350,28 @@ function AppointmentPicker({
 
   return (
     <div className="appt-picker">
-      {/* Selected doctor header */}
-      <div className="appt-doctor-header">
-        <DoctorAvatar
-          name={doctor.name}
-          profileImageUrl={doctor.profile_image_url}
-          className="appt-doctor-avatar appt-doctor-avatar--photo"
-          initialsClassName="appt-doctor-avatar"
-        />
-        <div className="appt-doctor-header-info">
-          <span className="appt-doctor-header-name">{doctor.name}</span>
-          <span className="appt-doctor-header-meta">
-            {doctor.specialty}
-            {doctor.experience_years > 0 && ` · ${doctor.experience_years}+ yrs exp`}
-          </span>
+      {!hideDoctorHeader && (
+        <div className="appt-doctor-header">
+          <DoctorAvatar
+            name={doctor.name}
+            profileImageUrl={doctor.profile_image_url}
+            className="appt-doctor-avatar appt-doctor-avatar--photo"
+            initialsClassName="appt-doctor-avatar"
+          />
+          <div className="appt-doctor-header-info">
+            <span className="appt-doctor-header-name">{doctor.name}</span>
+            <span className="appt-doctor-header-meta">
+              {doctor.specialty}
+              {doctor.experience_years > 0 && ` · ${doctor.experience_years}+ yrs exp`}
+            </span>
+          </div>
+          {doctor.rating != null && (
+            <span className="appt-doctor-header-rating">★ {doctor.rating}</span>
+          )}
         </div>
-        {doctor.rating != null && (
-          <span className="appt-doctor-header-rating">★ {doctor.rating}</span>
-        )}
-      </div>
+      )}
 
-      <h3 className="appt-picker-title">Select Appointment</h3>
+      <h3 className="appt-picker-title">{pickerTitle}</h3>
 
       <div className="appt-calendar-panel">
       {/* Month navigation */}
@@ -408,7 +431,7 @@ function AppointmentPicker({
               key={key}
               type="button"
               className={cls}
-              disabled={isPast || disabled}
+              disabled={isPast || disabled || (!hasSlots && !isPast)}
               onClick={() => setSelectedDate(date)}
               title={
                 isPast ? "Past date"
@@ -452,9 +475,11 @@ function AppointmentPicker({
             <p className="appt-slots-empty">No slots available on this date.</p>
           )}
           {visibleSlots.map((slot, i) => {
-            const past = isSlotPast(slot.label);
-            const time = slotTime(slot.label);
-            const isChipSelected = selectedSlot?.label === slot.label;
+            const past = isSlotPastSlot(slot);
+            const time = slotDisplayTime(slot);
+            const isChipSelected =
+              selectedSlot?.slot_date === slot.slot_date &&
+              selectedSlot?.slot_time === slot.slot_time;
             return (
               <button
                 key={`${slot.label}-${i}`}
@@ -476,11 +501,11 @@ function AppointmentPicker({
       </div>
 
       {/* Book Appointment button */}
-      {selectedSlot && !isSlotPast(selectedSlot.label) && (
+      {selectedSlot && !isSlotPastSlot(selectedSlot) && (
         <div className="appt-selected-slot-summary">
           <span className="appt-selected-slot-icon">✓</span>
           <span className="appt-selected-slot-text">
-            {doctor.name} · {slotTime(selectedSlot.label)}
+            {doctor.name} · {slotDisplayTime(selectedSlot)}
             {selectedDate && ` · ${selectedDate.toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" })}`}
           </span>
         </div>
@@ -488,17 +513,17 @@ function AppointmentPicker({
       <button
         type="button"
         className="appt-confirm-btn"
-        disabled={disabled || !selectedSlot || isSlotPast(selectedSlot.label)}
+        disabled={disabled || !selectedSlot || isSlotPastSlot(selectedSlot)}
         onClick={() => {
-          if (selectedSlot && !isSlotPast(selectedSlot.label)) {
+          if (selectedSlot && !isSlotPastSlot(selectedSlot)) {
             onPick(selectedSlot.message);
           }
         }}
       >
-        Book Appointment
+        {confirmButtonLabel}
         <span className="appt-confirm-icon">📅</span>
       </button>
-      <p className="appt-confirm-note">No payment required until the visit.</p>
+      <p className="appt-confirm-note">{confirmNote}</p>
     </div>
   );
 }
@@ -528,9 +553,12 @@ function AppointmentConfirmedCard({
   const status = ui.status ?? "confirmed";
   const isCancelled = status === "cancelled";
   const isCompleted = status === "completed";
+  const isRescheduled = status === "rescheduled";
   const isTerminal = isCancelled || isCompleted;
   const isSuperseded = Boolean(ui.actions_disabled) && !isTerminal;
-  const actionsOff = Boolean(disabled || ui.actions_disabled || isTerminal);
+  const isActiveCard = !isSuperseded && !isTerminal;
+  const manageDisabled = Boolean(disabled || !isActiveCard);
+  const reminderDisabled = Boolean(disabled || !isActiveCard || reminderSet || reminderPending);
 
   useEffect(() => {
     setReminderSet(Boolean(ui.reminder_set));
@@ -538,7 +566,7 @@ function AppointmentConfirmedCard({
   }, [ui.reminder_set, ui.appointment_id]);
 
   async function handleReminder() {
-    if (reminderSet || isTerminal || actionsOff || reminderPending) return;
+    if (reminderSet || reminderDisabled || reminderPending) return;
     const message = buildSetReminderMessage(aptId, ui.appointment_id);
     setReminderPending(true);
     try {
@@ -554,7 +582,7 @@ function AppointmentConfirmedCard({
       : status === "completed"
         ? "Consultation Completed"
         : status === "rescheduled"
-          ? "Appointment Rescheduled"
+          ? "Booking Rescheduled"
           : "Booking Confirmed";
 
   return (
@@ -563,6 +591,7 @@ function AppointmentConfirmedCard({
         "appt-confirmed-card",
         isCancelled ? "appt-confirmed-card--cancelled" : "",
         isCompleted ? "appt-confirmed-card--completed" : "",
+        isRescheduled ? "appt-confirmed-card--rescheduled" : "",
         isSuperseded ? "appt-confirmed-card--superseded" : "",
       ].filter(Boolean).join(" ")}
     >
@@ -615,7 +644,7 @@ function AppointmentConfirmedCard({
           <button
             type="button"
             className={`appt-confirmed-btn appt-confirmed-btn--reminder${reminderSet ? " appt-confirmed-btn--reminder-set" : ""}`}
-            disabled={actionsOff || reminderSet || reminderPending}
+            disabled={reminderDisabled}
             onClick={() => void handleReminder()}
             title={
               reminderSet
@@ -632,7 +661,7 @@ function AppointmentConfirmedCard({
           <button
             type="button"
             className="appt-confirmed-btn appt-confirmed-btn--reschedule"
-            disabled={actionsOff}
+            disabled={manageDisabled}
             onClick={() => onPick(buildRescheduleAppointmentMessage(aptId))}
             title="Reschedule this appointment"
           >
@@ -643,7 +672,7 @@ function AppointmentConfirmedCard({
           <button
             type="button"
             className="appt-confirmed-btn appt-confirmed-btn--cancel"
-            disabled={actionsOff}
+            disabled={manageDisabled}
             onClick={() => onPick(buildCancelAppointmentMessage(aptId))}
             title="Cancel this appointment"
           >
@@ -1095,9 +1124,61 @@ function SlotButtons({
   );
 }
 
-// ─── RescheduleSlotCard ───────────────────────────────────────────────────────
+// ─── Single doctor booking panel (book + reschedule) ─────────────────────────
 
-function RescheduleSlotCard({
+function doctorFromSlotListUi(ui: ChatUiPayload, slots: SlotUi[]): DoctorUi {
+  return {
+    id: ui.doctor_id ?? "",
+    name: ui.doctor_name ?? "Doctor",
+    specialty: ui.specialty ?? "General Physician",
+    experience_years: ui.experience_years ?? 0,
+    rating: ui.rating ?? null,
+    profile_image_url: ui.profile_image_url,
+    consultation_fee: ui.consultation_fee ?? null,
+    hospital_name: ui.hospital_name,
+    professional_summary: ui.professional_summary,
+    next_available: ui.next_available,
+    slots,
+  };
+}
+
+function DoctorSidebarCard({ doctor }: { doctor: DoctorUi }) {
+  return (
+    <div className="medai-doc-card medai-doc-card--active medai-doc-card--static">
+      <div className="medai-doc-avatar-wrap">
+        <DoctorAvatar
+          name={doctor.name}
+          profileImageUrl={doctor.profile_image_url}
+          className="medai-doc-avatar medai-doc-avatar--photo"
+          initialsClassName="medai-doc-avatar"
+        />
+      </div>
+      <div className="medai-doc-info">
+        <span className="medai-doc-name">{doctor.name}</span>
+        <span className="medai-doc-meta">{doctor.specialty}</span>
+        {(doctor.experience_years > 0 || doctor.consultation_fee != null) && (
+          <div className="medai-doc-stats">
+            {doctor.experience_years > 0 && (
+              <span className="medai-doc-stat">
+                <span className="medai-stat-icon">⏱</span>
+                {doctor.experience_years}+ Yrs
+              </span>
+            )}
+            {doctor.consultation_fee != null && (
+              <span className="medai-doc-stat">
+                <span className="medai-stat-icon">₹</span>
+                {doctor.consultation_fee}
+              </span>
+            )}
+          </div>
+        )}
+      </div>
+      {doctor.rating != null && <span className="medai-doc-rating">★ {doctor.rating}</span>}
+    </div>
+  );
+}
+
+function SingleDoctorBookingPanel({
   ui,
   disabled,
   onPick,
@@ -1106,55 +1187,68 @@ function RescheduleSlotCard({
   disabled?: boolean;
   onPick: (message: string) => void;
 }) {
-  const slots = ui.slots ?? [];
-  const bookableSlots = useMemo(() => filterChatBookableSlots(slots), [slots]);
+  const isReschedule =
+    ui.booking_mode === "reschedule" || ui.type === "reschedule_slots";
+  const excludeSlot =
+    isReschedule && ui.current_slot_date && ui.current_slot_time
+      ? { slot_date: ui.current_slot_date, slot_time: ui.current_slot_time }
+      : undefined;
+  const bookableSlots = filterChatBookableSlots(ui.slots ?? [], excludeSlot);
+  const doctor = doctorFromSlotListUi(ui, bookableSlots);
+  const currentLabel = normalizeAppointmentWhenLabel(ui.current_time ?? ui.current ?? "");
   const aptId = ui.apt_id ?? "";
-  const doctorName = ui.doctor_name ?? "Doctor";
-  const currentTime = ui.current_time ?? ui.current ?? "";
+
+  if (!bookableSlots.length) {
+    return (
+      <p className="chat-booking-hint" style={{ margin: 0, border: "none", background: "transparent" }}>
+        No open slots for {doctor.name} right now. Please try again later.
+      </p>
+    );
+  }
 
   return (
-    <div className="reschedule-card reschedule-card--compact">
-      <div className="reschedule-card-header">
-        <span className="reschedule-card-header-icon" aria-hidden="true">
-          <span className="material-symbols-outlined">event_repeat</span>
-        </span>
-        <div className="reschedule-card-header-text">
-          <span className="reschedule-card-title">Reschedule</span>
-          {aptId && <span className="reschedule-card-apt-id">{aptId}</span>}
+    <div className={`medai-booking-panel${isReschedule ? " medai-booking-panel--reschedule" : ""}`}>
+      <div className="medai-doctor-col">
+        <div className="medai-section-label">
+          {isReschedule ? "Reschedule Appointment" : "Selected Doctor"}
         </div>
+
+        {isReschedule && (
+          <div className="reschedule-context-card">
+            {aptId && (
+              <div className="reschedule-context-row">
+                <span className="reschedule-context-label">Appointment</span>
+                <span className="reschedule-context-apt">{aptId}</span>
+              </div>
+            )}
+            {currentLabel && (
+              <div className="reschedule-context-row reschedule-context-row--current">
+                <span className="reschedule-context-label">Current time</span>
+                <span className="reschedule-context-value">{currentLabel}</span>
+              </div>
+            )}
+            <p className="reschedule-context-hint">Choose a new date and time on the calendar.</p>
+          </div>
+        )}
+
+        <DoctorSidebarCard doctor={doctor} />
       </div>
-
-      <div className="reschedule-card-body">
-        <dl className="reschedule-card-facts">
-          <div className="reschedule-card-fact">
-            <dt>Doctor</dt>
-            <dd>{doctorName}</dd>
-          </div>
-          {currentTime && (
-            <div className="reschedule-card-fact reschedule-card-fact--current">
-              <dt>Current</dt>
-              <dd>{currentTime}</dd>
-            </div>
-          )}
-        </dl>
-
-        <div className="reschedule-card-slots">
-          <div className="reschedule-card-slots-head">
-            <span className="reschedule-card-slots-title">New time</span>
-            <span className="reschedule-card-slots-badge">{bookableSlots.length} open</span>
-          </div>
-          {bookableSlots.length > 0 ? (
-            <SlotButtons
-              slots={bookableSlots}
-              disabled={disabled}
-              onPick={onPick}
-              compact
-              chipClassName="reschedule-slot-chip"
-            />
-          ) : (
-            <p className="reschedule-card-empty">No later slots today. Try tomorrow or check back soon.</p>
-          )}
-        </div>
+      <div className="medai-picker-col">
+        <AppointmentPicker
+          key={`${doctor.id}-${aptId || "book"}`}
+          doctor={doctor}
+          slots={bookableSlots}
+          disabled={disabled}
+          onPick={onPick}
+          hideDoctorHeader={isReschedule}
+          pickerTitle={isReschedule ? "Pick a New Time" : "Select Appointment"}
+          confirmButtonLabel={isReschedule ? "Confirm New Time" : "Book Appointment"}
+          confirmNote={
+            isReschedule
+              ? "Your current appointment stays active until you confirm."
+              : "No payment required until the visit."
+          }
+        />
       </div>
     </div>
   );
@@ -1171,25 +1265,30 @@ function RescheduleConfirmCard({
   disabled?: boolean;
   onPick: (message: string) => void;
 }) {
+  const currentLabel = normalizeAppointmentWhenLabel(ui.current);
+  const newLabel = normalizeAppointmentWhenLabel(ui.label);
+
   return (
     <div className="reschedule-confirm-card">
       <div className="reschedule-confirm-header">
         <span className="reschedule-confirm-header-icon" aria-hidden="true">
           <span className="material-symbols-outlined">published_with_changes</span>
         </span>
-        <span className="reschedule-confirm-title">Confirm New Time</span>
+        <div className="reschedule-confirm-header-text">
+          <span className="reschedule-confirm-title">Confirm New Time</span>
+        </div>
       </div>
       <div className="reschedule-confirm-details">
-        {ui.current && (
+        {currentLabel && (
           <div className="reschedule-confirm-row">
             <span className="reschedule-confirm-label">Current</span>
-            <span className="reschedule-confirm-value">{ui.current}</span>
+            <span className="reschedule-confirm-value">{currentLabel}</span>
           </div>
         )}
-        {ui.label && (
+        {newLabel && (
           <div className="reschedule-confirm-row reschedule-confirm-row--new">
-            <span className="reschedule-confirm-label">New time</span>
-            <span className="reschedule-confirm-value">{ui.label}</span>
+            <span className="reschedule-confirm-label">New</span>
+            <span className="reschedule-confirm-value">{newLabel}</span>
           </div>
         )}
       </div>
@@ -1227,12 +1326,6 @@ export function ChatBookingUI({ ui, disabled, onPick }: Props) {
           <span className="confirm-booking-title">Confirm Your Appointment</span>
         </div>
         <div className="confirm-booking-details">
-          {ui.patient_name && (
-            <div className="confirm-booking-row">
-              <span className="confirm-booking-label">👤 Patient</span>
-              <span className="confirm-booking-value">{ui.patient_name}</span>
-            </div>
-          )}
           {ui.doctor_name && (
             <div className="confirm-booking-row">
               <span className="confirm-booking-label">🩺 Doctor</span>
@@ -1266,11 +1359,6 @@ export function ChatBookingUI({ ui, disabled, onPick }: Props) {
   // ── confirm_reschedule ──
   if (ui.type === "confirm_reschedule" && ui.options?.length) {
     return <RescheduleConfirmCard ui={ui} disabled={disabled} onPick={onPick} />;
-  }
-
-  // ── reschedule_slots ──
-  if (ui.type === "reschedule_slots" && ui.slots?.length) {
-    return <RescheduleSlotCard ui={ui} disabled={disabled} onPick={onPick} />;
   }
 
   // ── urgent_consult ──
@@ -1359,48 +1447,12 @@ export function ChatBookingUI({ ui, disabled, onPick }: Props) {
     return <AppointmentConfirmedCard aptId={aptId} ui={ui} disabled={disabled} onPick={onPick} />;
   }
 
-  // ── slot_list (single doctor) — same calendar UI as doctor_list ──
-  if (ui.type === "slot_list" && ui.slots?.length) {
-    const bookableSlots = filterChatBookableSlots(ui.slots);
-    const doctor: DoctorUi = {
-      id: ui.doctor_id ?? "",
-      name: ui.doctor_name ?? "Doctor",
-      specialty: "General Physician",
-      experience_years: 0,
-      rating: null,
-      slots: bookableSlots,
-    };
-
-    return (
-      <div className="medai-booking-panel">
-        <div className="medai-doctor-col">
-          <div className="medai-section-label">Selected Doctor</div>
-          <div className="medai-doc-card medai-doc-card--active medai-doc-card--static">
-            <div className="medai-doc-avatar-wrap">
-              <DoctorAvatar
-                name={doctor.name}
-                profileImageUrl={doctor.profile_image_url}
-                className="medai-doc-avatar medai-doc-avatar--photo"
-                initialsClassName="medai-doc-avatar"
-              />
-            </div>
-            <div className="medai-doc-info">
-              <span className="medai-doc-name">{doctor.name}</span>
-              <span className="medai-doc-meta">{doctor.specialty}</span>
-            </div>
-          </div>
-        </div>
-        <div className="medai-picker-col">
-          <AppointmentPicker
-            key={doctor.id}
-            doctor={doctor}
-            slots={bookableSlots}
-            disabled={disabled}
-            onPick={onPick}
-          />
-        </div>
-      </div>
-    );
+  // ── slot_list / reschedule_slots — same calendar UI as booking ──
+  if (
+    (ui.type === "slot_list" || ui.type === "reschedule_slots") &&
+    ui.slots?.length
+  ) {
+    return <SingleDoctorBookingPanel ui={ui} disabled={disabled} onPick={onPick} />;
   }
 
   // ── doctor_list — two-column booking panel ──

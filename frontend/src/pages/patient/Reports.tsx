@@ -5,6 +5,7 @@ import { formatChatText } from "../../components/ChatBookingUI";
 import ChatReportViewModal from "../../components/ChatReportViewModal";
 import { ChatAttachment } from "../../components/ChatFileAttachment";
 import { formatChatDateLabel } from "../../utils/chatConversations";
+import { ReportsListSkeleton } from "../../components/skeleton";
 
 interface ReportListItem {
   id: string;
@@ -71,9 +72,9 @@ export default function PatientReports() {
           </div>
         </div>
 
-        {loading && <p className="pd-muted">Loading reports...</p>}
-
-        {!loading && reports.length === 0 && (
+        {loading ? (
+          <ReportsListSkeleton count={4} />
+        ) : reports.length === 0 ? (
           <div className="pd-empty-card pd-reports-empty">
             <span className="material-symbols-outlined pd-empty-icon">description</span>
             <p>No reports uploaded yet.</p>
@@ -82,8 +83,7 @@ export default function PatientReports() {
             </p>
             <Link to="/chat" className="pd-outline-btn">Go to AI Consultation</Link>
           </div>
-        )}
-
+        ) : (
         <div className="pd-reports-grid">
           {reports.map((report) => (
             <article key={report.id} className="pd-report-card">
@@ -147,6 +147,7 @@ export default function PatientReports() {
             </article>
           ))}
         </div>
+        )}
       </section>
 
       {viewReport && (

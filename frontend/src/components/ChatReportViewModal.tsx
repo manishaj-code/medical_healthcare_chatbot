@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { api } from "../api/client";
 import { ChatAttachment } from "./ChatFileAttachment";
+import { ReportModalSkeleton } from "./skeleton";
 
 interface ReportData {
   analysis?: {
@@ -56,7 +57,7 @@ export default function ChatReportViewModal({ attachment, onClose }: Props) {
           </button>
         </header>
 
-        {loading && <p className="chat-report-modal-muted">Loading report...</p>}
+        {loading && <ReportModalSkeleton />}
         {error && <p className="chat-report-modal-error">{error}</p>}
 
         {!loading && !error && report && (
