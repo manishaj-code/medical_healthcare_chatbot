@@ -21,6 +21,8 @@ def test_headache_triage_followups_not_emergency():
 def test_chest_pain_is_emergency():
     assert detect_emergency("I have chest pain and difficulty breathing") is True
     assert is_confirmed_emergency("crushing chest pain") is True
+    assert detect_emergency("chest pain") is False
+    assert detect_emergency("I have chest pain") is False
 
 
 def test_mental_health_crisis():

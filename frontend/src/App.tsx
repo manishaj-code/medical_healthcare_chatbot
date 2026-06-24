@@ -11,6 +11,7 @@ import VideoConsultation from "./pages/patient/VideoConsultation";
 import DoctorDashboard from "./pages/doctor/Dashboard";
 import DoctorPatientDetail from "./pages/doctor/PatientDetail";
 import DoctorConsultationSession from "./pages/doctor/ConsultationSession";
+import VoiceTranscriptPage from "./pages/doctor/VoiceTranscriptPage";
 import DoctorNotifications from "./pages/doctor/Notifications";
 import HealthRecords from "./pages/patient/HealthRecords";
 import AdminPanel from "./pages/admin/Panel";
@@ -56,6 +57,7 @@ export default function App() {
         <Route path="/doctor/notifications" element={<Protected roles={["doctor"]}><DoctorNotifications /></Protected>} />
         <Route path="/doctor/patients/:patientId" element={<Protected roles={["doctor"]}><DoctorPatientDetail /></Protected>} />
         <Route path="/doctor/consultation/:appointmentId" element={<Protected roles={["doctor"]}><DoctorConsultationSession /></Protected>} />
+        <Route path="/doctor/voice-transcript" element={<Protected roles={["doctor"]}><VoiceTranscriptPage /></Protected>} />
         <Route path="/admin" element={<Protected roles={["admin"]}><AdminPanel /></Protected>} />
       </Route>
     </Routes>

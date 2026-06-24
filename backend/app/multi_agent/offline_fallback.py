@@ -20,8 +20,17 @@ from app.healthcare_policy import (
 )
 from app.services.symptom_extraction import (
     extract_symptoms_offline,
+    filter_vague_symptom_labels,
     is_non_symptom_message,
+    is_vague_wellness_complaint,
     looks_like_health_complaint,
+)
+from app.emergency_detection import (
+    CARDIAC_SCREEN_QUESTIONS,
+    build_emergency_reply,
+    cardiac_screen_confirms_emergency,
+    classify_cardiac_screen_answer,
+    needs_cardiac_emergency_screen,
 )
 
 # ── Duration extraction (offline fallback when LLM unavailable) ─────────────
@@ -61,6 +70,8 @@ _SYMPTOM_KICKOFF_RE = re.compile(
 
 def is_symptom_triage_kickoff(text: str) -> bool:
     """True when the patient tapped Check symptoms or equivalent — no concrete complaint yet."""
+    if is_vague_wellness_complaint(text):
+        return True
     tl = text.strip().lower()
     if tl in {
         "[start_symptom_triage]",
@@ -236,6 +247,96 @@ def _infer_pending_slot_from_history(history: list[dict] | None) -> str | None:
     return None
 
 
+def _cardiac_emergency_screen_turn(
+    text: str,
+    session: dict,
+    collected: dict,
+    symptoms: list[str],
+    pname: str,
+    asked: list[str],
+) -> dict[str, Any] | None:
+    """Screen bare chest-pain complaints before normal triage continues."""
+    active_screen = session.get("awaiting") == "cardiac_emergency_screen" or bool(
+        (session.get("cardiac_screen") or {}).get("active")
+    )
+    total_questions = len(CARDIAC_SCREEN_QUESTIONS)
+
+    if active_screen:
+        screen = dict(session.get("cardiac_screen") or {"active": True, "step": 1})
+        step = max(1, min(int(screen.get("step") or 1), total_questions))
+        answer = classify_cardiac_screen_answer(text)
+
+        if answer == "alarm":
+            screen["alarm_count"] = int(screen.get("alarm_count") or 0) + 1
+        elif answer == "clear":
+            screen["clear_count"] = int(screen.get("clear_count") or 0) + 1
+        else:
+            _, question = CARDIAC_SCREEN_QUESTIONS[step - 1]
+            name_part = f", {pname}" if pname != "there" else ""
+            return {
+                "reply": f"I need a clear yes or no for safety{name_part}. {question}",
+                "session_patch": {
+                    "cardiac_screen": screen,
+                    "triage_collected": collected,
+                    "care_goal": "symptom_assessment",
+                    "awaiting": "cardiac_emergency_screen",
+                },
+            }
+
+        if cardiac_screen_confirms_emergency(screen):
+            return {
+                "reply": build_emergency_reply(),
+                "emergency": True,
+                "session_patch": {
+                    "cardiac_screen": None,
+                    "triage_collected": collected,
+                    "care_goal": "symptom_assessment",
+                    "active_specialist": "triage_agent",
+                    "awaiting": None,
+                },
+            }
+
+        if step < total_questions:
+            next_step = step + 1
+            screen["step"] = next_step
+            _, question = CARDIAC_SCREEN_QUESTIONS[next_step - 1]
+            return {
+                "reply": question,
+                "session_patch": {
+                    "cardiac_screen": screen,
+                    "triage_collected": collected,
+                    "care_goal": "symptom_assessment",
+                    "awaiting": "cardiac_emergency_screen",
+                },
+            }
+
+        collected["cardiac_screen_completed"] = True
+        session.pop("cardiac_screen", None)
+        session.pop("awaiting", None)
+        return None
+
+    if collected.get("cardiac_screen_completed"):
+        return None
+    if not needs_cardiac_emergency_screen(text, symptoms):
+        return None
+
+    if "cardiac_screen" not in asked:
+        asked.append("cardiac_screen")
+        collected["questions_asked"] = asked
+
+    _, question = CARDIAC_SCREEN_QUESTIONS[0]
+    return {
+        "reply": question,
+        "session_patch": {
+            "cardiac_screen": {"active": True, "step": 1, "alarm_count": 0, "clear_count": 0},
+            "triage_collected": collected,
+            "care_goal": "symptom_assessment",
+            "active_specialist": "triage_agent",
+            "awaiting": "cardiac_emergency_screen",
+        },
+    }
+
+
 def conversational_triage_turn(
     text: str,
     session: dict,
@@ -325,7 +426,9 @@ def conversational_triage_turn(
 
     if session.get("detected_symptoms"):
         collected["symptoms"] = list(session["detected_symptoms"])
-    symptoms = collected.get("symptoms") or session.get("detected_symptoms") or []
+    symptoms = filter_vague_symptom_labels(
+        collected.get("symptoms") or session.get("detected_symptoms") or []
+    )
 
     awaiting_slot = session.get("awaiting")
     if _is_affirmative_more_symptoms(text) and awaiting_slot in {"more_symptoms", "list_more_symptoms"}:
@@ -368,6 +471,10 @@ def conversational_triage_turn(
                 kickoff["session_patch"]["triage_collected"]["questions_asked"] = asked
             return kickoff
         return kickoff_symptom_triage_turn(session)
+
+    cardiac_turn = _cardiac_emergency_screen_turn(text, session, collected, symptoms, pname, asked)
+    if cardiac_turn is not None:
+        return cardiac_turn
 
     if not collected.get("duration"):
         if "duration" not in asked:

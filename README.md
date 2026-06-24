@@ -207,6 +207,9 @@ Docker Compose reads `.env` from the project root for LLM keys. Database, Redis,
 docker compose logs -f api
 docker compose logs -f web
 
+# get live logs
+docker compose logs -f api web | Tee-Object -FilePath logs/app-live.log
+
 # Restart API after .env change
 docker compose restart api
 
@@ -258,3 +261,16 @@ Do **not** push these to GitHub:
 ## License
 
 Demo / educational project. Not intended for production medical use without proper compliance review.
+
+
+If you're looking for a **sample patient speech/transcript** describing severe health concerns during a consultation, here's a natural example:
+
+> "Doctor, I've been feeling really unwell for the past few days. I've been experiencing severe chest discomfort, shortness of breath, and extreme fatigue even with minimal activity. Last night, I felt dizzy and almost fainted when I stood up. I've also noticed some pain spreading to my left arm and occasional sweating without any physical exertion. These symptoms seem to be getting worse, and I'm becoming concerned because I've never felt this way before. I'm worried that it could be something serious and would like to understand what might be causing it."
+
+Another example for a mental health consultation:
+
+> "I've been struggling a lot lately. For the past few weeks, I've been feeling overwhelmed, anxious, and unable to focus on my daily activities. I'm having trouble sleeping, my appetite has changed, and I often feel exhausted even after resting. I've lost interest in things I usually enjoy, and some days it's difficult to get through normal tasks. These feelings are starting to affect my work, relationships, and overall well-being, so I wanted to seek professional help."
+
+Another example for general severe symptoms:
+
+> "Over the last few days, I've had a high fever, severe body aches, persistent weakness, and difficulty keeping food down. I've also noticed that I'm becoming dehydrated and feeling increasingly tired. The symptoms aren't improving despite rest and medication, and I'm worried because they seem more serious than a normal illness."

@@ -1,7 +1,8 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import TranscriptPanel from "./doctor/TranscriptPanel";
 import { VideoProvider } from "../modules/video/context/VideoProvider";
 import { VideoRoom } from "../modules/video/components/VideoRoom";
+import { api } from "../api/client";
 import {
   getSharedLiveKitService,
   releaseSharedLiveKitService,
@@ -31,16 +32,25 @@ export default function VideoCallModal({
   onTranscriptAnalyze,
 }: Props) {
   const [transcriptOpen, setTranscriptOpen] = useState(true);
+  const wasOpenRef = useRef(false);
 
   useEffect(() => {
     if (!open) {
       void releaseSharedLiveKitService();
+      if (wasOpenRef.current && role === "doctor" && appointmentId) {
+        void api(
+          `/api/v1/doctor/appointments/${appointmentId}/transcript/stop`,
+          { method: "POST" },
+        ).catch(() => undefined);
+      }
+      wasOpenRef.current = false;
       return;
     }
+    wasOpenRef.current = true;
     if (role === "doctor") {
       setTranscriptOpen(true);
     }
-  }, [open, role]);
+  }, [open, role, appointmentId]);
 
   if (!open) {
     return null;

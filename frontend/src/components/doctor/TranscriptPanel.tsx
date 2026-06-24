@@ -1,8 +1,11 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useConsultationTranscript } from "../../hooks/useConsultationTranscript";
-import { useDeepgramLiveCapture } from "../../hooks/useDeepgramLiveCapture";
 import { useTranscriptCapture } from "../../hooks/useTranscriptCapture";
 import { useVideoRoom } from "../../modules/video/hooks/useVideoRoom";
+import {
+  formatTranscriptChunkBytes,
+  TRANSCRIPT_CHUNK_BYTES_DEFAULT,
+} from "../../modules/video/utils/audioTracks";
 import type { TranscriptAiSuggestions } from "../../types/consultationTranscript";
 import TranscriptSummaryCard from "./TranscriptSummaryCard";
 
@@ -13,12 +16,6 @@ interface Props {
   onAnalyzeComplete?: (suggestions: TranscriptAiSuggestions) => void;
 }
 
-function providerLabel(provider: string | undefined): string {
-  if (provider === "deepgram_live") return "Deepgram live";
-  if (provider === "deepgram") return "Deepgram";
-  return "Groq Whisper";
-}
-
 export default function TranscriptPanel({
   appointmentId,
   roomId,
@@ -27,7 +24,6 @@ export default function TranscriptPanel({
 }: Props) {
   const { connectionState } = useVideoRoom();
   const feedRef = useRef<HTMLDivElement>(null);
-  const [interimLine, setInterimLine] = useState<string | null>(null);
   const [suggestions, setSuggestions] = useState<TranscriptAiSuggestions | null>(null);
   const {
     session,
@@ -36,59 +32,66 @@ export default function TranscriptPanel({
     loading,
     analyzing,
     error,
-    warning,
     captureError,
     listening,
+    pendingUploads,
+    chunksSent,
+    lastChunkStatus,
     start,
+    stop,
     uploadChunk,
-    postSegment,
     analyze,
-  } = useConsultationTranscript(appointmentId, true);
-  const startedRef = useRef(false);
+    sessionReady,
+  } = useConsultationTranscript(appointmentId, visible && connectionState === "connected");
   const [captureStatus, setCaptureStatus] = useState("");
 
-  const provider = sttConfig?.provider ?? "groq";
-  const useLiveDeepgram =
-    provider === "deepgram_live" &&
-    sttConfig?.deepgram?.token_type === "api_key" &&
-    Boolean(sttConfig?.deepgram?.token);
-  const chunkMs = sttConfig?.chunk_interval_ms ?? 6_000;
-
-  const sessionReady = session?.status === "active";
+  const chunkBytes = sttConfig?.chunk_bytes ?? TRANSCRIPT_CHUNK_BYTES_DEFAULT;
+  const chunkSizeLabel = formatTranscriptChunkBytes(chunkBytes);
+  const sttReady = Boolean(sttConfig?.available) && !sttConfig?.error;
+  const connectStartRef = useRef<string | null>(null);
+  const wasConnectedRef = useRef(false);
 
   useEffect(() => {
-    if (!visible || connectionState !== "connected" || startedRef.current) return;
-    startedRef.current = true;
+    if (!visible || connectionState !== "connected") {
+      if (connectionState !== "connected") connectStartRef.current = null;
+      return;
+    }
+    if (sessionReady) return;
+    const key = `${appointmentId}:${roomId ?? ""}`;
+    if (connectStartRef.current === key) return;
+    connectStartRef.current = key;
     void start(roomId);
-  }, [visible, connectionState, roomId, start]);
+  }, [visible, connectionState, appointmentId, roomId, sessionReady, start]);
+
+  useEffect(() => {
+    if (connectionState === "connected") {
+      wasConnectedRef.current = true;
+      return;
+    }
+    if (
+      wasConnectedRef.current &&
+      connectionState !== "connecting" &&
+      connectionState !== "reconnecting" &&
+      sessionReady
+    ) {
+      wasConnectedRef.current = false;
+      void stop();
+    }
+  }, [connectionState, sessionReady, stop]);
+
+  useEffect(() => () => void stop(), [stop]);
 
   const captureEnabled =
-    visible && connectionState === "connected" && sessionReady && !loading;
+    visible && connectionState === "connected" && sessionReady && !loading && sttReady;
 
   const handleChunk = useCallback(
-    async (blob: Blob, speakerRole: string, speakerLabel: string) => {
-      await uploadChunk(blob, speakerRole, speakerLabel);
+    (blob: Blob, speakerRole: string, speakerLabel: string) => {
+      uploadChunk(blob, speakerRole, speakerLabel);
     },
     [uploadChunk],
   );
 
-  const handleLiveFinal = useCallback(
-    async (text: string, speakerRole: string, speakerLabel: string, confidence?: number) => {
-      setInterimLine(null);
-      await postSegment(text, speakerRole, speakerLabel, confidence);
-    },
-    [postSegment],
-  );
-
-  const handleLiveInterim = useCallback((text: string, _role: string, label: string) => {
-    setInterimLine(`${label}: ${text}`);
-  }, []);
-
-  const { sourceCount } = useTranscriptCapture(
-    captureEnabled && !useLiveDeepgram,
-    handleChunk,
-    chunkMs,
-  );
+  const { sourceCount } = useTranscriptCapture(captureEnabled, handleChunk, chunkBytes);
 
   useEffect(() => {
     if (!captureEnabled) {
@@ -96,32 +99,26 @@ export default function TranscriptPanel({
       return;
     }
     if (sourceCount === 0) {
-      setCaptureStatus("Waiting for microphone audio… Unmute your mic in the call.");
+      setCaptureStatus(
+        "Waiting for call audio — ensure the patient has joined and both mics are unmuted.",
+      );
     } else {
-      setCaptureStatus(`Listening to ${sourceCount} audio source${sourceCount === 1 ? "" : "s"}…`);
+      setCaptureStatus(
+        `Capturing ${sourceCount} speaker${sourceCount === 1 ? "" : "s"} · ~${chunkSizeLabel} per chunk`,
+      );
     }
-  }, [captureEnabled, sourceCount]);
-
-  useDeepgramLiveCapture(
-    captureEnabled && useLiveDeepgram,
-    sttConfig,
-    handleLiveFinal,
-    handleLiveInterim,
-  );
+  }, [captureEnabled, sourceCount, chunkSizeLabel]);
 
   useEffect(() => {
     const feed = feedRef.current;
     if (!feed) return;
     feed.scrollTop = feed.scrollHeight;
-  }, [segments.length, interimLine]);
+  }, [segments.length]);
 
   const handleAnalyze = async () => {
     const data = await analyze();
     if (data) setSuggestions(data);
   };
-  const captureHint = useLiveDeepgram
-    ? "Streaming via Deepgram — lines appear as you speak."
-    : `Per-speaker capture via ${providerLabel(provider)} · updates every ~${Math.round(chunkMs / 1000)}s`;
 
   return (
     <aside
@@ -133,13 +130,20 @@ export default function TranscriptPanel({
         <div>
           <h3>Live transcript</h3>
           <p className="video-transcript-panel-sub">
-            {session?.status === "active" ? captureHint : "Transcript session"}
+            {session?.status === "active"
+              ? `LiveKit → Deepgram chunk mode · ~${chunkSizeLabel} per speaker`
+              : "Transcript session"}
           </p>
         </div>
         <button
           type="button"
           className="dp-btn dp-btn--sm dp-btn--primary"
           disabled={analyzing || segments.length === 0}
+          title={
+            segments.length === 0
+              ? "Wait for at least one transcript line from the call"
+              : "Analyze captured transcript with AI"
+          }
           onClick={() => void handleAnalyze()}
         >
           <span className="material-symbols-outlined">auto_awesome</span>
@@ -149,10 +153,35 @@ export default function TranscriptPanel({
 
       {loading && <p className="video-transcript-muted">Starting transcript…</p>}
       {captureStatus && <p className="video-transcript-muted">{captureStatus}</p>}
-      {listening && <p className="video-transcript-muted">Transcribing audio…</p>}
-      {warning && <p className="video-transcript-warning">{warning}</p>}
+      {lastChunkStatus && <p className="video-transcript-muted">{lastChunkStatus}</p>}
+      {chunksSent > 0 && segments.length === 0 && (
+        <p className="video-transcript-muted">Audio sent — waiting for speech recognition…</p>
+      )}
+      {listening && (
+        <p className="video-transcript-muted">
+          Transcribing audio
+          {pendingUploads > 0 ? ` (${pendingUploads} queued)…` : "…"}
+        </p>
+      )}
       {captureError && <p className="aura-chat-error">{captureError}</p>}
-      {error && <p className="aura-chat-error">{error}</p>}
+      {error && (
+        <p className="aura-chat-error">
+          {error}
+          {!sessionReady && (
+            <button
+              type="button"
+              className="dp-btn dp-btn--sm dp-btn--outline"
+              style={{ marginLeft: 8 }}
+              onClick={() => {
+                connectStartRef.current = null;
+                void start(roomId);
+              }}
+            >
+              Retry transcript
+            </button>
+          )}
+        </p>
+      )}
 
       {suggestions && (
         <div className="video-transcript-summary-wrap">
@@ -167,11 +196,11 @@ export default function TranscriptPanel({
       )}
 
       <div className="video-transcript-feed" ref={feedRef}>
-        {segments.length === 0 && !loading && !interimLine && !error && (
+        {segments.length === 0 && !loading && !error && (
           <p className="video-transcript-muted">
             {session?.status === "active"
-              ? "Listening… speak clearly with your mic on. First lines appear after a few seconds."
-              : "Start the video call and enable live transcript."}
+              ? `Speak clearly with mics on — first lines appear after ~${chunkSizeLabel} of speech.`
+              : "Start the video call to enable live transcript."}
           </p>
         )}
         {segments.map((seg) => (
@@ -183,9 +212,6 @@ export default function TranscriptPanel({
             <p>{seg.text}</p>
           </article>
         ))}
-        {interimLine && (
-          <p className="video-transcript-muted video-transcript-interim">{interimLine}…</p>
-        )}
       </div>
     </aside>
   );

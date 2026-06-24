@@ -59,9 +59,14 @@ function parseError(res: Response, body: Record<string, unknown>): string {
   return err?.message || res.statusText || "Request failed";
 }
 
-export async function apiUpload<T>(path: string, formData: FormData, retry = true): Promise<T> {
+export async function apiUpload<T>(
+  path: string,
+  formData: FormData,
+  retry = true,
+  extraHeaders?: Record<string, string>,
+): Promise<T> {
   const token = getToken();
-  const headers: Record<string, string> = {};
+  const headers: Record<string, string> = { ...(extraHeaders || {}) };
   if (token && !isAuthPath(path) && !isGuestPath(path)) {
     headers.Authorization = `Bearer ${token}`;
   }
@@ -70,7 +75,7 @@ export async function apiUpload<T>(path: string, formData: FormData, retry = tru
 
   if (res.status === 401 && retry && !isAuthPath(path) && !isGuestPath(path)) {
     const newToken = await refreshAccessToken();
-    if (newToken) return apiUpload<T>(path, formData, false);
+    if (newToken) return apiUpload<T>(path, formData, false, extraHeaders);
     clearTokens();
     if (!window.location.pathname.includes("/login")) {
       window.location.href = "/login";

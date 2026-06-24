@@ -7,8 +7,7 @@ from app.models.enums import RiskLevel
 from app.services.symptom_extraction import extract_symptoms_offline
 from app.services.symptom_service import _SYMPTOM_RULES, assess_symptoms
 
-EMERGENCY_PATTERNS = [
-    r"chest pain",
+IMMEDIATE_EMERGENCY_PATTERNS = [
     r"heart attack",
     r"cardiac arrest",
     r"can'?t breathe",
@@ -41,6 +40,7 @@ EMERGENCY_PATTERNS = [
     r"(left |right )?arm.{0,40}pain",
     r"radiat.{0,20}arm",
     r"crushing pain",
+    r"crushing chest",
     r"allergic reaction",
     r"anaphylaxis",
     r"throat swelling",
@@ -54,6 +54,56 @@ EMERGENCY_PATTERNS = [
     r"high fever.{0,30}stiff neck",
     r"stiff neck.{0,30}fever",
 ]
+
+# Bare chest pain — screen with follow-ups before emergency escalation.
+DEFERRED_EMERGENCY_PATTERNS = [
+    r"chest pain",
+    r"chest tightness",
+    r"chest pressure",
+    r"tight(?:ness)? in (?:my )?chest",
+    r"pain in (?:my )?chest",
+]
+
+# Backward-compatible union used by legacy fallbacks.
+EMERGENCY_PATTERNS = IMMEDIATE_EMERGENCY_PATTERNS + DEFERRED_EMERGENCY_PATTERNS
+
+CARDIAC_SCREEN_QUESTIONS: tuple[tuple[str, str], ...] = (
+    (
+        "severe",
+        "Is the pain **severe**, crushing, or the worst chest pain you've felt?",
+    ),
+    (
+        "radiation",
+        "Does the pain spread to your **arm, jaw, neck, or back**?",
+    ),
+    (
+        "breath",
+        "Are you also **short of breath**, sweaty, nauseous, or feeling faint?",
+    ),
+)
+
+_CARDIAC_CONCERN_RE = re.compile(
+    r"\b(chest pain|chest tightness|chest pressure|pain in (?:my )?chest|"
+    r"tight(?:ness)? in (?:my )?chest)\b",
+    re.I,
+)
+
+_CARDIAC_ALARM_RE = re.compile(
+    r"\b(severe|crushing|worst|unbearable|radiat|radiating|left arm|right arm|jaw|"
+    r"shortness of breath|short of breath|can'?t breathe|cannot breathe|breathless|"
+    r"sweating|sweaty|nausea|nauseous|faint|dizzy)\b",
+    re.I,
+)
+
+_AFFIRMATIVE_SCREEN_RE = re.compile(
+    r"^(yes|yeah|yep|sure|i am|i'?m|definitely|absolutely|very|extremely)\b",
+    re.I,
+)
+
+_NEGATIVE_SCREEN_RE = re.compile(
+    r"^(no|nope|nah|not really|none|not much|mild|minor|little)\b",
+    re.I,
+)
 
 MENTAL_HEALTH_CRISIS_PATTERNS = [
     r"suicid",
@@ -133,9 +183,60 @@ _SPECIALTY_FROM_TEXT = (
 )
 
 
-def detect_emergency(text: str) -> bool:
+def _deferred_emergency_confirmed(text: str) -> bool:
+    """Chest-style complaints with red-flag modifiers count as confirmed emergency."""
+    return (
+        _has_severity_signal(text)
+        or _has_urgency_signal(text)
+        or _has_breathing_concern(text)
+        or bool(re.search(r"radiat|radiating|left arm|jaw|crushing|squeezing", text, re.I))
+    )
+
+
+def mentions_cardiac_concern(text: str, symptoms: list[str] | None = None) -> bool:
+    blob = f"{text} {' '.join(symptoms or [])}"
+    return bool(_CARDIAC_CONCERN_RE.search(blob))
+
+
+def needs_cardiac_emergency_screen(text: str, symptoms: list[str] | None = None) -> bool:
+    """True when chest pain needs follow-up screening before emergency flag."""
+    if detect_immediate_emergency(text) or detect_mental_health_crisis(text):
+        return False
+    if _deferred_emergency_confirmed(text):
+        return False
+    return mentions_cardiac_concern(text, symptoms)
+
+
+def detect_immediate_emergency(text: str) -> bool:
     lowered = text.lower()
-    return any(re.search(p, lowered) for p in EMERGENCY_PATTERNS)
+    if any(re.search(p, lowered) for p in IMMEDIATE_EMERGENCY_PATTERNS):
+        return True
+    if any(re.search(p, lowered) for p in DEFERRED_EMERGENCY_PATTERNS):
+        return _deferred_emergency_confirmed(lowered)
+    return False
+
+
+def detect_emergency(text: str) -> bool:
+    """Confirmed emergency — bare chest pain alone returns False until screened."""
+    return detect_immediate_emergency(text)
+
+
+def classify_cardiac_screen_answer(text: str) -> str:
+    """Classify a screening answer as alarm, clear, or unclear."""
+    if detect_immediate_emergency(text):
+        return "alarm"
+    tl = text.strip().lower()
+    if _NEGATIVE_SCREEN_RE.match(tl):
+        return "clear"
+    if _AFFIRMATIVE_SCREEN_RE.match(tl) or _CARDIAC_ALARM_RE.search(text):
+        return "alarm"
+    if _has_severity_signal(text) or _has_breathing_concern(text):
+        return "alarm"
+    return "unclear"
+
+
+def cardiac_screen_confirms_emergency(screen: dict) -> bool:
+    return int(screen.get("alarm_count") or 0) >= 1
 
 
 def detect_mental_health_crisis(text: str) -> bool:
@@ -203,7 +304,10 @@ def _extract_urgent_symptoms(text: str) -> list[str]:
         return symptoms
 
     lowered = text.lower()
-    for pattern in EMERGENCY_PATTERNS:
+    patterns = IMMEDIATE_EMERGENCY_PATTERNS + (
+        DEFERRED_EMERGENCY_PATTERNS if _deferred_emergency_confirmed(lowered) else []
+    )
+    for pattern in patterns:
         match = re.search(pattern, lowered)
         if match:
             label = match.group(0).strip()

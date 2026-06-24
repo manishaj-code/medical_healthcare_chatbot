@@ -48,6 +48,42 @@ _HAVE_COMPLAINT_RE = re.compile(
 
 _AND_HAD_RE = re.compile(r"\band\s+had\s+(.+)", re.I)
 
+_VAGUE_WELLNESS_EXACT = frozenset(
+    {
+        "i'm not feeling well",
+        "i am not feeling well",
+        "im not feeling well",
+        "not feeling well",
+        "i'm not feeling good",
+        "i am not feeling good",
+        "not feeling good",
+        "i don't feel well",
+        "i do not feel well",
+        "dont feel well",
+        "i'm unwell",
+        "i am unwell",
+        "feeling unwell",
+        "i'm not well",
+        "i am not well",
+    }
+)
+
+_VAGUE_WELLNESS_RE = re.compile(
+    r"^(?:i(?:'m| am)\s+)?(?:not\s+)(?:feeling\s+)?(?:well|good|fine|okay|ok)"
+    r"(?:\s+(?:today|right\s+now|at\s+all))?[!.]*$",
+    re.I,
+)
+
+_POSITIVE_WELLNESS_RE = re.compile(
+    r"^(?:i(?:'m| am)\s+)?(?:feeling\s+)?(?:well|good|fine|okay|ok|great|better)"
+    r"(?:\s+(?:today|right\s+now|now))?[!.]*$",
+    re.I,
+)
+
+_VAGUE_SYMPTOM_LABELS = frozenset(
+    {"well", "good", "fine", "okay", "ok", "great", "unwell", "not well", "not feeling well"}
+)
+
 _GENERIC_STANDALONE_SYMPTOMS = frozenset(
     {"pain", "ache", "aches", "discomfort", "hurt", "hurting", "soreness", "sore"}
 )
@@ -162,6 +198,29 @@ def _normalize_llm_symptoms(raw: object) -> list[str]:
     return labels
 
 
+def filter_vague_symptom_labels(labels: list[str] | None) -> list[str]:
+    """Drop wellness words mistaken for symptoms (e.g. 'Well' from 'not feeling well')."""
+    if not labels:
+        return []
+    return [label for label in labels if label.lower().strip() not in _VAGUE_SYMPTOM_LABELS]
+
+
+def is_vague_wellness_complaint(text: str) -> bool:
+    """True for general unwellness with no named symptom — should prompt for specifics."""
+    trimmed = text.strip()
+    if not trimmed:
+        return False
+    tl = trimmed.lower()
+    if tl in _VAGUE_WELLNESS_EXACT:
+        return True
+    return bool(_VAGUE_WELLNESS_RE.match(tl))
+
+
+def is_positive_wellness_update(text: str) -> bool:
+    """True for recovery/wellbeing updates that should not start symptom triage."""
+    return bool(_POSITIVE_WELLNESS_RE.match(text.strip()))
+
+
 def is_non_symptom_message(text: str) -> bool:
     """Filter greetings, booking intents, auth fields, and triage UI replies."""
     from app.healthcare_policy import is_thanks_message
@@ -171,6 +230,8 @@ def is_non_symptom_message(text: str) -> bool:
         return True
     lower = trimmed.lower()
     if is_thanks_message(trimmed):
+        return True
+    if is_positive_wellness_update(trimmed):
         return True
     if lower in _SKIP_EXACT:
         return True
@@ -242,6 +303,8 @@ def filter_symptom_labels(labels: list[str] | None) -> list[str]:
 def looks_like_health_complaint(text: str) -> bool:
     if is_non_symptom_message(text):
         return False
+    if is_vague_wellness_complaint(text):
+        return True
 
     symptoms = extract_symptoms_offline(text)
 
@@ -261,14 +324,14 @@ def _split_complaint_phrases(phrase: str) -> list[str]:
 
 def extract_symptoms_offline(text: str, prior: list[str] | None = None) -> list[str]:
     """Minimal fallback when the LLM is unavailable — no symptom keyword catalog."""
-    if is_non_symptom_message(text):
+    if is_non_symptom_message(text) or is_vague_wellness_complaint(text):
         return list(prior or [])
 
     for pattern in (_AND_HAD_RE, _HAVE_COMPLAINT_RE):
         match = pattern.search(text)
         if not match:
             continue
-        labels = _split_complaint_phrases(match.group(1))
+        labels = filter_vague_symptom_labels(_split_complaint_phrases(match.group(1)))
         if labels:
             return merge_symptom_lists(prior, labels)
 
@@ -276,7 +339,9 @@ def extract_symptoms_offline(text: str, prior: list[str] | None = None) -> list[
     if 1 <= len(words) <= 4 and not re.search(r"\d", text):
         phrase = _clean_symptom_phrase(text)
         if phrase and not is_non_symptom_message(phrase):
-            return merge_symptom_lists(prior, [phrase])
+            labels = filter_vague_symptom_labels([phrase])
+            if labels:
+                return merge_symptom_lists(prior, labels)
 
     return list(prior or [])
 
@@ -357,6 +422,7 @@ _MID_TRIAGE_AWAITING = frozenset({
     "urgent_consult",
     "free_text_symptoms",
     "symptom_image",
+    "cardiac_emergency_screen",
 })
 
 

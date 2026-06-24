@@ -9,7 +9,11 @@ from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models import Appointment, Consultation, ConsultationTranscriptSegment, ConsultationTranscriptSession
-from app.services.stt_service import build_transcript_stt_payload, transcribe_audio_chunk
+from app.services.stt_service import (
+    MIN_AUDIO_BYTES,
+    build_transcript_stt_payload,
+    transcribe_audio_chunk,
+)
 
 
 async def _latest_session(
@@ -347,11 +351,16 @@ async def ingest_audio_chunk(
     _appt, consultation = await _get_consultation_for_doctor(db, appointment_id, doctor_id)
     session = await _active_session(db, consultation.id)
     if not session:
-        raise HTTPException(status_code=400, detail="Transcript session not started.")
+        return {
+            "segment": None,
+            "skipped": True,
+            "reason": "session_ended",
+            "detail": "Transcript session is not active.",
+        }
 
     data = await file.read()
-    if not data or len(data) < 1500:
-        return {"segment": None, "skipped": True}
+    if not data or len(data) < MIN_AUDIO_BYTES:
+        return {"segment": None, "skipped": True, "reason": "too_small", "bytes": len(data or b"")}
 
     stt = await transcribe_audio_chunk(
         data,
@@ -360,7 +369,11 @@ async def ingest_audio_chunk(
     )
     text = (stt.get("text") or "").strip()
     if not text:
-        return {"segment": None, "skipped": True, "reason": "no_speech", "bytes": len(data)}
+        reason = "stt_error" if stt.get("error") else "no_speech"
+        payload: dict = {"segment": None, "skipped": True, "reason": reason, "bytes": len(data)}
+        if stt.get("error"):
+            payload["detail"] = str(stt["error"])[:500]
+        return payload
 
     role = speaker_role if speaker_role in ("doctor", "patient", "unknown") else "unknown"
     label = speaker_label or (
@@ -375,7 +388,7 @@ async def ingest_audio_chunk(
     )
     last_segment = last_result.scalar_one_or_none()
     if last_segment and last_segment.text.strip().lower() == text.lower():
-        return {"segment": None, "skipped": True}
+        return {"segment": None, "skipped": True, "reason": "duplicate"}
 
     segment = ConsultationTranscriptSegment(
         session_id=session.id,
@@ -403,7 +416,7 @@ async def add_transcript_segment(
     confidence: float | None = None,
     is_final: bool = True,
 ) -> dict:
-    """Insert a transcript segment (Deepgram live or manual fallback)."""
+    """Insert a transcript segment (manual fallback)."""
     _appt, consultation = await _get_consultation_for_doctor(db, appointment_id, doctor_id)
     session = await _active_session(db, consultation.id)
     if not session:

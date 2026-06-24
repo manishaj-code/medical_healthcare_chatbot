@@ -2,11 +2,13 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { api } from "../api/client";
 import type { TranscriptAiSuggestions, TranscriptSnapshot } from "../types/consultationTranscript";
 import { insightsToSuggestions } from "../utils/transcriptInsights";
+import { mapTranscriptAnalyzeError } from "../utils/transcriptErrors";
 
 const POLL_MS = 5_000;
-const ANALYZE_DEBOUNCE_MS = 20_000;
-const MIN_SEGMENTS = 2;
-const SEGMENTS_DELTA_REANALYZE = 3;
+/** Chunk-mode Deepgram: first line after ~6s; analyze after one good segment. */
+const ANALYZE_DEBOUNCE_MS = 12_000;
+const MIN_SEGMENTS = 1;
+const SEGMENTS_DELTA_REANALYZE = 2;
 
 interface Options {
   appointmentId: string | undefined;
@@ -64,10 +66,13 @@ export function useAutoTranscriptAnalysis({
 
   const runAnalyze = useCallback(async () => {
     if (!appointmentId || analyzingRef.current) return;
+    if (segmentCountRef.current < MIN_SEGMENTS) return;
+
     analyzingRef.current = true;
     setAnalyzing(true);
     setError("");
     try {
+      await refreshSnapshot();
       const data = await api<TranscriptAiSuggestions>(
         `/api/v1/doctor/appointments/${appointmentId}/consultation/ai-from-transcript`,
         { method: "POST" },
@@ -78,7 +83,8 @@ export function useAutoTranscriptAnalysis({
       onCompleteRef.current?.(data);
       await refreshSnapshot();
     } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : "Transcript analysis failed");
+      const raw = err instanceof Error ? err.message : "Transcript analysis failed";
+      setError(mapTranscriptAnalyzeError(raw));
     } finally {
       analyzingRef.current = false;
       setAnalyzing(false);

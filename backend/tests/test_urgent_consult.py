@@ -30,6 +30,11 @@ def test_sudden_chest_pain_triggers_urgent_consult():
     assert result["risk_level"] == "emergency"
 
 
+def test_bare_chest_pain_not_immediate_urgent_consult():
+    assert detect_urgent_consult("chest pain") is None
+    assert detect_urgent_consult("I have chest pain") is None
+
+
 def test_allergic_reaction_triggers_urgent_consult():
     result = detect_urgent_consult("I'm having a severe allergic reaction, throat swelling")
     assert result is not None

@@ -318,12 +318,12 @@ class MultiAgentSupervisor:
             return "scheduling_agent"
 
         if active == "education_agent":
-            if any(w in t for w in ("hurt", "pain", "fever", "symptom", "sick", "cough", "feel unwell", "not feeling")):
+            if any(w in t for w in ("hurt", "pain", "fever", "symptom", "sick", "cough", "feel unwell", "not feeling", "feel ill", "feel bad")):
                 return "triage_agent"
             if self._affirmative(t) and self._assessment_offered(ctx.history):
                 return "triage_agent"
 
-        if active == "scheduling_agent" and any(w in t for w in ("symptom", "pain", "fever", "hurt", "feel")):
+        if active == "scheduling_agent" and any(w in t for w in ("symptom", "pain", "fever", "hurt", "feel unwell", "not feeling", "feel ill", "feel bad")):
             if not ctx.session.get("awaiting"):
                 return "triage_agent"
 
@@ -386,7 +386,7 @@ class MultiAgentSupervisor:
             return {"specialist": "refill_agent", "care_goal": "refill"}
         if any(w in t for w in ("follow up", "recovery", "feeling after")):
             return {"specialist": "followup_agent", "care_goal": "followup"}
-        if any(w in t for w in ("hurt", "pain", "fever", "symptom", "sick", "cough", "feel")):
+        if any(w in t for w in ("hurt", "pain", "fever", "symptom", "sick", "cough", "feel unwell", "not feeling", "feel ill", "feel bad")):
             return {"specialist": "triage_agent", "care_goal": "symptom_assessment"}
         return {"specialist": "education_agent", "care_goal": "health_question"}
 

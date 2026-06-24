@@ -51,7 +51,7 @@ class LLMClient:
         text = user.lower()
         if is_off_topic_fallback(user):
             return OFF_TOPIC_REPLY
-        if any(re.search(p, text) for p in EMERGENCY_PATTERNS):
+        if detect_emergency(user):
             return (
                 "Your symptoms may require urgent medical attention. Please contact emergency "
                 "services or seek immediate care at the nearest emergency department."

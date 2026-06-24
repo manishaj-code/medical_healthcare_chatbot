@@ -1160,7 +1160,7 @@ export default function ConsultationSession() {
             <ConsultationVisitSummaries
               appointmentId={appointmentId!}
               layout="active"
-              autoAnalyzeEnabled={phase === "active"}
+              autoAnalyzeEnabled={phase === "active" && videoOpen}
               onTranscriptAnalyze={handleInVisitTranscriptAnalyze}
               onApplyTranscriptToForm={handleApplyInVisitToForm}
               preVisit={<ReportPreVisitRibbon consultFor={consultFor} linkedReport={linkedReport} />}
@@ -1169,7 +1169,7 @@ export default function ConsultationSession() {
             <ConsultationVisitSummaries
               appointmentId={appointmentId!}
               layout="active"
-              autoAnalyzeEnabled={phase === "active"}
+              autoAnalyzeEnabled={phase === "active" && videoOpen}
               onTranscriptAnalyze={handleInVisitTranscriptAnalyze}
               onApplyTranscriptToForm={handleApplyInVisitToForm}
               preVisit={<PreVisitRibbon summary={prep.ai_summary} riskLevel={prep.ai_risk_level} />}

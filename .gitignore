@@ -30,5 +30,11 @@ mytestcase.txt
 reports/
 backend/data/
 
+# Transcript pipeline trace logs (local dev)
+backend/logs/
+frontend/logs/
+logs/
+*.log
+
 # Local QA test catalog (not for commit)
 testcases.txt

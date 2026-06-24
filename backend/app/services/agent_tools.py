@@ -502,6 +502,29 @@ async def tool_get_report_analysis(db: AsyncSession, patient_id: UUID, report_id
     }
 
 
+async def tool_retrieve_evidence(db: AsyncSession, patient_id: UUID, args: dict) -> dict:
+    from app.rag.retriever import chunks_to_citations, retrieve_evidence
+    from app.rag.schemas import IndexType
+
+    query = str(args.get("query") or "").strip()
+    if not query:
+        return {"chunks": [], "citations": []}
+
+    raw_indexes = args.get("indexes") or [IndexType.PATIENT_CHART.value]
+    indexes = [str(i) for i in raw_indexes]
+    top_k = args.get("top_k")
+
+    chunks = await retrieve_evidence(
+        db,
+        query=query,
+        indexes=indexes,
+        patient_id=patient_id,
+        top_k=int(top_k) if top_k else None,
+    )
+    serialized = [c.model_dump() for c in chunks]
+    return {"chunks": serialized, "citations": chunks_to_citations(chunks)}
+
+
 async def tool_save_memory(
     db: AsyncSession,
     patient_id: UUID,
@@ -605,4 +628,8 @@ async def execute_agent_tool(
         return await tool_analyze_report(db, patient.id, UUID(args["report_id"]))
     if tool == "save_memory":
         return await tool_save_memory(db, patient.id, args.get("fact", ""), conversation_id)
+    if tool == "retrieve_evidence":
+        if patient is None:
+            return {"chunks": [], "citations": []}
+        return await tool_retrieve_evidence(db, patient.id, args)
     return {"error": f"Unknown tool: {tool}"}

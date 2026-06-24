@@ -11,11 +11,17 @@ from app.models.enums import RiskLevel
 # Rules are checked in order; first match wins for specialty/risk.
 # Risk may be upgraded if conditions flag is set.
 _SYMPTOM_RULES = [
-    # Emergency — always checked first
-    (["chest pain", "heart attack", "can't breathe", "cannot breathe", "severe bleeding",
+    # Emergency — confirmed red flags only (bare chest pain is screened in triage first).
+    (["heart attack", "can't breathe", "cannot breathe", "severe bleeding",
       "loss of consciousness", "unconscious", "stroke", "paralysis", "seizure"],
      "Emergency", RiskLevel.emergency,
      "Seek emergency care immediately. Call 911 or go to the nearest ER."),
+
+    # Chest pain — urgent but screened before emergency classification.
+    (["chest pain", "chest tightness", "chest pressure"],
+     "Cardiologist", RiskLevel.high,
+     "Chest pain should be evaluated promptly. If symptoms worsen or you develop severe pain, "
+     "shortness of breath, or pain spreading to your arm or jaw, seek emergency care immediately."),
 
     # Mental health crisis
     (["suicidal", "self-harm", "want to die", "end my life"],

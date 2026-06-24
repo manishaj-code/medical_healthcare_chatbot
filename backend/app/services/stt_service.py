@@ -1,27 +1,24 @@
-"""Speech-to-text for consultation audio — Groq Whisper or Deepgram (chunk / live)."""
+"""Speech-to-text for consultation audio — Deepgram prerecorded chunk mode only."""
 from __future__ import annotations
 
 import asyncio
-import io
 import logging
+import math
+import os
 import re
-import time
-from typing import Any, Literal
+import struct
+import subprocess
+import tempfile
+from typing import Any
 
 import httpx
 
 from app.database import get_settings
-from app.services.deepgram_log import log_deepgram_request, log_deepgram_response
 
 logger = logging.getLogger(__name__)
 
-SttProvider = Literal["groq", "deepgram", "deepgram_live"]
-
-MIN_AUDIO_BYTES = 1_500
-WHISPER_PROMPT = (
-    "Medical video consultation between a doctor and a patient. "
-    "Symptoms, diagnosis, treatment, medications, and follow-up."
-)
+# Keep aligned with frontend MIN_TRANSCRIPT_CHUNK_BYTES / TRANSCRIPT_CHUNK_BYTES_DEFAULT in audioTracks.ts
+MIN_AUDIO_BYTES = 1_400
 
 _JUNK_PATTERNS = (
     r"thank you for watching",
@@ -29,17 +26,7 @@ _JUNK_PATTERNS = (
     r"please subscribe",
     r"\[music\]",
     r"\[silence\]",
-    r"^\s*\.\.\.\s*$",
-    r"^you\s*$",
-    r"^bye[\s!.]*$",
 )
-
-
-def _normalize_provider(value: str) -> SttProvider:
-    normalized = (value or "groq").strip().lower()
-    if normalized in ("deepgram", "deepgram_live"):
-        return normalized  # type: ignore[return-value]
-    return "groq"
 
 
 def _clean_transcript(text: str) -> str:
@@ -53,314 +40,325 @@ def _clean_transcript(text: str) -> str:
     return cleaned
 
 
-def _provider_available(provider: SttProvider) -> bool:
-    settings = get_settings()
-    if provider == "groq":
-        return bool(settings.groq_api_key)
-    return bool(settings.deepgram_api_key)
+def _normalize_mime_type(mime_type: str | None) -> str:
+    if not mime_type:
+        return "audio/webm"
+    base = mime_type.split(";")[0].strip().lower()
+    return base or "audio/webm"
+
+
+def _wav_mean_volume_db(data: bytes) -> float | None:
+    if len(data) < 44 or data[:4] != b"RIFF":
+        return None
+    try:
+        bits = struct.unpack_from("<H", data, 34)[0]
+        if bits != 16:
+            return None
+        pcm = data[44:]
+        count = len(pcm) // 2
+        if count == 0:
+            return None
+        sum_sq = 0.0
+        for i in range(0, count * 2, 2):
+            sample = struct.unpack_from("<h", pcm, i)[0] / 32768.0
+            sum_sq += sample * sample
+        rms = (sum_sq / count) ** 0.5
+        if rms <= 1e-9:
+            return -90.0
+        return round(20.0 * math.log10(rms), 1)
+    except Exception:
+        return None
+
+
+def _wav_header_info(data: bytes) -> dict[str, Any] | None:
+    if len(data) < 44 or data[:4] != b"RIFF":
+        return None
+    try:
+        sample_rate = struct.unpack_from("<I", data, 24)[0]
+        channels = struct.unpack_from("<H", data, 22)[0]
+        bits = struct.unpack_from("<H", data, 34)[0]
+        data_bytes = struct.unpack_from("<I", data, 40)[0]
+        samples = data_bytes // max(bits // 8, 1) // max(channels, 1)
+        duration_sec = round(samples / sample_rate, 2) if sample_rate else None
+        return {
+            "sample_rate": sample_rate,
+            "channels": channels,
+            "bits": bits,
+            "duration_sec": duration_sec,
+        }
+    except Exception:
+        return None
 
 
 def get_transcript_stt_config() -> dict[str, Any]:
-    """STT settings exposed to the doctor client on transcript start."""
     settings = get_settings()
-    provider = _normalize_provider(settings.transcript_stt_provider)
-    chunk_ms = settings.transcript_chunk_ms
-    if provider == "groq":
-        chunk_ms = max(chunk_ms, 8_000)
-
+    available = bool(settings.deepgram_api_key)
     config: dict[str, Any] = {
-        "provider": provider,
-        "chunk_interval_ms": chunk_ms,
-        "available": _provider_available(provider),
-        "model": settings.deepgram_model if provider != "groq" else "whisper-large-v3",
-        "deepgram_log_requests": settings.deepgram_log_requests,
+        "provider": "deepgram",
+        "chunk_bytes": settings.transcript_chunk_bytes,
+        "available": available,
+        "model": settings.deepgram_model,
     }
-
-    if provider == "deepgram_live":
-        config["deepgram"] = {
-            "model": settings.deepgram_model,
-            "language": settings.deepgram_language,
-            "smart_format": settings.deepgram_smart_format,
-            "interim_results": settings.deepgram_interim_results,
-        }
+    if not available:
+        config["error"] = "Deepgram transcription is not configured (DEEPGRAM_API_KEY)."
     return config
-
-
-async def create_deepgram_access_token(*, ttl_seconds: int | None = None) -> dict[str, str] | None:
-    """Ephemeral browser credential for Deepgram live (grant token or temporary API key)."""
-    settings = get_settings()
-    if not settings.deepgram_api_key:
-        return None
-
-    ttl = ttl_seconds or settings.deepgram_token_ttl_seconds
-    headers = {"Authorization": f"Token {settings.deepgram_api_key}"}
-
-    async with httpx.AsyncClient(timeout=15.0) as client:
-        grant_url = "https://api.deepgram.com/v1/auth/grant"
-        grant_body = {"ttl_seconds": ttl}
-        try:
-            log_deepgram_request(
-                "auth_grant",
-                "POST",
-                grant_url,
-                headers=headers,
-                json_body=grant_body,
-            )
-            started = time.perf_counter()
-            response = await client.post(grant_url, headers=headers, json=grant_body)
-            elapsed_ms = (time.perf_counter() - started) * 1000
-            response_body = response.json() if response.content else {}
-            if response.is_success:
-                log_deepgram_response(
-                    "auth_grant",
-                    "POST",
-                    grant_url,
-                    status_code=response.status_code,
-                    body={**response_body, "access_token": "[REDACTED]" if response_body.get("access_token") else None},
-                    elapsed_ms=elapsed_ms,
-                )
-            else:
-                log_deepgram_response(
-                    "auth_grant",
-                    "POST",
-                    grant_url,
-                    status_code=response.status_code,
-                    body=response_body,
-                    elapsed_ms=elapsed_ms,
-                    error=response.text[:500] if response.text else "HTTP error",
-                )
-            response.raise_for_status()
-            token = response_body.get("access_token")
-            if token:
-                return {"token": str(token), "token_type": "access_token"}
-        except Exception as exc:
-            log_deepgram_response(
-                "auth_grant",
-                "POST",
-                grant_url,
-                error=str(exc),
-            )
-            logger.warning("Deepgram auth/grant failed, trying temporary project key: %s", exc)
-
-        try:
-            project_id = settings.deepgram_project_id.strip() if settings.deepgram_project_id else ""
-            if not project_id:
-                projects_url = "https://api.deepgram.com/v1/projects"
-                log_deepgram_request("list_projects", "GET", projects_url, headers=headers)
-                started = time.perf_counter()
-                projects_response = await client.get(projects_url, headers=headers)
-                elapsed_ms = (time.perf_counter() - started) * 1000
-                projects_body = projects_response.json() if projects_response.content else {}
-                log_deepgram_response(
-                    "list_projects",
-                    "GET",
-                    projects_url,
-                    status_code=projects_response.status_code,
-                    body=projects_body,
-                    elapsed_ms=elapsed_ms,
-                    error=None if projects_response.is_success else projects_response.text[:500],
-                )
-                projects_response.raise_for_status()
-                projects = projects_body.get("projects") or []
-                project_id = projects[0]["project_id"] if projects else ""
-
-            if not project_id:
-                return None
-
-            keys_url = f"https://api.deepgram.com/v1/projects/{project_id}/keys"
-            keys_body = {
-                "comment": "consultation-live-transcript",
-                "scopes": ["usage:write"],
-                "time_to_live_in_seconds": ttl,
-            }
-            log_deepgram_request(
-                "create_temp_key",
-                "POST",
-                keys_url,
-                headers={**headers, "Content-Type": "application/json"},
-                json_body=keys_body,
-            )
-            started = time.perf_counter()
-            key_response = await client.post(
-                keys_url,
-                headers={**headers, "Content-Type": "application/json"},
-                json=keys_body,
-            )
-            elapsed_ms = (time.perf_counter() - started) * 1000
-            body = key_response.json() if key_response.content else {}
-            redacted_body = {**body}
-            for secret_field in ("key", "api_key"):
-                if redacted_body.get(secret_field):
-                    redacted_body[secret_field] = "[REDACTED]"
-            log_deepgram_response(
-                "create_temp_key",
-                "POST",
-                keys_url,
-                status_code=key_response.status_code,
-                body=redacted_body,
-                elapsed_ms=elapsed_ms,
-                error=None if key_response.is_success else key_response.text[:500],
-            )
-            key_response.raise_for_status()
-            token = body.get("key") or body.get("api_key")
-            if token:
-                return {"token": str(token), "token_type": "api_key"}
-        except Exception as exc:
-            log_deepgram_response(
-                "create_temp_key",
-                "POST",
-                f"https://api.deepgram.com/v1/projects/{project_id or 'unknown'}/keys",
-                error=str(exc),
-            )
-            logger.warning("Deepgram temporary key creation failed: %s", exc)
-            return None
-
-    return None
 
 
 async def build_transcript_stt_payload() -> dict[str, Any]:
-    """Full STT payload for transcript/start (includes ephemeral Deepgram token when needed)."""
-    config = get_transcript_stt_config()
-    provider = config["provider"]
+    return get_transcript_stt_config()
 
-    if provider == "deepgram_live":
-        credential = await create_deepgram_access_token()
-        if credential and credential["token_type"] == "api_key":
-            config["available"] = True
-            config.setdefault("deepgram", {})
-            config["deepgram"]["token"] = credential["token"]
-            config["deepgram"]["token_type"] = "api_key"
+
+def _convert_webm_to_wav_sync(data: bytes) -> bytes | None:
+    ffmpeg = os.environ.get("FFMPEG_PATH", "ffmpeg")
+    inp_path = ""
+    out_path = ""
+    try:
+        with tempfile.NamedTemporaryFile(suffix=".webm", delete=False) as inp:
+            inp.write(data)
+            inp_path = inp.name
+        out_path = f"{inp_path}.wav"
+        result = subprocess.run(
+            [
+                ffmpeg,
+                "-y",
+                "-loglevel",
+                "error",
+                "-fflags",
+                "+genpts",
+                "-i",
+                inp_path,
+                "-af",
+                "aresample=async=1:first_pts=0",
+                "-ar",
+                "16000",
+                "-ac",
+                "1",
+                out_path,
+            ],
+            capture_output=True,
+            timeout=30,
+            check=False,
+        )
+        if result.returncode != 0:
+            logger.warning(
+                "ffmpeg transcode failed: %s",
+                result.stderr.decode("utf-8", errors="replace")[:200],
+            )
+            return None
+        with open(out_path, "rb") as f:
+            wav = f.read()
+        return wav if len(wav) >= MIN_AUDIO_BYTES else None
+    except FileNotFoundError:
+        logger.warning("ffmpeg not installed — cannot transcode WebM")
+        return None
+    except Exception as exc:
+        logger.warning("ffmpeg transcode error: %s", exc)
+        return None
+    finally:
+        for path in (inp_path, out_path):
+            if path:
+                try:
+                    os.remove(path)
+                except OSError:
+                    pass
+
+
+def _deepgram_listen_sync(
+    data: bytes,
+    content_type: str,
+    model: str,
+    *,
+    auto_language: bool = False,
+) -> dict[str, Any]:
+    settings = get_settings()
+    params: dict[str, str] = {
+        "model": model,
+        "smart_format": "true" if settings.deepgram_smart_format else "false",
+        "punctuate": "true",
+    }
+    if not auto_language and settings.deepgram_language:
+        params["language"] = settings.deepgram_language
+    headers = {
+        "Authorization": f"Token {settings.deepgram_api_key}",
+        "Content-Type": content_type,
+    }
+    url = "https://api.deepgram.com/v1/listen"
+    with httpx.Client(timeout=45.0) as client:
+        response = client.post(url, params=params, content=data, headers=headers)
+        body = response.json() if response.content else {}
+        if not response.is_success:
+            err = body.get("err_msg") or body.get("message") or response.text[:240]
+            return {
+                "text": "",
+                "confidence": None,
+                "error": f"Deepgram HTTP {response.status_code}: {err}",
+                "raw_text_len": 0,
+                "model": model,
+            }
+
+    metadata = body.get("metadata") or {}
+    channels = body.get("channels") or []
+    alternatives = (channels[0].get("alternatives") if channels else None) or []
+    raw_text = alternatives[0].get("transcript") if alternatives else ""
+    confidence = alternatives[0].get("confidence") if alternatives else None
+    text = _clean_transcript(raw_text or "")
+    return {
+        "text": text,
+        "confidence": confidence,
+        "raw_text_len": len(raw_text or ""),
+        "model": model,
+        "dg_duration": metadata.get("duration"),
+        "dg_channels": metadata.get("channels"),
+    }
+
+
+def _transcribe_groq_sync(data: bytes, mime_type: str) -> dict[str, Any]:
+    settings = get_settings()
+    if not settings.groq_api_key:
+        return {"text": "", "confidence": None, "error": "missing_groq_key"}
+
+    ext = "wav" if "wav" in mime_type else "webm"
+    try:
+        from groq import Groq
+
+        client = Groq(api_key=settings.groq_api_key)
+        result = client.audio.transcriptions.create(
+            file=(f"chunk.{ext}", data, mime_type),
+            model="whisper-large-v3-turbo",
+            language=settings.deepgram_language or "en",
+            response_format="json",
+            temperature=0.0,
+        )
+        raw_text = getattr(result, "text", "") or ""
+        text = _clean_transcript(raw_text)
+        return {
+            "text": text,
+            "confidence": None,
+            "provider": "groq",
+            "raw_text_len": len(raw_text),
+        }
+    except Exception as exc:
+        logger.warning("Groq STT error: %s", exc)
+        return {"text": "", "confidence": None, "error": str(exc)[:240]}
+
+
+def _transcribe_deepgram_sync(
+    data: bytes,
+    mime_type: str | None,
+    *,
+    include_debug: bool = False,
+) -> dict[str, Any]:
+    settings = get_settings()
+    if not settings.deepgram_api_key:
+        return {"text": "", "confidence": None, "error": "missing_deepgram_key"}
+
+    input_mime = _normalize_mime_type(mime_type)
+    content_type = input_mime
+    audio = data
+    debug: dict[str, Any] = {
+        "input_bytes": len(data),
+        "input_mime": input_mime,
+        "ffmpeg_used": False,
+    }
+
+    if "webm" in content_type:
+        wav = _convert_webm_to_wav_sync(data)
+        if wav:
+            audio = wav
+            content_type = "audio/wav"
+            debug["ffmpeg_used"] = True
         else:
-            # JWT grant tokens need Bearer auth; @deepgram/sdk v3 in the browser only supports API keys.
-            # Server-side chunk transcription works with the same Deepgram project key.
-            config["provider"] = "deepgram"
-            config["available"] = _provider_available("deepgram")
-            config["fallback_from"] = "deepgram_live"
-            if config.get("deepgram"):
-                config["deepgram"].pop("token", None)
-                config["deepgram"].pop("token_type", None)
-            config["warning"] = (
-                "Deepgram live in the browser needs a temporary API key. "
-                "Using Deepgram chunk mode — speak for ~6s to see transcript lines."
-            )
-            if not config["available"]:
-                config["error"] = "Deepgram transcription is not configured (DEEPGRAM_API_KEY)."
+            debug["ffmpeg_failed"] = True
+            logger.warning("WebM transcode failed (%s bytes) — sending raw to Deepgram", len(data))
 
-    if not config.get("available") and provider == "groq":
-        config["error"] = "Groq transcription is not configured (GROQ_API_KEY)."
-    elif not config.get("available") and provider == "deepgram":
-        config["error"] = "Deepgram transcription is not configured (DEEPGRAM_API_KEY)."
+    debug["processed_bytes"] = len(audio)
+    debug["processed_mime"] = content_type
+    if content_type == "audio/wav":
+        debug["mean_volume_db"] = _wav_mean_volume_db(audio)
+        wav_info = _wav_header_info(audio)
+        if wav_info:
+            debug["wav_header"] = wav_info
 
-    return config
+    primary = settings.deepgram_model.strip() or "nova-3-medical"
+    models = [primary]
+    for fallback in ("nova-3", "nova-2"):
+        if fallback not in models:
+            models.append(fallback)
 
-
-def _transcribe_groq_sync(data: bytes, filename: str) -> dict:
-    settings = get_settings()
-    from groq import Groq
-
-    client = Groq(api_key=settings.groq_api_key)
-    file_obj = io.BytesIO(data)
-    result = client.audio.transcriptions.create(
-        file=(filename or "chunk.webm", file_obj.read()),
-        model="whisper-large-v3",
-        language="en",
-        temperature=0,
-        prompt=WHISPER_PROMPT,
-        response_format="verbose_json",
-    )
-    text = _clean_transcript(getattr(result, "text", None) or "")
-    return {"text": text, "confidence": 0.9 if text else None}
-
-
-def _transcribe_deepgram_sync(data: bytes, mime_type: str | None) -> dict:
-    settings = get_settings()
-    models = [settings.deepgram_model]
-    if settings.deepgram_model != "nova-3":
-        models.append("nova-3")
-
-    last_error: Exception | None = None
-    listen_url = "https://api.deepgram.com/v1/listen"
-    for model in models:
-        params = {
-            "model": model,
-            "language": settings.deepgram_language,
-            "smart_format": "true" if settings.deepgram_smart_format else "false",
-            "punctuate": "true",
-        }
-        headers = {
-            "Authorization": f"Token {settings.deepgram_api_key}",
-            "Content-Type": mime_type or "audio/webm",
-        }
-        log_deepgram_request(
-            "listen_prerecorded",
-            "POST",
-            listen_url,
-            params=params,
-            headers=headers,
-            content_bytes=len(data),
+    last_error: str | None = None
+    attempts: list[dict[str, Any]] = []
+    for idx, model in enumerate(models):
+        auto_language = idx == len(models) - 1
+        result = _deepgram_listen_sync(audio, content_type, model, auto_language=auto_language)
+        attempts.append(
+            {
+                "model": model,
+                "raw_text_len": result.get("raw_text_len", 0),
+                "text_len": len(result.get("text") or ""),
+                "error": result.get("error"),
+                "dg_duration": result.get("dg_duration"),
+                "dg_channels": result.get("dg_channels"),
+                "language": "auto" if auto_language else settings.deepgram_language,
+            }
         )
-        started = time.perf_counter()
-        try:
-            with httpx.Client(timeout=45.0) as client:
-                response = client.post(
-                    listen_url,
-                    params=params,
-                    content=data,
-                    headers=headers,
-                )
-                elapsed_ms = (time.perf_counter() - started) * 1000
-                body = response.json() if response.content else {}
-                if not response.is_success:
-                    log_deepgram_response(
-                        "listen_prerecorded",
-                        "POST",
-                        listen_url,
-                        status_code=response.status_code,
-                        body=body,
-                        elapsed_ms=elapsed_ms,
-                        error=response.text[:500] if response.text else "HTTP error",
-                    )
-                response.raise_for_status()
-                log_deepgram_response(
-                    "listen_prerecorded",
-                    "POST",
-                    listen_url,
-                    status_code=response.status_code,
-                    body=body,
-                    elapsed_ms=elapsed_ms,
-                )
-        except Exception as exc:
-            last_error = exc
-            log_deepgram_response(
-                "listen_prerecorded",
-                "POST",
-                listen_url,
-                error=str(exc),
-                elapsed_ms=(time.perf_counter() - started) * 1000,
+        if result.get("text"):
+            logger.info(
+                "Deepgram STT model=%s mime=%s bytes=%s text_len=%s",
+                model,
+                content_type,
+                len(audio),
+                len(result["text"]),
             )
-            logger.warning("Deepgram STT failed (model=%s, %s bytes): %s", model, len(data), exc)
-            continue
+            out = {k: v for k, v in result.items() if k not in ("raw_text_len", "model", "dg_duration", "dg_channels")}
+            if include_debug:
+                debug["attempts"] = attempts
+                out["debug"] = debug
+            return out
+        if result.get("error"):
+            last_error = str(result["error"])
+            break
 
-        channels = body.get("channels") or []
-        alternatives = (channels[0].get("alternatives") if channels else None) or []
-        raw_text = alternatives[0].get("transcript") if alternatives else ""
-        confidence = alternatives[0].get("confidence") if alternatives else None
-        text = _clean_transcript(raw_text or "")
-        logger.debug(
-            "Deepgram STT model=%s bytes=%s raw=%r cleaned=%r",
-            model,
-            len(data),
-            (raw_text or "")[:120],
-            (text or "")[:120],
-        )
-        if text:
-            return {"text": text, "confidence": confidence}
-        # Empty transcript — try next model in list
-        continue
+    if include_debug:
+        debug["attempts"] = attempts
 
     if last_error:
-        raise last_error
-    return {"text": "", "confidence": None}
+        logger.warning("Deepgram STT error: %s", last_error)
+        out: dict[str, Any] = {"text": "", "confidence": None, "error": last_error}
+        if include_debug:
+            out["debug"] = debug
+        return out
+
+    vol = debug.get("mean_volume_db")
+    if vol is not None and vol > -45:
+        groq_result = _transcribe_groq_sync(audio, content_type)
+        if include_debug:
+            debug["groq_attempt"] = {
+                "raw_text_len": groq_result.get("raw_text_len", 0),
+                "text_len": len(groq_result.get("text") or ""),
+                "error": groq_result.get("error"),
+            }
+        if groq_result.get("text"):
+            logger.info(
+                "Groq STT fallback mime=%s bytes=%s text_len=%s",
+                content_type,
+                len(audio),
+                len(groq_result["text"]),
+            )
+            out = {
+                "text": groq_result["text"],
+                "confidence": groq_result.get("confidence"),
+                "provider": "groq",
+            }
+            if include_debug:
+                debug["groq_fallback"] = True
+                out["debug"] = debug
+            return out
+
+    logger.info("Deepgram STT no speech mime=%s bytes=%s vol=%s", content_type, len(audio), debug.get("mean_volume_db"))
+    out = {"text": "", "confidence": None}
+    if include_debug:
+        out["debug"] = debug
+    return out
 
 
 async def transcribe_audio_chunk(
@@ -368,34 +366,16 @@ async def transcribe_audio_chunk(
     *,
     filename: str = "chunk.webm",
     mime_type: str | None = "audio/webm",
-) -> dict:
-    """
-    Transcribe a short audio chunk using the configured STT provider.
-    Returns { text, confidence } — text may be empty if STT unavailable or silent audio.
-    """
+    include_debug: bool = False,
+) -> dict[str, Any]:
+    """Transcribe a short audio chunk. Returns { text, confidence, error?, debug? }."""
+    del filename
     if not data or len(data) < MIN_AUDIO_BYTES:
         return {"text": "", "confidence": None}
 
-    settings = get_settings()
-    provider = _normalize_provider(settings.transcript_stt_provider)
-
-    if provider in ("deepgram", "deepgram_live"):
-        if not settings.deepgram_api_key:
-            return {"text": "", "confidence": None}
-        try:
-            result = await asyncio.to_thread(_transcribe_deepgram_sync, data, mime_type)
-            if result.get("text") or not settings.groq_api_key:
-                return result
-            logger.info("Deepgram returned no speech (%s bytes), trying Groq Whisper", len(data))
-        except Exception as exc:
-            logger.warning("Deepgram STT failed (%s bytes): %s", len(data), exc)
-            if not settings.groq_api_key:
-                return {"text": "", "confidence": None}
-
-    if not settings.groq_api_key:
-        return {"text": "", "confidence": None}
-    try:
-        return await asyncio.to_thread(_transcribe_groq_sync, data, filename)
-    except Exception as exc:
-        logger.warning("Groq STT failed (%s bytes): %s", len(data), exc)
-        return {"text": "", "confidence": None}
+    return await asyncio.to_thread(
+        _transcribe_deepgram_sync,
+        data,
+        mime_type,
+        include_debug=include_debug,
+    )

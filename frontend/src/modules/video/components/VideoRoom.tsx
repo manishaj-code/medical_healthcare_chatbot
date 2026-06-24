@@ -5,6 +5,7 @@ import { VideoControls } from './VideoControls';
 import { RemoteAudioPlayback } from './RemoteAudioPlayback';
 import { AudioStatusBar } from './AudioStatusBar';
 import { AudioUnlockBanner } from './AudioUnlockBanner';
+import { CallTimer } from './CallTimer';
 
 interface VideoRoomProps extends PropsWithChildren<{
   /** Token obtained from backend (required) */
@@ -39,12 +40,16 @@ export const VideoRoom = ({
   waitingFor = "doctor",
 }: VideoRoomProps) => {
   const { connectionState, error, remoteParticipants } = useVideoRoom();
+  const inCall = connectionState === "connected";
 
   return (
     <div className={compact ? "video-room video-room--compact" : "video-room"}>
       <div className="video-room-header">
         <div>
-          <h3>Video Consultation</h3>
+          <div className="video-room-header-title-row">
+            <h3>Video Consultation</h3>
+            <CallTimer active={inCall} />
+          </div>
           {connectionState === "connected" && remoteParticipants.length === 0 && (
             <p className="video-room-status">
               Connected — waiting for {waitingFor} to join
@@ -65,6 +70,7 @@ export const VideoRoom = ({
       </div>
 
       <div className="video-room-stage">
+        <CallTimer active={inCall} className="video-call-timer--overlay" />
         <RemoteAudioPlayback />
         <AudioUnlockBanner />
         {connectionState === "failed" && error && (

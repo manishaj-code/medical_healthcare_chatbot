@@ -397,11 +397,9 @@ export default function PatientChat() {
     };
     window.addEventListener("focus", refresh);
     document.addEventListener("visibilitychange", onVisibility);
-    const timer = window.setInterval(refresh, 30000);
     return () => {
       window.removeEventListener("focus", refresh);
       document.removeEventListener("visibilitychange", onVisibility);
-      window.clearInterval(timer);
     };
   }, [conversationId]);
 

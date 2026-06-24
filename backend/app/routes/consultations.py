@@ -2,6 +2,9 @@
 from __future__ import annotations
 
 import logging
+import os
+import shutil
+import time
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, UploadFile
@@ -32,6 +35,7 @@ from app.services.consultation_service import (
     save_consultation_draft,
     start_consultation,
 )
+from app.services.stt_service import get_transcript_stt_config, transcribe_audio_chunk
 from app.services.lab_catalog_service import list_active_lab_catalog
 from app.services.video_consultation_service import get_doctor_video_session
 
@@ -141,6 +145,63 @@ async def doctor_ai_suggestions(
     doctor_name = user.name if user else "Doctor"
     data = await generate_clinical_suggestions(db, consultation, patient, doctor_name)
     return ResponseEnvelope(data=data)
+
+
+@router.get("/doctor/transcript/health")
+async def doctor_transcript_health(
+    doctor: Doctor = Depends(get_doctor_profile),
+):
+    """STT readiness for the voice transcript test page (no PHI)."""
+    del doctor
+    settings = get_settings()
+    ffmpeg = shutil.which("ffmpeg") or shutil.which(os.environ.get("FFMPEG_PATH", "ffmpeg"))
+    stt = get_transcript_stt_config()
+    return ResponseEnvelope(
+        data={
+            "transcript_enabled": settings.transcript_enabled,
+            **stt,
+            "ffmpeg_available": bool(ffmpeg),
+        }
+    )
+
+
+@router.post("/doctor/transcript/transcribe")
+async def doctor_transcript_transcribe(
+    doctor: Doctor = Depends(get_doctor_profile),
+    file: UploadFile = File(...),
+):
+    """Transcribe a mic recording directly — no appointment session required."""
+    del doctor
+    if not get_settings().transcript_enabled:
+        raise HTTPException(status_code=503, detail="Transcription is disabled.")
+
+    data = await file.read()
+    if not data:
+        raise HTTPException(status_code=400, detail="Empty audio file.")
+
+    started = time.perf_counter()
+    stt = await transcribe_audio_chunk(
+        data,
+        filename=file.filename or "recording.webm",
+        mime_type=file.content_type or "audio/webm",
+        include_debug=True,
+    )
+    elapsed_ms = round((time.perf_counter() - started) * 1000, 2)
+    text = (stt.get("text") or "").strip()
+
+    return ResponseEnvelope(
+        data={
+            "stt_config": get_transcript_stt_config(),
+            "bytes": len(data),
+            "mime_type": file.content_type or "audio/webm",
+            "text": text,
+            "confidence": stt.get("confidence"),
+            "error": stt.get("error"),
+            "no_speech": not text and not stt.get("error"),
+            "elapsed_ms": elapsed_ms,
+            "debug": stt.get("debug"),
+        }
+    )
 
 
 @router.post("/doctor/appointments/{appointment_id}/transcript/start")

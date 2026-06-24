@@ -20,23 +20,11 @@ export interface TranscriptSession {
 }
 
 export interface TranscriptSttConfig {
-  provider: "groq" | "deepgram" | "deepgram_live";
-  chunk_interval_ms: number;
+  provider: "deepgram";
+  chunk_bytes: number;
   available: boolean;
   model?: string;
   error?: string;
-  warning?: string;
-  fallback_from?: string;
-  deepgram?: {
-    token?: string;
-    token_type?: "access_token" | "api_key";
-    model: string;
-    language: string;
-    smart_format?: boolean;
-    interim_results?: boolean;
-  };
-  /** Mirrored from backend DEEPGRAM_LOG_REQUESTS — log each live STT request/response in the browser console. */
-  deepgram_log_requests?: boolean;
 }
 
 export interface TranscriptStartResponse {

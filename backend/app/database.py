@@ -74,17 +74,18 @@ class Settings(BaseSettings):
     secure_headers_enabled: bool = False
 
     transcript_enabled: bool = True
-    # groq = Groq Whisper chunk upload | deepgram = Deepgram prerecorded chunks | deepgram_live = browser streams to Deepgram
-    transcript_stt_provider: str = "groq"
-    transcript_chunk_ms: int = 5_000
+    transcript_stt_provider: str = "deepgram"
+    transcript_chunk_bytes: int = 192_044
     deepgram_api_key: str = ""
-    deepgram_project_id: str = ""
-    deepgram_model: str = "nova-3-medical"
+    deepgram_model: str = "nova-3"
     deepgram_language: str = "en"
     deepgram_smart_format: bool = True
-    deepgram_interim_results: bool = True
-    deepgram_token_ttl_seconds: int = 3_600
-    deepgram_log_requests: bool = False
+
+    rag_enabled: bool = True
+    rag_embedding_provider: str = "gemini"
+    rag_embedding_model: str = "models/text-embedding-004"
+    rag_embedding_dimensions: int = 768
+    rag_top_k: int = 5
 
     @field_validator("cors_origins", mode="before")
     @classmethod

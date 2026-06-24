@@ -46,6 +46,8 @@ from app.multi_agent.offline_fallback import (
     offline_education_reply,
 )
 from app.multi_agent.types import AgentContext, AgentResponse
+from app.rag.triage_context import attach_citations_to_response, load_triage_rag_context
+from app.rag.education_context import load_education_rag_context
 
 SPECIALIST_NAMES = (
     "education_agent",
@@ -58,8 +60,8 @@ SPECIALIST_NAMES = (
 )
 
 AGENT_TOOLS = {
-    "education_agent": {"save_memory"},
-    "triage_agent": {"assess_symptoms", "save_memory"},
+    "education_agent": {"save_memory", "retrieve_evidence"},
+    "triage_agent": {"assess_symptoms", "save_memory", "retrieve_evidence"},
     "scheduling_agent": {
         "search_doctors", "get_doctor_slots", "list_appointments", "book_slot",
         "cancel_appointment", "reschedule_alternatives", "reschedule_appointment", "schedule_reminder",
@@ -258,18 +260,26 @@ class EducationAgent(BaseSpecialist):
         )
 
     async def run(self, ctx: AgentContext) -> AgentResponse:
+        rag_block, citations = await load_education_rag_context(ctx)
         hist = "\n".join(f"{h['role']}: {h['content']}" for h in ctx.history[-10:])
+        evidence_block = f"\n\n{rag_block}\n" if rag_block else ""
         prompt = (
-            f"{HEALTH_QA_PROMPT}\n\nPATIENT:\n{json.dumps(patient_ctx_for_llm(ctx.patient_ctx), default=str)}\n\n"
+            f"{HEALTH_QA_PROMPT}\n\nPATIENT:\n{json.dumps(patient_ctx_for_llm(ctx.patient_ctx), default=str)}\n"
+            f"{evidence_block}"
+            "When retrieved clinical guidelines are provided, base your answer on them and mention the source topic. "
+            "If no guidelines match, answer from general medical education with appropriate disclaimers.\n\n"
             f"CHAT:\n{hist}\n\nQUESTION: {ctx.text}\n\nASSISTANT:"
         )
         answer = await llm.text_prompt(prompt)
         if answer:
-            return AgentResponse(reply=answer.strip(), agent=self.agent_label)
+            response = AgentResponse(reply=answer.strip(), agent=self.agent_label)
+            return attach_citations_to_response(response, citations)
         offline = offline_education_reply(ctx.text)
         if offline:
-            return AgentResponse(reply=offline, agent=self.agent_label)
-        return await super().run(ctx)
+            response = AgentResponse(reply=offline, agent=self.agent_label)
+            return attach_citations_to_response(response, citations)
+        response = await super().run(ctx)
+        return attach_citations_to_response(response, citations)
 
 
 class TriageAgent(BaseSpecialist):
@@ -309,7 +319,9 @@ class TriageAgent(BaseSpecialist):
         if wants_self_care_advice(ctx.text) and (
             ctx.session.get("triage_assessed") or has_identified_symptoms(ctx.session, ctx.history)
         ):
-            return await _self_care_response(ctx)
+            _, citations = await load_triage_rag_context(ctx)
+            response = await _self_care_response(ctx)
+            return attach_citations_to_response(response, citations)
 
         if (
             not ctx.session.get("triage_assessed")
@@ -323,6 +335,9 @@ class TriageAgent(BaseSpecialist):
             return await self._response_from_decision(decision, ctx)
 
         response = await super().run(ctx)
+        citations = ctx.session.pop("_rag_citations", None)
+        if citations:
+            response = attach_citations_to_response(response, citations)
         if response.ui or response.emergency or ctx.session.get("triage_assessed"):
             return response
         ui, patch = infer_triage_quick_actions(response.reply, ctx.session)
@@ -360,6 +375,8 @@ class TriageAgent(BaseSpecialist):
             agent=self.agent_label,
             ui=decision.get("ui"),
             session_patch=decision.get("session_patch"),
+            emergency=bool(decision.get("emergency")),
+            clear_session=bool(decision.get("clear_session")),
         )
 
     def _role_description(self) -> str:
@@ -396,6 +413,40 @@ class TriageAgent(BaseSpecialist):
         ):
             return conversational_triage_turn(text, ctx.session, ctx.history)
         return conversational_triage_turn(text, ctx.session, ctx.history)
+
+    async def _decide(self, ctx: AgentContext) -> dict | None:
+        rag_block, citations = await load_triage_rag_context(ctx)
+        if citations:
+            ctx.session["_rag_citations"] = citations
+
+        hist = "\n".join(f"{h['role']}: {h['content']}" for h in ctx.history[-12:])
+        payload_data = {
+            "patient": patient_ctx_for_llm(ctx.patient_ctx),
+            "session": ctx.session,
+            "tool_result": ctx.tool_result,
+            "report_id": ctx.report_id,
+            "care_goal": ctx.session.get("care_goal"),
+        }
+        if rag_block:
+            payload_data["retrieved_evidence"] = rag_block
+
+        payload = json.dumps(payload_data, default=str)
+        tools = ", ".join(sorted(AGENT_TOOLS.get(self.name, set()))) or "none"
+        allergy_note = ""
+        allergies = ctx.patient_ctx.get("allergies") or []
+        if allergies:
+            allergy_note = (
+                "\nAllergy safety: never recommend substances the patient is allergic to: "
+                + ", ".join(str(a) for a in allergies)
+                + ".\n"
+            )
+        prompt = (
+            f"{SPECIALIST_PROMPT.format(name=self.name, tools=tools)}\n\n"
+            f"SPECIALIST ROLE: {self._role_description()}\n"
+            f"{allergy_note}\n"
+            f"CONTEXT:\n{payload}\n\nCHAT:\n{hist}\n\nPATIENT: {ctx.text}\n\nJSON:"
+        )
+        return await llm.json_prompt(prompt)
 
 
 class SchedulingAgent(BaseSpecialist):

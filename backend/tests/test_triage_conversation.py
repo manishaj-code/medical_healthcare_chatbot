@@ -131,3 +131,48 @@ def test_new_complaint_after_prior_triage_asks_duration():
     assert result.get("tool") != "assess_symptoms"
     assert "how long" in reply
     assert result.get("session_patch", {}).get("awaiting") == "pick_duration"
+
+
+def test_bare_chest_pain_starts_cardiac_screen_not_emergency():
+    session = {
+        "_patient_first_name": "John",
+        "detected_symptoms": ["Chest Pain"],
+        "care_goal": "symptom_assessment",
+        "active_specialist": "triage_agent",
+        "triage_collected": {"symptoms": ["Chest Pain"], "questions_asked": ["symptoms"]},
+    }
+    result = conversational_triage_turn("chest pain", session)
+    assert not result.get("emergency")
+    assert result.get("session_patch", {}).get("awaiting") == "cardiac_emergency_screen"
+    assert "severe" in result.get("reply", "").lower()
+
+
+def test_cardiac_screen_confirms_emergency_on_alarm_answers():
+    session = {
+        "_patient_first_name": "John",
+        "detected_symptoms": ["Chest Pain"],
+        "care_goal": "symptom_assessment",
+        "active_specialist": "triage_agent",
+        "awaiting": "cardiac_emergency_screen",
+        "cardiac_screen": {"active": True, "step": 1, "alarm_count": 0},
+        "triage_collected": {"symptoms": ["Chest Pain"], "questions_asked": ["symptoms", "cardiac_screen"]},
+    }
+    result = conversational_triage_turn("Yes, severe and I can't breathe", session)
+    assert result.get("emergency") is True
+    assert "emergency" in result.get("reply", "").lower()
+
+
+def test_cardiac_screen_all_clear_continues_to_duration():
+    session = {
+        "_patient_first_name": "John",
+        "detected_symptoms": ["Chest Pain"],
+        "care_goal": "symptom_assessment",
+        "active_specialist": "triage_agent",
+        "awaiting": "cardiac_emergency_screen",
+        "cardiac_screen": {"active": True, "step": 3, "alarm_count": 0, "clear_count": 2},
+        "triage_collected": {"symptoms": ["Chest Pain"], "questions_asked": ["symptoms", "cardiac_screen"]},
+    }
+    result = conversational_triage_turn("no", session)
+    assert not result.get("emergency")
+    assert "how long" in result.get("reply", "").lower()
+    assert result.get("session_patch", {}).get("awaiting") == "pick_duration"

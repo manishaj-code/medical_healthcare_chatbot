@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState } from "react";
 import { api } from "../api/client";
 import { NotificationItem } from "../utils/notifications";
 
-const POLL_MS = 45_000;
+const POLL_MS = 60000;
 
 export function useNotifications(apiPrefix: string) {
   const [unreadCount, setUnreadCount] = useState(0);

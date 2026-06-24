@@ -1,4 +1,4 @@
-import zlib
+import zlib, logging
 from datetime import datetime, timedelta, timezone
 from uuid import UUID
 
@@ -27,6 +27,11 @@ from app.schemas.common import ResponseEnvelope
 router = APIRouter(prefix="/chat", tags=["chat"])
 
 HEALTH_CHAT_TITLE = "Health Chat"
+
+logger = logging.getLogger(__name__)
+logger.setLevel(logging.INFO)
+
+logger.addHandler(logging.StreamHandler())
 
 
 def _utc_now() -> datetime:
@@ -226,6 +231,7 @@ async def ensure_today_conversation(
 async def get_messages(
     conversation_id: UUID, patient: Patient = Depends(get_patient_profile), db: AsyncSession = Depends(get_db)
 ):
+    logger.info(f"Getting messages for conversation {conversation_id} for patient {patient.id}")
     from app.services.appointment_card_service import enrich_stored_appointment_ui
 
     conv = await db.get(Conversation, conversation_id)
@@ -417,6 +423,8 @@ async def send_message(
     patient: Patient = Depends(get_patient_profile),
     db: AsyncSession = Depends(get_db),
 ):
+    logger.info(f"Sending message for conversation {conversation_id} for patient {patient.id}")
+    logger.info(f"Data: {data}")
     conv = await db.get(Conversation, conversation_id)
     if not conv or conv.patient_id != patient.id:
         raise HTTPException(status_code=404, detail="Conversation not found")

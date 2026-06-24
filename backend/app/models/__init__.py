@@ -31,6 +31,7 @@ from app.models.enums import (
     UrgentConsultRequestStatus,
     UserRole,
 )
+from app.models.rag_chunk import RagChunk
 from app.models.reports import DoctorNote, PatientSummary, Report
 from app.models.system import AuditLog, Notification, RefreshToken
 from app.models.user import Doctor, Patient, User
@@ -67,6 +68,7 @@ __all__ = [
     "RefreshToken",
     "Notification",
     "AuditLog",
+    "RagChunk",
     "UrgentConsultRequest",
     "UrgentConsultOffer",
     "UserRole",

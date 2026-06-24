@@ -76,22 +76,31 @@ services:
       LIVEKIT_API_KEY: ${LIVEKIT_API_KEY:-}
       LIVEKIT_API_SECRET: ${LIVEKIT_API_SECRET:-}
       TRANSCRIPT_ENABLED: ${TRANSCRIPT_ENABLED:-true}
-      TRANSCRIPT_STT_PROVIDER: ${TRANSCRIPT_STT_PROVIDER:-groq}
-      TRANSCRIPT_CHUNK_MS: ${TRANSCRIPT_CHUNK_MS:-6000}
+      TRANSCRIPT_STT_PROVIDER: ${TRANSCRIPT_STT_PROVIDER:-deepgram}
+      TRANSCRIPT_CHUNK_BYTES: ${TRANSCRIPT_CHUNK_BYTES:-192044}
       DEEPGRAM_API_KEY: ${DEEPGRAM_API_KEY:-}
       DEEPGRAM_MODEL: ${DEEPGRAM_MODEL:-nova-3-medical}
       DEEPGRAM_LANGUAGE: ${DEEPGRAM_LANGUAGE:-en}
       DEEPGRAM_SMART_FORMAT: ${DEEPGRAM_SMART_FORMAT:-true}
-      DEEPGRAM_INTERIM_RESULTS: ${DEEPGRAM_INTERIM_RESULTS:-true}
-      DEEPGRAM_LOG_REQUESTS: ${DEEPGRAM_LOG_REQUESTS:-false}
+      BACKEND_LOGS: ${BACKEND_LOGS:-true}
     volumes:
       - ./backend:/app
+      - ./backend/logs:/app/logs
     depends_on:
       postgres:
         condition: service_healthy
       redis:
         condition: service_healthy
-    entrypoint: ["python", "entrypoint.py"]
+    entrypoint:
+      - bash
+      - -lc
+      - |
+        if [[ "$${BACKEND_LOGS,,}" == "true" ]]; then
+          mkdir -p /app/logs
+          python entrypoint.py 2>&1 | tee -a /app/logs/backend.log
+        else
+          exec python entrypoint.py
+        fi
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
       interval: 10s
@@ -108,14 +117,26 @@ services:
     environment:
       VITE_PROXY_TARGET: http://api:8000
       VITE_GUEST_SESSION_PERSIST: ${GUEST_SESSION_PERSIST:-true}
+      FRONTEND_LOGS: ${FRONTEND_LOGS:-true}
       CHOKIDAR_USEPOLLING: "true"
       WATCHPACK_POLLING: "true"
     volumes:
       - ./frontend:/app
       - /app/node_modules
+      - ./frontend/logs:/app/logs
     depends_on:
       api:
         condition: service_healthy
+    command:
+      - sh
+      - -c
+      - |
+        if [ "$$FRONTEND_LOGS" = "true" ]; then
+          mkdir -p /app/logs
+          npm run dev -- --host 0.0.0.0 --port 5173 2>&1 | tee -a /app/logs/frontend.log
+        else
+          exec npm run dev -- --host 0.0.0.0 --port 5173
+        fi
 
 volumes:
   pgdata:

@@ -9471,6 +9471,40 @@ th { font-weight: 600; background: #f8f9fa; }
   font-size: 1rem;
 }
 
+.video-room-header-title-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.video-call-timer {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 3.5rem;
+  padding: 4px 10px;
+  border-radius: 8px;
+  font-family: ui-monospace, "Cascadia Code", "Segoe UI Mono", monospace;
+  font-size: 0.95rem;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.04em;
+  color: #f8fafc;
+  background: rgba(15, 23, 42, 0.65);
+  border: 1px solid rgba(148, 163, 184, 0.35);
+}
+
+.video-call-timer--overlay {
+  position: absolute;
+  top: 12px;
+  left: 12px;
+  z-index: 4;
+  background: rgba(15, 23, 42, 0.78);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.25);
+  pointer-events: none;
+}
+
 .video-room-status {
   margin: 4px 0 0;
   font-size: 0.85rem;
@@ -9487,6 +9521,7 @@ th { font-weight: 600; background: #f8f9fa; }
 }
 
 .video-room-stage {
+  position: relative;
   flex: 1;
   min-height: 260px;
   background: #020617;
@@ -9741,4 +9776,143 @@ th { font-weight: 600; background: #f8f9fa; }
   display: flex;
   gap: 8px;
   flex-wrap: wrap;
+}
+
+.voice-transcript-lab {
+  max-width: 960px;
+  margin: 0 auto;
+  padding: 24px 20px 48px;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.voice-transcript-lab-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+.voice-transcript-lab-head h1 {
+  margin: 0 0 6px;
+  font-size: 1.5rem;
+}
+
+.voice-transcript-lab-sub {
+  margin: 0;
+  color: #64748b;
+  font-size: 0.95rem;
+}
+
+.voice-transcript-lab-cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: 16px;
+}
+
+.voice-transcript-lab-card {
+  background: #fff;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  padding: 16px;
+}
+
+.voice-transcript-lab-card h2 {
+  margin: 0 0 12px;
+  font-size: 1rem;
+}
+
+.voice-transcript-lab-meta {
+  margin: 0 0 12px;
+  padding-left: 18px;
+  color: #334155;
+  font-size: 0.9rem;
+}
+
+.voice-transcript-lab-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.voice-transcript-lab-status {
+  margin: 8px 0 0;
+  font-size: 0.9rem;
+  color: #64748b;
+}
+
+.voice-transcript-lab-status--live {
+  color: #dc2626;
+  font-weight: 600;
+}
+
+.voice-transcript-lab-panel {
+  background: #fff;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  padding: 16px;
+}
+
+.voice-transcript-lab-panel h2 {
+  margin: 0 0 12px;
+  font-size: 1rem;
+}
+
+.voice-transcript-lab-lines {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.voice-transcript-lab-lines li {
+  padding: 12px;
+  background: #f8fafc;
+  border-radius: 8px;
+  border: 1px solid #e2e8f0;
+}
+
+.voice-transcript-lab-line-time {
+  font-size: 0.75rem;
+  color: #64748b;
+}
+
+.voice-transcript-lab-line-conf {
+  display: block;
+  margin-top: 4px;
+  font-size: 0.75rem;
+  color: #64748b;
+}
+
+.voice-transcript-lab-log {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  max-height: 420px;
+  overflow-y: auto;
+}
+
+.voice-transcript-lab-log-item {
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  padding: 8px 10px;
+  background: #f8fafc;
+}
+
+.voice-transcript-lab-log-item summary {
+  cursor: pointer;
+  font-size: 0.85rem;
+}
+
+.voice-transcript-lab-log-item pre {
+  margin: 8px 0 0;
+  font-size: 0.75rem;
+  overflow-x: auto;
+  white-space: pre-wrap;
+  word-break: break-word;
 }
